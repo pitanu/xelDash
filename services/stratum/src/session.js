@@ -1,6 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import {
-  DEFAULT_ALGORITHM,
   STRATUM_ERRORS,
   encodeMessage,
   errorResponse,
@@ -14,33 +13,43 @@ const MAX_WORKER_NAME = 128;
 /** @typedef {import("./protocol.js").StratumRequest} StratumRequest */
 /** @typedef {{ minerId: string | bigint, workerId: string | bigint, address: string, publicKey: string }} MiningIdentity */
 /** @typedef {{ error?: { code: number, message: string, data?: unknown }, accepted?: boolean }} ShareResult */
+/** @typedef {import("./job-provider.js").MiningJob} MiningJob */
 
 export class StratumSession {
   /**
    * @param {{ socket: StratumSocket,
    *   authorizeAddress: (input: { address: string, workerName: string, password: string, ip?: string }) => Promise<MiningIdentity | null>,
-   *   submitShare?: ((input: { worker: MiningIdentity, workerName: string, jobId: string, nonce: string, algorithm: string | null }) => Promise<ShareResult>) | null,
+   *   createJob?: ((input: { address: string, publicKey: string, extraNonce: string, algorithm: string }) => Promise<MiningJob>) | null,
+   *   submitShare?: ((input: { worker: MiningIdentity, workerName: string, job: MiningJob, nonce: string, algorithm: string | null }) => Promise<ShareResult>) | null,
    *   onHashrate?: (input: { worker: MiningIdentity, workerName: string, hashrate: number }) => void,
    *   onAuthorized?: () => void,
+   *   jobRefreshIntervalMs?: number,
    *   defaultAddress?: string,
    *   logger?: Pick<Console, "warn"> }} options
    */
-  constructor({ socket, authorizeAddress, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, defaultAddress = "", logger = console }) {
+  constructor({ socket, authorizeAddress, createJob = null, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, jobRefreshIntervalMs = 5000, defaultAddress = "", logger = console }) {
     this.socket = socket;
     this.authorizeAddress = authorizeAddress;
+    this.createJob = createJob;
     this.submitShare = submitShare;
     this.onHashrate = onHashrate;
     this.onAuthorized = onAuthorized;
+    this.jobRefreshIntervalMs = jobRefreshIntervalMs;
     this.defaultAddress = defaultAddress;
     this.logger = logger;
     this.algorithm = null;
     this.subscribed = false;
     /** @type {Map<string, MiningIdentity>} */
     this.authorizedWorkers = new Map();
+    /** @type {Map<string, MiningJob>} */
+    this.jobs = new Map();
     /** @type {string | null} */
     this.miningAddress = null;
     this.extranonce = randomBytes(32).toString("hex");
     this.publicKey = "00".repeat(32);
+    this.miningIdentity = null;
+    this.jobRefreshTimer = null;
+    this.refreshingJob = false;
   }
 
   /** @param {string} line */
@@ -81,8 +90,8 @@ export class StratumSession {
       return;
     }
     const algorithm = negotiateAlgorithm(supported);
-    if (!algorithm) {
-      this.send(errorResponse(request.id, STRATUM_ERRORS.UNKNOWN, "No supported XELIS algorithm"));
+    if (algorithm !== "xel/v3") {
+      this.send(errorResponse(request.id, STRATUM_ERRORS.UNKNOWN, "Only xel/v3 is currently supported"));
       return;
     }
     this.algorithm = algorithm;
@@ -134,9 +143,26 @@ export class StratumSession {
     if (!/^[0-9a-f]{64}$/i.test(identity.publicKey)) {
       throw new Error("Address validator returned a malformed public key");
     }
+    if (!this.createJob || !this.submitShare || this.algorithm !== "xel/v3") {
+      this.send(errorResponse(request.id, STRATUM_ERRORS.UNKNOWN, "No validated xel/v3 mining job provider is available"));
+      return;
+    }
+    const job = await this.createJob({
+      address: miningAddress,
+      publicKey: identity.publicKey,
+      extraNonce: this.extranonce,
+      algorithm: this.algorithm,
+    });
     this.miningAddress = miningAddress;
+    this.miningIdentity = identity;
     this.publicKey = identity.publicKey.toLowerCase();
     this.authorizedWorkers.set(workerName, identity);
+    this.jobs.set(job.jobId, job);
+    while (this.jobs.size > 5) {
+      const oldestJobId = this.jobs.keys().next().value;
+      if (!oldestJobId) break;
+      this.jobs.delete(oldestJobId);
+    }
     this.onAuthorized();
     this.send(response(request.id, true));
     this.send({
@@ -145,6 +171,65 @@ export class StratumSession {
       method: "mining.set_extranonce",
       params: [this.extranonce, 32, this.publicKey],
     });
+    this.send({ jsonrpc: "2.0", id: null, method: "mining.set_difficulty", params: [job.shareDifficulty] });
+    this.send({
+      jsonrpc: "2.0",
+      id: null,
+      method: "mining.notify",
+      params: [job.jobId, job.timestampHex, job.headerWorkHash, job.algorithm, true],
+    });
+    this.startJobRefresh();
+  }
+
+  startJobRefresh() {
+    if (this.jobRefreshTimer || !this.createJob) return;
+    this.jobRefreshTimer = setInterval(() => void this.refreshJob(), this.jobRefreshIntervalMs);
+    this.jobRefreshTimer.unref();
+  }
+
+  async refreshJob() {
+    if (this.refreshingJob || !this.miningIdentity || !this.miningAddress
+        || !this.algorithm || this.socket.destroyed || !this.createJob) return;
+    this.refreshingJob = true;
+    try {
+      const job = await this.createJob({
+        address: this.miningAddress,
+        publicKey: this.miningIdentity.publicKey,
+        extraNonce: this.extranonce,
+        algorithm: this.algorithm,
+      });
+      const latestJob = [...this.jobs.values()].at(-1);
+      const cleanJobs = !latestJob || latestJob.headerWorkHash !== job.headerWorkHash
+        || latestJob.networkDifficulty !== job.networkDifficulty;
+      if (latestJob && !cleanJobs && latestJob.timestampHex === job.timestampHex
+          && latestJob.shareDifficulty === job.shareDifficulty) return;
+      this.jobs.set(job.jobId, job);
+      while (this.jobs.size > 5) {
+        const oldestJobId = this.jobs.keys().next().value;
+        if (!oldestJobId) break;
+        this.jobs.delete(oldestJobId);
+      }
+      if (!latestJob || latestJob.shareDifficulty !== job.shareDifficulty) {
+        this.send({ jsonrpc: "2.0", id: null, method: "mining.set_difficulty", params: [job.shareDifficulty] });
+      }
+      this.send({
+        jsonrpc: "2.0",
+        id: null,
+        method: "mining.notify",
+        params: [job.jobId, job.timestampHex, job.headerWorkHash, job.algorithm, cleanJobs],
+      });
+    } catch (error) {
+      this.logger.warn?.("Unable to refresh Stratum job", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      this.refreshingJob = false;
+    }
+  }
+
+  close() {
+    if (this.jobRefreshTimer) clearInterval(this.jobRefreshTimer);
+    this.jobRefreshTimer = null;
   }
 
   /** @param {StratumRequest} request */
@@ -164,7 +249,12 @@ export class StratumSession {
       this.send(errorResponse(request.id, STRATUM_ERRORS.STALE_JOB, "No active mining job"));
       return;
     }
-    const result = await this.submitShare({ worker, workerName, jobId, nonce: nonce.toLowerCase(), algorithm: this.algorithm });
+    const job = this.jobs.get(jobId);
+    if (!job) {
+      this.send(errorResponse(request.id, STRATUM_ERRORS.STALE_JOB, "Job not found"));
+      return;
+    }
+    const result = await this.submitShare({ worker, workerName, job, nonce: nonce.toLowerCase(), algorithm: this.algorithm });
     if (result?.error) {
       this.send(errorResponse(request.id, result.error.code, result.error.message, result.error.data ?? null));
       return;

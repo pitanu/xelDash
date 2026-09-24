@@ -5,7 +5,7 @@ export class DaemonClient {
     this.endpoint = endpoint;
   }
 
-  /** @param {string} method @param {Record<string, unknown>} params @returns {Promise<unknown>} */
+  /** @template T @param {string} method @param {Record<string, unknown>} params @returns {Promise<T>} */
   async call(method, params) {
     const id = ++this.#id;
     const response = await fetch(this.endpoint, {
@@ -19,7 +19,7 @@ export class DaemonClient {
     if (body.id !== id || body.error || !Object.hasOwn(body, "result")) {
       throw new Error(`Daemon RPC ${method} failed: ${body.error?.message ?? "malformed response"}`);
     }
-    return body.result;
+    return /** @type {T} */ (body.result);
   }
 
   /** @param {string} address @returns {Promise<{ publicKey: string } | null>} */
@@ -35,5 +35,20 @@ export class DaemonClient {
     );
     if (typeof key?.hex !== "string") throw new Error("Daemon did not return the mining public key");
     return { publicKey: key.hex };
+  }
+
+  /** @param {string} address @returns {Promise<{ algorithm: string, difficulty: string, height: number, template: string }>} */
+  getBlockTemplate(address) {
+    return this.call("get_block_template", { address });
+  }
+
+  /** @param {string} template @param {string} address @returns {Promise<{ algorithm: string, difficulty: string, height: number, miner_work: string }>} */
+  getMinerWork(template, address) {
+    return this.call("get_miner_work", { template, address });
+  }
+
+  /** @param {string} template @param {string} minerWork @returns {Promise<boolean>} */
+  submitBlock(template, minerWork) {
+    return this.call("submit_block", { block_template: template, miner_work: minerWork });
   }
 }

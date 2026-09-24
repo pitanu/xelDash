@@ -7,20 +7,25 @@ and a dashboard for worker hashrate, accepted/rejected shares, and time-to-block
 It submits only solved blocks to the node. Rewards go directly to each miner's authorized
 address; xelDash has no shared-reward accounting, balances, payout service, or hot wallet.
 
-**Status:** early Phase 1 implementation. The daemon RPC spike and initial Stratum protocol/session layer exist, and the native XELIS Hash V3 addon boundary is in place. A live validated job pipeline and Stratum Compose service remain to be implemented.
+**Status:** early Phase 1 implementation. Compose now builds and runs the V3 hash addon and Stratum service, which fetches address-specific work, validates shares, records them, and submits network-target candidates. Known-good miner-vector and devnet verification remain outstanding.
 
 ## Local containers
 
-Copy `.env.example` to `.env`, set a strong `POSTGRES_PASSWORD`, then start the daemon and
-database with `docker compose up -d`. PostgreSQL migrations run automatically before the
-API starts. The API is available at `http://localhost:8081`; `/health` reports dependency
-health and `/api/v1/overview` returns node difficulty, recent share totals, and block
-statuses. Share difficulty is reported as a raw measurement; hashrate and time-to-block
-conversion are not yet enabled.
+Copy `.env.example` to `.env`, set a strong `POSTGRES_PASSWORD`, then start the stack with
+`docker compose up -d`. PostgreSQL migrations run automatically before the API becomes
+healthy. The API is available at `http://localhost:8081`; `/health` reports dependency
+health and `/api/v1/overview` returns node difficulty, share totals, block statuses, and
+estimated hashrates and expected time-to-block from completed share windows. Estimates are
+`null` until their window contains accepted shares, then stabilize as the window fills.
 
 The daemon RPC stays private to Compose. For the host-run daemon template spike only, use
 `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d daemon`; this
 development overlay binds RPC to `127.0.0.1:8080`.
+
+Stratum listens on host port 3333, bound to `127.0.0.1` by default. Set
+`XELDASH_STRATUM_BIND_IP` to the host's LAN address in `.env` to allow miners on that LAN
+to connect. The share target defaults to 1,000,000 and is capped at the network difficulty;
+automatic vardiff is not enabled yet.
 
 To make the API reachable from your LAN, set `XELDASH_API_BIND_IP` to this machine's LAN
 IP address in `.env`. Its default is `127.0.0.1`. The daemon RPC and PostgreSQL remain

@@ -50,10 +50,52 @@ services:
       PGUSER: ${POSTGRES_USER:-xeldash}
       PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     depends_on:
+      daemon:
+        condition: service_started
       postgres:
         condition: service_healthy
     ports:
       - "${XELDASH_API_BIND_IP:-127.0.0.1}:${XELDASH_API_PORT:-8081}:8081"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8081/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - backend
+
+  stratum:
+    build:
+      context: .
+      dockerfile: services/stratum/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      STRATUM_HOST: 0.0.0.0
+      STRATUM_PORT: 3333
+      STRATUM_HANDSHAKE_TIMEOUT_MS: ${STRATUM_HANDSHAKE_TIMEOUT_MS:-10000}
+      STRATUM_MAX_QUEUED_REQUESTS: ${STRATUM_MAX_QUEUED_REQUESTS:-32}
+      STRATUM_JOB_REFRESH_MS: ${STRATUM_JOB_REFRESH_MS:-5000}
+      STRATUM_SHARE_DIFFICULTY: ${STRATUM_SHARE_DIFFICULTY:-1000000}
+      XELIS_DEFAULT_ADDRESS: ${XELIS_DEFAULT_ADDRESS:-}
+      XELIS_RPC_URL: http://daemon:8080/json_rpc
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-xeldash}
+      PGUSER: ${POSTGRES_USER:-xeldash}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${XELDASH_STRATUM_BIND_IP:-127.0.0.1}:${XELDASH_STRATUM_PORT:-3333}:3333"
+    healthcheck:
+      test: ["CMD", "node", "-e", "const n=require('node:net');const s=n.connect(3333,'127.0.0.1');s.once('connect',()=>{s.end();process.exit(0)});s.once('error',()=>process.exit(1));"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
     networks:
       - backend
 

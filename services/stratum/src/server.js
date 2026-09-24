@@ -1,25 +1,32 @@
 import { createServer } from "node:net";
-import { createPool } from "../../../packages/db/src/index.js";
+import { createPool } from "@xeldash/db";
 import { createWorkerAuthorizer } from "./authorize-worker.js";
 import { DaemonClient } from "./daemon-client.js";
+import { MiningJobProvider } from "./job-provider.js";
 import { LineFramer } from "./line-framer.js";
 import { StratumSession } from "./session.js";
+import { createShareSubmitter } from "./share-submitter.js";
 
 const host = process.env.STRATUM_HOST ?? "0.0.0.0";
 const port = Number.parseInt(process.env.STRATUM_PORT ?? "3333", 10);
 const handshakeTimeoutMs = Number.parseInt(process.env.STRATUM_HANDSHAKE_TIMEOUT_MS ?? "10000", 10);
 const maxQueuedRequests = Number.parseInt(process.env.STRATUM_MAX_QUEUED_REQUESTS ?? "32", 10);
+const jobRefreshIntervalMs = Number.parseInt(process.env.STRATUM_JOB_REFRESH_MS ?? "5000", 10);
+const shareDifficulty = Number(process.env.STRATUM_SHARE_DIFFICULTY ?? "1000000");
 if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
   throw new Error("STRATUM_PORT must be an integer from 1 to 65535");
 }
 if (!Number.isSafeInteger(handshakeTimeoutMs) || handshakeTimeoutMs < 1000
-    || !Number.isSafeInteger(maxQueuedRequests) || maxQueuedRequests < 1) {
-  throw new Error("Stratum handshake timeout or queued request limit is invalid");
+    || !Number.isSafeInteger(maxQueuedRequests) || maxQueuedRequests < 1
+    || !Number.isSafeInteger(jobRefreshIntervalMs) || jobRefreshIntervalMs < 1000) {
+  throw new Error("Stratum handshake timeout, queue limit, or job refresh interval is invalid");
 }
 
 const pool = createPool();
 const daemon = new DaemonClient();
 const authorizeAddress = createWorkerAuthorizer({ daemon, pool });
+const jobProvider = new MiningJobProvider({ daemon, shareDifficulty });
+const submitShare = createShareSubmitter({ daemon, pool });
 
 const server = createServer((socket) => {
   const framer = new LineFramer();
@@ -32,9 +39,13 @@ const server = createServer((socket) => {
   const session = new StratumSession({
     socket,
     authorizeAddress,
+    createJob: (input) => jobProvider.create(input),
+    submitShare,
+    jobRefreshIntervalMs,
     defaultAddress: process.env.XELIS_DEFAULT_ADDRESS ?? "",
     onAuthorized: () => clearTimeout(handshakeTimer),
   });
+  socket.once("close", () => session.close());
   let queue = Promise.resolve();
   let queuedRequests = 0;
 
@@ -67,8 +78,8 @@ const server = createServer((socket) => {
 });
 
 server.listen(port, host, () => {
-  console.info(`xelDash Stratum scaffold listening on ${host}:${port}`);
-  console.warn("No active job provider is configured; submitted shares are rejected as stale.");
+  console.info(`xelDash Stratum server listening on ${host}:${port}`);
+  console.info(`Using fixed share difficulty ${shareDifficulty}; vardiff is not enabled.`);
 });
 
 async function shutdown() {

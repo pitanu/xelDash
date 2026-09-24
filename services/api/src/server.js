@@ -6,6 +6,52 @@ const host = process.env.API_HOST ?? "0.0.0.0";
 const daemonUrl = process.env.XELIS_RPC_URL ?? "http://daemon:8080/json_rpc";
 const pool = createPool();
 let rpcId = 0;
+const HASHRATE_WINDOWS = Object.freeze([
+  { key: "5m", seconds: 300, difficultyColumn: "difficulty_5m" },
+  { key: "1h", seconds: 3600, difficultyColumn: "difficulty_1h" },
+  { key: "24h", seconds: 86400, difficultyColumn: "difficulty_24h" },
+]);
+const DIFFICULTY_SCALE = 1_000_000_000_000n;
+
+/** @param {bigint} scaled @param {number} decimals */
+function formatScaled(scaled, decimals) {
+  const base = 10n ** BigInt(decimals);
+  const whole = scaled / base;
+  const fraction = String(scaled % base).padStart(decimals, "0");
+  return decimals > 0 ? `${whole}.${fraction}` : String(whole);
+}
+
+/** @param {string} value */
+function positiveInteger(value) {
+  if (!/^[1-9]\d*$/.test(value)) throw new Error("Daemon returned invalid network difficulty");
+  return BigInt(value);
+}
+
+/** @param {string} value */
+function decimalToDifficultyUnits(value) {
+  const match = /^(0|[1-9]\d*)(?:\.(\d{1,12}))?$/.exec(value);
+  if (!match) throw new Error("Database returned invalid share difficulty sum");
+  return BigInt(match[1]) * DIFFICULTY_SCALE
+    + BigInt((match[2] ?? "").padEnd(12, "0") || "0");
+}
+
+/** @param {Record<string, string>} activity @param {unknown} network */
+function estimateMining(activity, network) {
+  const networkDifficulty = positiveInteger(/** @type {{ difficulty: string }} */ (network).difficulty);
+  return Object.fromEntries(HASHRATE_WINDOWS.map(({ key, seconds, difficultyColumn }) => {
+    const shareDifficultyUnits = decimalToDifficultyUnits(activity[difficultyColumn] ?? "0");
+    if (shareDifficultyUnits === 0n) {
+      return [key, { windowSeconds: seconds, estimatedHashesPerSecond: null, expectedTimeToBlockSeconds: null }];
+    }
+    const hashrateMilli = shareDifficultyUnits * 1000n / (BigInt(seconds) * DIFFICULTY_SCALE);
+    const ttbDeciseconds = networkDifficulty * BigInt(seconds) * 10n * DIFFICULTY_SCALE / shareDifficultyUnits;
+    return [key, {
+      windowSeconds: seconds,
+      estimatedHashesPerSecond: formatScaled(hashrateMilli, 3),
+      expectedTimeToBlockSeconds: formatScaled(ttbDeciseconds, 1),
+    }];
+  }));
+}
 
 /** @param {string} method */
 async function daemonCall(method) {
@@ -28,15 +74,15 @@ async function getOverview() {
     daemonCall("get_difficulty"),
     pool.query(`
       SELECT
-        COALESCE(SUM(accepted) FILTER (WHERE bucket >= now() - interval '5 minutes'), 0)::text AS accepted_5m,
-        COALESCE(SUM(rejected) FILTER (WHERE bucket >= now() - interval '5 minutes'), 0)::text AS rejected_5m,
-        COALESCE(SUM(sum_difficulty) FILTER (WHERE bucket >= now() - interval '5 minutes'), 0)::text AS difficulty_5m,
-        COALESCE(SUM(accepted) FILTER (WHERE bucket >= now() - interval '1 hour'), 0)::text AS accepted_1h,
-        COALESCE(SUM(rejected) FILTER (WHERE bucket >= now() - interval '1 hour'), 0)::text AS rejected_1h,
-        COALESCE(SUM(sum_difficulty) FILTER (WHERE bucket >= now() - interval '1 hour'), 0)::text AS difficulty_1h,
-        COALESCE(SUM(accepted) FILTER (WHERE bucket >= now() - interval '24 hours'), 0)::text AS accepted_24h,
-        COALESCE(SUM(rejected) FILTER (WHERE bucket >= now() - interval '24 hours'), 0)::text AS rejected_24h,
-        COALESCE(SUM(sum_difficulty) FILTER (WHERE bucket >= now() - interval '24 hours'), 0)::text AS difficulty_24h
+        COALESCE(SUM(accepted) FILTER (WHERE bucket >= date_trunc('minute', now()) - interval '5 minutes' AND bucket < date_trunc('minute', now())), 0)::text AS accepted_5m,
+        COALESCE(SUM(rejected) FILTER (WHERE bucket >= date_trunc('minute', now()) - interval '5 minutes' AND bucket < date_trunc('minute', now())), 0)::text AS rejected_5m,
+        COALESCE(SUM(sum_difficulty) FILTER (WHERE bucket >= date_trunc('minute', now()) - interval '5 minutes' AND bucket < date_trunc('minute', now())), 0)::text AS difficulty_5m,
+        COALESCE(SUM(accepted) FILTER (WHERE bucket >= date_trunc('minute', now()) - interval '1 hour' AND bucket < date_trunc('minute', now())), 0)::text AS accepted_1h,
+        COALESCE(SUM(rejected) FILTER (WHERE bucket >= date_trunc('minute', now()) - interval '1 hour' AND bucket < date_trunc('minute', now())), 0)::text AS rejected_1h,
+        COALESCE(SUM(sum_difficulty) FILTER (WHERE bucket >= date_trunc('minute', now()) - interval '1 hour' AND bucket < date_trunc('minute', now())), 0)::text AS difficulty_1h,
+        COALESCE(SUM(accepted) FILTER (WHERE bucket >= date_trunc('minute', now()) - interval '24 hours' AND bucket < date_trunc('minute', now())), 0)::text AS accepted_24h,
+        COALESCE(SUM(rejected) FILTER (WHERE bucket >= date_trunc('minute', now()) - interval '24 hours' AND bucket < date_trunc('minute', now())), 0)::text AS rejected_24h,
+        COALESCE(SUM(sum_difficulty) FILTER (WHERE bucket >= date_trunc('minute', now()) - interval '24 hours' AND bucket < date_trunc('minute', now())), 0)::text AS difficulty_24h
       FROM worker_stats_1m
     `),
     pool.query(`
@@ -49,8 +95,8 @@ async function getOverview() {
 
   const workerCounts = await pool.query(`
     SELECT
-      COUNT(DISTINCT w.id) FILTER (WHERE s.bucket >= now() - interval '5 minutes')::text AS active_workers,
-      COUNT(DISTINCT w.miner_id) FILTER (WHERE s.bucket >= now() - interval '5 minutes')::text AS active_miners
+      COUNT(DISTINCT w.id) FILTER (WHERE s.bucket >= date_trunc('minute', now()) - interval '4 minutes')::text AS active_workers,
+      COUNT(DISTINCT w.miner_id) FILTER (WHERE s.bucket >= date_trunc('minute', now()) - interval '4 minutes')::text AS active_miners
     FROM workers w
     LEFT JOIN worker_stats_1m s ON s.worker_id = w.id
   `);
@@ -60,8 +106,8 @@ async function getOverview() {
     network,
     miners: workerCounts.rows[0],
     shares: activity.rows[0],
+    miningEstimates: estimateMining(activity.rows[0], network),
     blocks: blocks.rows,
-    note: "Share difficulty totals are raw measurements. XELIS difficulty-to-hash conversion and TTB are not yet configured.",
   };
 }
 

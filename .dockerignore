@@ -3,5 +3,8 @@
 node_modules
 **/node_modules
 **/dist
+target
+**/target
+*.node
 **/.turbo
 npm-debug.log*

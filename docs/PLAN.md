@@ -156,14 +156,19 @@ Open items:
 - Retention defaults: raw shares (for example, 7 days) and 1-minute stats (for example,
   90 days, possibly with hourly rollups beyond that).
 
-## 6. Difficulty and stats (Open)
+## 6. Difficulty and stats (Decided, vardiff open)
 
-- Vardiff: target shares per minute, how often to retarget, minimum and maximum
-  difficulty, starting difficulty, and a per-port fixed-difficulty option.
-- Hashrate formula for XELIS: difficulty-to-hashes conversion, and the averaging windows
-  (for example, 5 minutes, 1 hour, 24 hours).
-- Handling stale and duplicate shares, and what counts as "invalid".
-- Validate every share before using it for hashrate and worker statistics.
+- Validate V3 hashes as unsigned big-endian U256 values against
+  `floor((2^256 - 1) / difficulty)`, matching XELIS consensus.
+- Each accepted share contributes its assigned share difficulty to the hashrate estimate;
+  estimated H/s is accepted difficulty sum divided by completed window duration. Windows
+  are 5 minutes, 1 hour, and 24 hours.
+- Expected solo time-to-block is network difficulty divided by observed hashrate. It is an
+  expectation, not a prediction; the API returns `null` when a window has no accepted shares.
+- Initial Stratum target is fixed by `STRATUM_SHARE_DIFFICULTY` and capped at the current
+  network difficulty. Vardiff parameters remain open.
+- Shares are hashed before persistence; low difficulty and duplicates are recorded as
+  rejected. Malformed and stale submissions are rejected before share accounting.
 - Block lifecycle tracking: poll the daemon until each found block is final.
 
 ## 7. LAN security (Draft)

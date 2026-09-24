@@ -20,6 +20,7 @@ the phase that depends on it.
 | 2026-09    | Collect and validate shares for pool-quality statistics, while submitting only solved blocks | No shared rewards, balances, payout processing, or hot wallet; miner-authorized address receives the block reward |
 | 2026-09    | Keep miner and dashboard services LAN-only by default | Public internet exposure is outside the v1 deployment model |
 | 2026-09    | Use plain SQL migrations and start with indexed, unpartitioned raw shares | Keeps the first schema simple; add partitioning when retention and observed volume justify it |
+| 2026-09    | Calculate V3 share difficulty and pool estimates using XELIS U256 targets | Hash bytes are interpreted big-endian; valid target is `floor((2^256 - 1) / difficulty)`. Accepted assigned share difficulty divided by elapsed completed-window seconds estimates H/s; expected TTB is network difficulty divided by H/s. |
 
 ## Proposed (confirm or reject)
 
@@ -38,7 +39,7 @@ the phase that depends on it.
 - [x] Migrations / query tool — plain SQL migrations
 - [ ] Share partitioning and retention policy — defer until usage and retention limits are set
 - [ ] Retention defaults for shares and stats
-- [ ] Vardiff parameters and hashrate formula
+- [ ] Vardiff parameters and retarget interval
 - [ ] Dashboard auth model
 - [ ] License
 - [x] Package manager / monorepo tooling — npm workspaces, JavaScript with JSDoc and `checkJs`
