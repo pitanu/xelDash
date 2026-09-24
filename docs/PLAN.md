@@ -254,8 +254,9 @@ xeldash/
 ## Known technical risks
 
 1. **Share validation in Node:** Xelishash V3 is too heavy for plain JavaScript, so it
-   needs a native addon (napi-rs wrapping the Rust hash implementation). Phase 1 must
-   prove this works.
+   needs a native addon (napi-rs wrapping the official Rust hash implementation). The
+   first addon boundary is in `packages/xelis-hash`; Phase 1 must verify its output against
+   known-good miner hashes and prove the full native build works in supported containers.
 2. **Per-miner block templates:** check that the daemon RPC supports building work for
    different miner addresses the way the per-address design assumes (Phase 1).
 3. **Algorithm and hard-fork changes:** the pool, addon and node must be upgraded together.

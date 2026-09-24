@@ -7,7 +7,7 @@ and a dashboard for worker hashrate, accepted/rejected shares, and time-to-block
 It submits only solved blocks to the node. Rewards go directly to each miner's authorized
 address; xelDash has no shared-reward accounting, balances, payout service, or hot wallet.
 
-**Status:** early Phase 1 implementation. The daemon RPC spike and initial Stratum protocol/session layer exist. A live validated job pipeline, hash addon, and Stratum Compose service remain to be implemented.
+**Status:** early Phase 1 implementation. The daemon RPC spike and initial Stratum protocol/session layer exist, and the native XELIS Hash V3 addon boundary is in place. A live validated job pipeline and Stratum Compose service remain to be implemented.
 
 ## Local containers
 
@@ -41,7 +41,7 @@ services/api/        LAN-bound REST API
 web/                 dashboard (planned)
 packages/db/         database migrations
 packages/db/src/     migration runner and transactional share persistence
-packages/xelis-hash/ native hash addon (planned)
+packages/xelis-hash/ native XELIS Hash V3 addon (initial implementation)
 ```
 
 - [Project plan](docs/PLAN.md): scope, architecture, data model, phases

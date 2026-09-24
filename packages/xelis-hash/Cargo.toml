@@ -1,0 +1,17 @@
+[package]
+name = "xeldash-xelis-hash"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "index"
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", features = ["napi8"] }
+napi-derive = "2"
+xelis-hash = { git = "https://github.com/xelis-project/xelis-hash.git", rev = "f48262b931438fdbf2932711613e020c02f1ea04", default-features = false, features = ["v3"] }
+
+[build-dependencies]
+napi-build = "2"

@@ -7,6 +7,7 @@
     "start": "node src/server.js"
   },
   "dependencies": {
-    "@xeldash/db": "*"
+    "@xeldash/db": "*",
+    "@xeldash/xelis-hash": "*"
   }
 }
