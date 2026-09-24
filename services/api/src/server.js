@@ -84,14 +84,15 @@ const server = createServer(async (request, response) => {
   }
 
   try {
-    if (request.url === "/health") {
+    const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
+    if (pathname === "/health") {
       await pool.query("SELECT 1");
       const height = await daemonCall("get_height");
       sendJson(response, 200, { status: "ok", nodeHeight: height });
       return;
     }
 
-    if (request.url === "/api/v1/overview") {
+    if (pathname === "/api/v1/overview") {
       sendJson(response, 200, await getOverview());
       return;
     }

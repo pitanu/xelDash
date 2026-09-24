@@ -21,13 +21,17 @@ export class StratumSession {
    *   authorizeAddress: (input: { address: string, workerName: string, password: string, ip?: string }) => Promise<MiningIdentity | null>,
    *   submitShare?: ((input: { worker: MiningIdentity, workerName: string, jobId: string, nonce: string, algorithm: string | null }) => Promise<ShareResult>) | null,
    *   onHashrate?: (input: { worker: MiningIdentity, workerName: string, hashrate: number }) => void,
+   *   onAuthorized?: () => void,
+   *   defaultAddress?: string,
    *   logger?: Pick<Console, "warn"> }} options
    */
-  constructor({ socket, authorizeAddress, submitShare = null, onHashrate = () => {}, logger = console }) {
+  constructor({ socket, authorizeAddress, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, defaultAddress = "", logger = console }) {
     this.socket = socket;
     this.authorizeAddress = authorizeAddress;
     this.submitShare = submitShare;
     this.onHashrate = onHashrate;
+    this.onAuthorized = onAuthorized;
+    this.defaultAddress = defaultAddress;
     this.logger = logger;
     this.algorithm = null;
     this.subscribed = false;
@@ -93,11 +97,23 @@ export class StratumSession {
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, "Subscribe before authorizing"));
       return;
     }
-    const [address, workerName = "default", password = ""] = request.params;
-    if (typeof address !== "string" || typeof workerName !== "string"
+    const [requestedAddress, workerName = "default", password = ""] = request.params;
+    if ((requestedAddress !== undefined && requestedAddress !== null
+          && typeof requestedAddress !== "string") || typeof workerName !== "string"
         || workerName.length === 0 || workerName.length > MAX_WORKER_NAME
         || typeof password !== "string") {
       this.send(errorResponse(request.id, -32602, "Invalid authorize parameters"));
+      return;
+    }
+    const address = typeof requestedAddress === "string" && requestedAddress.length > 0
+      ? requestedAddress
+      : this.defaultAddress;
+    if (!address) {
+      this.send(errorResponse(
+        request.id,
+        STRATUM_ERRORS.UNAUTHORIZED,
+        "Provide a miner address or configure XELIS_DEFAULT_ADDRESS",
+      ));
       return;
     }
     if (this.miningAddress !== null && this.miningAddress !== address) {
@@ -121,6 +137,7 @@ export class StratumSession {
     this.miningAddress = miningAddress;
     this.publicKey = identity.publicKey.toLowerCase();
     this.authorizedWorkers.set(workerName, identity);
+    this.onAuthorized();
     this.send(response(request.id, true));
     this.send({
       jsonrpc: "2.0",

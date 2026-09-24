@@ -13,8 +13,12 @@ export class LineFramer {
     this.#maxLineBytes = maxLineBytes;
   }
 
-  /** @param {Uint8Array | string} chunk @returns {string[]} */
-  push(chunk) {
+  /** @param {Uint8Array | string} chunk @param {number} [maxLines] @returns {string[]} */
+  push(chunk, maxLines = Number.POSITIVE_INFINITY) {
+    if (!Number.isSafeInteger(maxLines) && maxLines !== Number.POSITIVE_INFINITY) {
+      throw new TypeError("maxLines must be a nonnegative safe integer");
+    }
+    if (maxLines < 0) throw new RangeError("maxLines must not be negative");
     const incoming = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     this.#buffer = this.#buffer.length
       ? Buffer.concat([this.#buffer, incoming])
@@ -26,7 +30,10 @@ export class LineFramer {
       let line = this.#buffer.subarray(0, newline);
       if (line.length && line[line.length - 1] === 0x0d) line = line.subarray(0, -1);
       this.#buffer = this.#buffer.subarray(newline + 1);
-      if (line.length) lines.push(line.toString("utf8"));
+      if (line.length) {
+        if (lines.length >= maxLines) throw new RangeError("Too many Stratum messages in one connection batch");
+        lines.push(line.toString("utf8"));
+      }
     }
     if (this.#buffer.length > this.#maxLineBytes) {
       throw new RangeError("Stratum message exceeds the maximum line size");
