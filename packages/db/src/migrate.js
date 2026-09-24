@@ -16,13 +16,13 @@ const client = new Client(databaseUrl ? { connectionString: databaseUrl } : {});
 await client.connect();
 
 try {
+  await client.query("SELECT pg_advisory_lock($1)", [74011233]);
   await client.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version TEXT PRIMARY KEY,
       applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
-  await client.query("SELECT pg_advisory_lock($1)", [74011233]);
 
   const files = (await readdir(migrationDirectory))
     .filter((name) => /^\d+_[a-z0-9_-]+\.sql$/i.test(name))

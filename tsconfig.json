@@ -4,8 +4,12 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": true,
-    "declaration": true,
     "skipLibCheck": true,
-    "outDir": "dist"
-  }
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["services/**/*.ts", "services/**/*.js", "packages/**/*.js"],
+  "exclude": ["node_modules", "dist"]
 }

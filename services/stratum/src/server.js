@@ -25,12 +25,12 @@ const server = createServer((socket) => {
     try {
       for (const line of framer.push(chunk)) {
         queue = queue.then(() => session.handleLine(line)).catch((error) => {
-          console.warn("Closing Stratum connection after request failure:", error.message);
+          console.warn("Closing Stratum connection after request failure:", error instanceof Error ? error.message : String(error));
           socket.destroy();
         });
       }
     } catch (error) {
-      console.warn("Closing malformed Stratum connection:", error.message);
+      console.warn("Closing malformed Stratum connection:", error instanceof Error ? error.message : String(error));
       socket.destroy();
     }
   });

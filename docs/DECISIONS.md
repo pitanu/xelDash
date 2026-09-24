@@ -12,7 +12,9 @@ the phase that depends on it.
 | 2026-09    | Custom code in JavaScript/Node, React, Tailwind | |
 | 2026-09    | PostgreSQL from day one | Not SQLite |
 | 2026-09    | Plan the whole project before writing code | |
-| 2026-09    | Use npm workspaces and TypeScript for the initial implementation | Low setup cost; revisit if native addon packaging requires a different workspace tool |
+| 2026-09    | Use npm workspaces for the monorepo | Low setup cost; revisit if native addon packaging requires a different workspace tool |
+| 2026-09    | Use JavaScript with JSDoc and TypeScript `checkJs` for service code | Keep one runtime language while type-checking shared service contracts; use Rust for the native hash addon |
+| 2026-09    | Follow the official XELIS Stratum protocol documentation | Support `xel/v3` and documented legacy algorithm aliases; verify compatibility with real miners |
 | 2026-09    | Integrate with daemon JSON-RPC at `/json_rpc`; use daemon-provided templates and miner work | Confirmed by the official daemon API; runtime and network behavior still need a devnet spike |
 | 2026-09    | Persist daemon state at `/root/.xelis` in a named Docker volume | Reuse the working prototype's daemon data path; keep a new xelDash volume so the old node volume is not touched |
 | 2026-09    | Collect and validate shares for pool-quality statistics, while submitting only solved blocks | No shared rewards, balances, payout processing, or hot wallet; miner-authorized address receives the block reward |
@@ -27,7 +29,6 @@ the phase that depends on it.
 | Native hash addon via napi-rs | Share validation is too slow in plain JavaScript |
 | Separate services: daemon, stratum, api, web, postgres | Clear boundaries, and each can be scaled or restarted on its own |
 | Develop against testnet/devnet | Finding blocks quickly makes testing practical |
-| TypeScript instead of plain JS | Safer protocol code; shared DB types |
 
 ## Open
 
@@ -40,4 +41,5 @@ the phase that depends on it.
 - [ ] Vardiff parameters and hashrate formula
 - [ ] Dashboard auth model
 - [ ] License
-- [x] Package manager / monorepo tooling — npm workspaces + TypeScript (initial choice)
+- [x] Package manager / monorepo tooling — npm workspaces, JavaScript with JSDoc and `checkJs`
+- [x] Stratum wire protocol — official XELIS Stratum documentation and documented algorithm aliases

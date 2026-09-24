@@ -7,6 +7,7 @@ const daemonUrl = process.env.XELIS_RPC_URL ?? "http://daemon:8080/json_rpc";
 const pool = createPool();
 let rpcId = 0;
 
+/** @param {string} method */
 async function daemonCall(method) {
   const response = await fetch(daemonUrl, {
     method: "POST",
@@ -64,6 +65,7 @@ async function getOverview() {
   };
 }
 
+/** @param {import("node:http").ServerResponse} response @param {number} statusCode @param {unknown} value */
 function sendJson(response, statusCode, value) {
   const body = JSON.stringify(value);
   response.writeHead(statusCode, {
@@ -96,7 +98,7 @@ const server = createServer(async (request, response) => {
 
     sendJson(response, 404, { error: "not_found" });
   } catch (error) {
-    console.error("API request failed:", error.message);
+    console.error("API request failed:", error instanceof Error ? error.message : String(error));
     sendJson(response, 503, { error: "dependency_unavailable" });
   }
 });

@@ -5,6 +5,12 @@
   "workspaces": ["services/*", "packages/*"],
   "scripts": {
     "spike:template": "npm run spike:template --workspace @xeldash/daemon-spike",
-    "db:migrate": "npm run migrate --workspace @xeldash/db"
+    "db:migrate": "npm run migrate --workspace @xeldash/db",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "@types/pg": "^8.15.4",
+    "typescript": "^5.9.0"
   }
 }

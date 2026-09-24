@@ -2,6 +2,7 @@ const DEFAULT_MAX_LINE_BYTES = 64 * 1024;
 
 /** Buffers arbitrary TCP chunks and emits complete newline-delimited UTF-8 messages. */
 export class LineFramer {
+  /** @type {Buffer<ArrayBufferLike>} */
   #buffer = Buffer.alloc(0);
   #maxLineBytes;
 
@@ -12,6 +13,7 @@ export class LineFramer {
     this.#maxLineBytes = maxLineBytes;
   }
 
+  /** @param {Uint8Array | string} chunk @returns {string[]} */
   push(chunk) {
     const incoming = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     this.#buffer = this.#buffer.length

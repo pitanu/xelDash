@@ -5,6 +5,7 @@ export class DaemonClient {
     this.endpoint = endpoint;
   }
 
+  /** @param {string} method @param {Record<string, unknown>} params @returns {Promise<unknown>} */
   async call(method, params) {
     const id = ++this.#id;
     const response = await fetch(this.endpoint, {
@@ -21,10 +22,17 @@ export class DaemonClient {
     return body.result;
   }
 
+  /** @param {string} address @returns {Promise<{ publicKey: string } | null>} */
   async getMiningIdentity(address) {
-    const validation = await this.call("validate_address", { address, allow_integrated: false });
+    /** @type {{ is_integrated?: boolean, is_valid?: boolean }} */
+    const validation = /** @type {{ is_integrated?: boolean, is_valid?: boolean }} */ (
+      await this.call("validate_address", { address, allow_integrated: false })
+    );
     if (!validation?.is_valid || validation.is_integrated) return null;
-    const key = await this.call("extract_key_from_address", { address, as_hex: true });
+    /** @type {{ hex?: string }} */
+    const key = /** @type {{ hex?: string }} */ (
+      await this.call("extract_key_from_address", { address, as_hex: true })
+    );
     if (typeof key?.hex !== "string") throw new Error("Daemon did not return the mining public key");
     return { publicKey: key.hex };
   }

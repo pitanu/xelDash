@@ -2,6 +2,11 @@ import pg from "pg";
 
 const { Pool } = pg;
 
+/** @typedef {import("pg").Pool} PgPool */
+/** @typedef {{ address: string, name?: string, ip?: string | null }} WorkerInput */
+/** @typedef {{ workerId: string | bigint, jobId: string, nonce: string, accepted: boolean, rejectReason?: string | null, difficulty: string | bigint, createdAt?: Date | string | null }} ShareInput */
+
+/** @param {string | undefined} [connectionString] @returns {PgPool} */
 export function createPool(connectionString = process.env.DATABASE_URL) {
   if (!connectionString && !process.env.PGHOST) {
     throw new Error("Set DATABASE_URL or PGHOST/PGDATABASE/PGUSER/PGPASSWORD");
@@ -15,6 +20,7 @@ export function createPool(connectionString = process.env.DATABASE_URL) {
   });
 }
 
+/** @param {PgPool} pool @param {WorkerInput} workerInput */
 export async function ensureWorker(pool, { address, name = "default", ip = null }) {
   if (typeof address !== "string" || address.length === 0) {
     throw new TypeError("Miner address is required");
@@ -51,6 +57,7 @@ export async function ensureWorker(pool, { address, name = "default", ip = null 
   }
 }
 
+/** @param {PgPool} pool @param {ShareInput} share */
 export async function recordShare(pool, share) {
   if (typeof share.workerId !== "string" && typeof share.workerId !== "bigint") {
     throw new TypeError("workerId must be a string or bigint");

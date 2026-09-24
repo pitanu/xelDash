@@ -10,9 +10,20 @@ import {
 } from "./protocol.js";
 
 const MAX_WORKER_NAME = 128;
+/** @typedef {import("node:net").Socket} StratumSocket */
+/** @typedef {import("./protocol.js").StratumRequest} StratumRequest */
+/** @typedef {{ minerId: string | bigint, workerId: string | bigint, address: string, publicKey: string }} MiningIdentity */
+/** @typedef {{ error?: { code: number, message: string, data?: unknown }, accepted?: boolean }} ShareResult */
 
 export class StratumSession {
-  constructor({ socket, authorizeAddress, submitShare, onHashrate = () => {}, logger = console }) {
+  /**
+   * @param {{ socket: StratumSocket,
+   *   authorizeAddress: (input: { address: string, workerName: string, password: string, ip?: string }) => Promise<MiningIdentity | null>,
+   *   submitShare?: ((input: { worker: MiningIdentity, workerName: string, jobId: string, nonce: string, algorithm: string | null }) => Promise<ShareResult>) | null,
+   *   onHashrate?: (input: { worker: MiningIdentity, workerName: string, hashrate: number }) => void,
+   *   logger?: Pick<Console, "warn"> }} options
+   */
+  constructor({ socket, authorizeAddress, submitShare = null, onHashrate = () => {}, logger = console }) {
     this.socket = socket;
     this.authorizeAddress = authorizeAddress;
     this.submitShare = submitShare;
@@ -20,17 +31,21 @@ export class StratumSession {
     this.logger = logger;
     this.algorithm = null;
     this.subscribed = false;
+    /** @type {Map<string, MiningIdentity>} */
     this.authorizedWorkers = new Map();
+    /** @type {string | null} */
+    this.miningAddress = null;
     this.extranonce = randomBytes(32).toString("hex");
     this.publicKey = "00".repeat(32);
   }
 
+  /** @param {string} line */
   async handleLine(line) {
     let request;
     try {
       request = parseRequest(JSON.parse(line));
     } catch (error) {
-      this.send(errorResponse(null, -32600, error.message));
+      this.send(errorResponse(null, -32600, error instanceof Error ? error.message : String(error)));
       return;
     }
 
@@ -45,11 +60,15 @@ export class StratumSession {
           if (request.id !== null) this.send(errorResponse(request.id, -32601, "Method not found"));
       }
     } catch (error) {
-      this.logger.warn?.("Stratum request failed", { method: request.method, error: error.message });
+      this.logger.warn?.("Stratum request failed", {
+        method: request.method,
+        error: error instanceof Error ? error.message : String(error),
+      });
       if (request.id !== null) this.send(errorResponse(request.id, STRATUM_ERRORS.UNKNOWN, "Request failed"));
     }
   }
 
+  /** @param {StratumRequest} request */
   subscribe(request) {
     const [agent = "", supported = []] = request.params;
     if (typeof agent !== "string" || !Array.isArray(supported)
@@ -68,6 +87,7 @@ export class StratumSession {
     this.send(response(request.id, [randomUUID(), this.extranonce, 32, this.publicKey]));
   }
 
+  /** @param {StratumRequest} request */
   async authorize(request) {
     if (!this.subscribed) {
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, "Subscribe before authorizing"));
@@ -80,15 +100,25 @@ export class StratumSession {
       this.send(errorResponse(request.id, -32602, "Invalid authorize parameters"));
       return;
     }
+    if (this.miningAddress !== null && this.miningAddress !== address) {
+      this.send(errorResponse(
+        request.id,
+        STRATUM_ERRORS.UNAUTHORIZED,
+        "A connection may authorize workers for only one mining address",
+      ));
+      return;
+    }
 
     const identity = await this.authorizeAddress({ address, workerName, password, ip: this.socket.remoteAddress });
     if (!identity?.workerId || !identity?.publicKey) {
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, "Address is invalid or unauthorized"));
       return;
     }
+    const miningAddress = identity.address ?? address;
     if (!/^[0-9a-f]{64}$/i.test(identity.publicKey)) {
       throw new Error("Address validator returned a malformed public key");
     }
+    this.miningAddress = miningAddress;
     this.publicKey = identity.publicKey.toLowerCase();
     this.authorizedWorkers.set(workerName, identity);
     this.send(response(request.id, true));
@@ -100,15 +130,17 @@ export class StratumSession {
     });
   }
 
+  /** @param {StratumRequest} request */
   async submit(request) {
     const [workerName, jobId, nonce] = request.params;
+    if (typeof workerName !== "string" || typeof jobId !== "string"
+        || typeof nonce !== "string" || !/^[0-9a-f]{16}$/i.test(nonce)) {
+      this.send(errorResponse(request.id, -32602, "Invalid submit parameters"));
+      return;
+    }
     const worker = this.authorizedWorkers.get(workerName);
     if (!worker) {
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, "Worker is not authorized"));
-      return;
-    }
-    if (typeof jobId !== "string" || typeof nonce !== "string" || !/^[0-9a-f]{16}$/i.test(nonce)) {
-      this.send(errorResponse(request.id, -32602, "Invalid submit parameters"));
       return;
     }
     if (!this.submitShare) {
@@ -123,6 +155,7 @@ export class StratumSession {
     this.send(response(request.id, result?.accepted === true));
   }
 
+  /** @param {StratumRequest} request */
   hashrate(request) {
     const [reported] = request.params;
     if (typeof reported !== "number" || !Number.isFinite(reported) || reported < 0) {
@@ -135,6 +168,7 @@ export class StratumSession {
     if (request.id !== null) this.send(response(request.id, true));
   }
 
+  /** @param {unknown} message */
   send(message) {
     if (!this.socket.destroyed) this.socket.write(encodeMessage(message));
   }

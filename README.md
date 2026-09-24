@@ -18,6 +18,10 @@ health and `/api/v1/overview` returns node difficulty, recent share totals, and 
 statuses. Share difficulty is reported as a raw measurement; hashrate and time-to-block
 conversion are not yet enabled.
 
+The daemon RPC stays private to Compose. For the host-run daemon template spike only, use
+`docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d daemon`; this
+development overlay binds RPC to `127.0.0.1:8080`.
+
 To make the API reachable from your LAN, set `XELDASH_API_BIND_IP` to this machine's LAN
 IP address in `.env`. Its default is `127.0.0.1`. The daemon RPC and PostgreSQL remain
 private to the Compose network, and daemon P2P binds to localhost by default.
@@ -42,6 +46,7 @@ packages/xelis-hash/ native hash addon (planned)
 
 - [Project plan](docs/PLAN.md): scope, architecture, data model, phases
 - [Decision log](docs/DECISIONS.md): what's decided and what's still open
+- [Follow-up issues](docs/ISSUES.md): deferred items from the initial-commit review
 - [Phase 1 spike notes](docs/PHASE-1-SPIKE.md): current implementation and validation gaps
 
 ## Planned stack

@@ -1,0 +1,6 @@
+# Development-only daemon RPC access for the host-run template spike.
+# Keep the binding on loopback; do not use this overlay on a public host.
+services:
+  daemon:
+    ports:
+      - "127.0.0.1:8080:8080"

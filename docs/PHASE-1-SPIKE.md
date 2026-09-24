@@ -2,7 +2,7 @@
 
 ## Implemented
 
-- Initial npm workspace and strict TypeScript configuration.
+- Initial npm workspace with JavaScript, JSDoc types, and TypeScript `checkJs` validation.
 - `@xeldash/daemon-spike` JSON-RPC client with bounded request timeouts and JSON-RPC error handling.
 - Template inspection script that queries node height, network difficulty, and a template for `XELIS_DEFAULT_ADDRESS`.
 - Client methods for `get_miner_work` and `submit_block` to support the next end-to-end spike step.
@@ -10,13 +10,21 @@
 - Stratum address authorization uses daemon `validate_address` and `extract_key_from_address`, then persists the worker identity in PostgreSQL.
 - Stratum submissions fail closed while no active validated job exists. This layer is not yet exposed as a running Compose service.
 
-Run after installing workspace dependencies and starting a daemon reachable at `XELIS_RPC_URL`:
+The JSON-RPC endpoint is private to the Compose network by default. To run this spike from
+the host, start the daemon with the development overlay, which publishes RPC only on
+loopback, then set the host-side RPC URL:
 
 ```sh
-npm install
-# Set XELIS_DEFAULT_ADDRESS and XELIS_RPC_URL in the environment.
+npm ci
+# In PowerShell, set these for the current terminal session.
+$env:XELIS_DEFAULT_ADDRESS = "your-address-for-this-network"
+$env:XELIS_RPC_URL = "http://127.0.0.1:8080/json_rpc"
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d daemon
 npm run spike:template
 ```
+
+Do not expose daemon RPC on a LAN or public interface. The development overlay binds it to
+`127.0.0.1` only and should not be used on a host where loopback forwarding is not trusted.
 
 ## Still to prove
 

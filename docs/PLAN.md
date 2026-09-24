@@ -46,14 +46,13 @@ custodial wallets.
 | `web`      | React + Vite + Tailwind dashboard, served as static files | LAN only |
 | `postgres` | Persistent storage | No |
 
-## 3. Mining protocols (Open)
+## 3. Mining protocols (Decided, compatibility details Open)
 
 Questions to settle:
 
-- **Stratum spec:** follow the Vipor-proposed XELIS stratum protocol
-  (github.com/vipor-net/xelis-stratum-protocol), since major GPU miners already support it.
-  Decide which algorithm identifiers to accept (for example, older names that should map
-  to the current algorithm).
+- **Stratum spec:** follow the [official XELIS Stratum protocol documentation](https://docs.xelis.io/developers-api/stratum).
+  The implementation negotiates `xel/v3` and documented aliases; confirm behavior with
+  real miner clients before release.
 - **Getwork:** also offer a getwork (WebSocket) endpoint for miners that only speak
   getwork, or support stratum only in v1?
 - **TLS stratum:** include in v1 or leave for later?
@@ -215,7 +214,7 @@ written.
 - CI with GitHub Actions: lint, tests, and image builds on tags.
 - Versioning with SemVer and a changelog.
 - CONTRIBUTING.md, issue templates and a code of conduct.
-- JavaScript or TypeScript (TypeScript recommended for protocol code and a shared DB schema).
+- JavaScript with JSDoc and TypeScript `checkJs` for service code; Rust for the native hash addon.
 - Package manager and monorepo tooling: npm, pnpm or yarn workspaces.
 
 ---
