@@ -1,0 +1,10 @@
+{
+  "name": "xeldash",
+  "private": true,
+  "type": "module",
+  "workspaces": ["services/*", "packages/*"],
+  "scripts": {
+    "spike:template": "npm run spike:template --workspace @xeldash/daemon-spike",
+    "db:migrate": "npm run migrate --workspace @xeldash/db"
+  }
+}

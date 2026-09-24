@@ -1,0 +1,12 @@
+{
+  "name": "@xeldash/daemon-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "spike:template": "tsx src/get-template.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

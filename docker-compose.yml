@@ -1,0 +1,66 @@
+name: xeldash
+
+services:
+  daemon:
+    image: ${XELIS_DAEMON_IMAGE:-xelis/daemon:latest}
+    command:
+      - --network=${XELIS_NETWORK:-devnet}
+      - --rpc-bind-address=0.0.0.0:8080
+      - --dir-path=/root/.xelis/
+    restart: unless-stopped
+    volumes:
+      - xelis-data:/root/.xelis
+    ports:
+      - "${XELIS_P2P_BIND_IP:-127.0.0.1}:${XELIS_P2P_PORT:-2125}:2125"
+    expose:
+      - "8080"
+    networks:
+      - backend
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-xeldash}
+      POSTGRES_USER: ${POSTGRES_USER:-xeldash}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - backend
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 8081
+      XELIS_RPC_URL: http://daemon:8080/json_rpc
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-xeldash}
+      PGUSER: ${POSTGRES_USER:-xeldash}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${XELDASH_API_BIND_IP:-127.0.0.1}:${XELDASH_API_PORT:-8081}:8081"
+    networks:
+      - backend
+
+volumes:
+  xelis-data:
+  postgres-data:
+
+networks:
+  backend:
+    driver: bridge

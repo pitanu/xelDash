@@ -1,0 +1,262 @@
+# xelDash: Project Plan
+
+*Working name. Last updated: 2026-09-24. Status: Phase 1 spike in progress.*
+
+Each section is marked **Decided**, **Draft** (a proposal to confirm), or **Open** (not
+discussed yet). When something is settled, record it in [DECISIONS.md](DECISIONS.md).
+
+---
+
+## 1. Scope and users (Decided)
+
+- An open-source, self-hosted XELIS solo mining server and statistics dashboard, run with
+  Docker Compose and intended for LAN use.
+- Whoever deploys it runs their own XELIS node. Miners connect to the LAN stratum service;
+  public internet exposure is outside the v1 deployment model.
+- Validated shares provide pool-quality worker and miner hashrate, share history, and
+  time-to-block estimates. The service submits only solved blocks to its own daemon.
+- Each found block pays the address authorized by its miner. The service does not split
+  rewards, hold funds, track balances, operate a payout engine, or use a hot wallet.
+- Each stratum connection can authorize with its own `xel:` address. The operator
+  configures a default address for miners that don't send one.
+
+**Non-goals (for v1):** proportional or shared-reward pool mining (PPLNS/PPS), fees, and
+custodial wallets.
+
+## 2. Architecture (Decided, per-service details Draft)
+
+```
+             LAN / Internet
+                  │
+         ┌────────▼────────┐        ┌──────────────┐
+ miners ─►  stratum server  ├───────►  xelis_daemon │  (RPC, internal network only)
+         │  (Node + addon) │        └──────────────┘
+         └────────┬────────┘
+                  │ shares, blocks, events
+           ┌──────▼──────┐     ┌──────────────┐     ┌───────────┐
+           │  PostgreSQL  ◄─────┤   API (Node) ◄─────┤  Web (React)│ ◄─ browser
+           └─────────────┘     └──────────────┘     └───────────┘
+```
+
+| Service    | Responsibility | Exposed to host? |
+|------------|----------------|------------------|
+| `daemon`   | Official `xelis_daemon`; chain data on a volume | P2P loopback-only by default; RPC stays internal |
+| `stratum`  | LAN miner connections, jobs, share validation, vardiff, block submission | LAN only |
+| `api`      | Stats queries, WebSocket live updates, pool health | LAN-bound host port |
+| `web`      | React + Vite + Tailwind dashboard, served as static files | LAN only |
+| `postgres` | Persistent storage | No |
+
+## 3. Mining protocols (Open)
+
+Questions to settle:
+
+- **Stratum spec:** follow the Vipor-proposed XELIS stratum protocol
+  (github.com/vipor-net/xelis-stratum-protocol), since major GPU miners already support it.
+  Decide which algorithm identifiers to accept (for example, older names that should map
+  to the current algorithm).
+- **Getwork:** also offer a getwork (WebSocket) endpoint for miners that only speak
+  getwork, or support stratum only in v1?
+- **TLS stratum:** include in v1 or leave for later?
+- **Miner compatibility matrix:** SRBMiner, lolMiner, OneZeroMiner, Rigel, xelis_miner, and
+  others. Test each against the server.
+- **Algorithm:** XELIS currently uses **Xelishash V3**. Plan how to handle future
+  algorithm or hard-fork changes.
+
+## 4. Daemon integration (Open, next to plan)
+
+To confirm against the daemon's RPC documentation and a test run:
+
+- Getting a block template for a specific miner address or public key.
+- Submitting a solved block (template plus miner work).
+- Detecting new jobs: subscribe to daemon events over WebSocket, or poll? Also how often to
+  refresh the template when no new block arrives.
+- Checking node health and sync state (pool refuses or pauses work while syncing).
+- Final block status: exact names of the XELIS block types (normal / side / orphaned
+  etc.) and when a block counts as final.
+- Which network to run: `mainnet`, `testnet`, `devnet`, chosen through config.
+
+## 5. Data model (Draft)
+
+PostgreSQL from day one. The initial migration stores raw share records and per-minute
+worker aggregates. The first raw shares table is indexed but unpartitioned; retention and
+partitioning will be added after limits are selected.
+
+```sql
+miners (
+  id           BIGSERIAL PRIMARY KEY,
+  address      TEXT UNIQUE NOT NULL,
+  first_seen   TIMESTAMPTZ NOT NULL,
+  last_seen    TIMESTAMPTZ NOT NULL
+);
+
+workers (
+  id           BIGSERIAL PRIMARY KEY,
+  miner_id     BIGINT NOT NULL REFERENCES miners(id),
+  name         TEXT NOT NULL,
+  last_ip      INET,
+  first_seen   TIMESTAMPTZ NOT NULL,
+  last_seen    TIMESTAMPTZ NOT NULL,
+  UNIQUE (miner_id, name)
+);
+
+shares (
+  id            BIGSERIAL,
+  worker_id     BIGINT NOT NULL,
+  job_id        TEXT NOT NULL,
+  nonce         TEXT NOT NULL,
+  difficulty    NUMERIC NOT NULL,
+  accepted      BOOLEAN NOT NULL,
+  reject_reason TEXT,
+  created_at    TIMESTAMPTZ NOT NULL
+);
+
+worker_stats_1m (
+  bucket         TIMESTAMPTZ NOT NULL,
+  worker_id      BIGINT NOT NULL,
+  accepted       INTEGER NOT NULL,
+  rejected       INTEGER NOT NULL,
+  sum_difficulty NUMERIC NOT NULL,
+  PRIMARY KEY (bucket, worker_id)
+);
+-- hashrate ≈ sum_difficulty / bucket length (exact formula: see section 6)
+
+blocks (
+  hash        TEXT PRIMARY KEY,
+  height      BIGINT,
+  topoheight  BIGINT,
+  miner_id    BIGINT REFERENCES miners(id),
+  worker_id   BIGINT REFERENCES workers(id),
+  reward      NUMERIC,
+  status      TEXT NOT NULL,  -- submitted → pending → main-chain / side / orphaned / rejected
+  found_at    TIMESTAMPTZ NOT NULL,
+  updated_at  TIMESTAMPTZ NOT NULL
+);
+
+bans (
+  ip          INET NOT NULL,
+  reason      TEXT,
+  until       TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ NOT NULL
+);
+
+service_events (
+  id          BIGSERIAL PRIMARY KEY,
+  type        TEXT NOT NULL,       -- node sync, job errors, bans, config changes
+  payload     JSONB,
+  created_at  TIMESTAMPTZ NOT NULL
+);
+```
+
+Open items:
+
+- Migration/query choice is plain SQL; a versioned migration runner applies migrations.
+  The initial shares table is unpartitioned.
+- Partitioning and raw-share retention defaults remain open; the initial migration does not
+  drop historical share records.
+- Final `blocks.status` values: align with section 4.
+- Retention defaults: raw shares (for example, 7 days) and 1-minute stats (for example,
+  90 days, possibly with hourly rollups beyond that).
+
+## 6. Difficulty and stats (Open)
+
+- Vardiff: target shares per minute, how often to retarget, minimum and maximum
+  difficulty, starting difficulty, and a per-port fixed-difficulty option.
+- Hashrate formula for XELIS: difficulty-to-hashes conversion, and the averaging windows
+  (for example, 5 minutes, 1 hour, 24 hours).
+- Handling stale and duplicate shares, and what counts as "invalid".
+- Validate every share before using it for hashrate and worker statistics.
+- Block lifecycle tracking: poll the daemon until each found block is final.
+
+## 7. LAN security (Draft)
+
+- Miner stratum and dashboard access are restricted to the LAN by default. Daemon RPC and
+  Postgres are never published to the host.
+- Per-IP connection limits and message rate limits on the LAN stratum service.
+- Automatic bans after too many invalid shares or malformed messages.
+- Maximum message size and handshake timeouts.
+- Dashboard: LAN-only by default; optional password or reverse-proxy auth when exposed.
+- Optional TLS for stratum and HTTPS for the dashboard (bring your own reverse proxy vs.
+  built-in).
+
+## 8. API and dashboard (Open)
+
+Candidate views:
+
+- **Overview:** observed hashrate, active miners and workers, node sync status, network
+  difficulty, expected time-to-block, blocks found.
+- **Miner page (by address):** workers, hashrate chart, shares, blocks.
+- **Worker page:** hashrate, accepted/rejected shares, last seen.
+- **Blocks:** list with status (pending / main-chain / side / orphaned).
+- **Health:** node status, stratum uptime, recent events.
+
+API: REST for queries plus WebSocket for live updates. The endpoint list is still to be
+written.
+
+## 9. Deployment and ops (Draft)
+
+- One `docker-compose.yml` and a `.env.example` (default miner address, network, ports,
+  difficulty, retention, Postgres password, dashboard exposure).
+- Images published to GHCR, built for both amd64 and arm64.
+- Healthchecks and `restart: unless-stopped` on every service.
+- Postgres backups: a documented `pg_dump` procedure (possibly an optional backup service).
+- Upgrade guide for XELIS node updates, algorithm forks and database migrations.
+
+## 10. Testing (Draft)
+
+- Develop against XELIS **testnet or devnet** so blocks are found quickly.
+- Unit tests for stratum message parsing, vardiff and hashrate math.
+- Hash addon: test vectors checked against known-good XELIS hashes.
+- Integration tests: a real miner against the full compose stack on devnet.
+- A load test that simulates many connections with fake miners.
+
+## 11. Open-source project setup (Open)
+
+- License: MIT, Apache-2.0, or GPL-3.0.
+- CI with GitHub Actions: lint, tests, and image builds on tags.
+- Versioning with SemVer and a changelog.
+- CONTRIBUTING.md, issue templates and a code of conduct.
+- JavaScript or TypeScript (TypeScript recommended for protocol code and a shared DB schema).
+- Package manager and monorepo tooling: npm, pnpm or yarn workspaces.
+
+---
+
+## Proposed repo layout
+
+```
+xeldash/
+├── docker-compose.yml
+├── .env.example
+├── services/
+│   ├── stratum/          # Node.js stratum server
+│   └── api/              # Node.js API + WebSocket
+├── web/                  # React + Vite + Tailwind dashboard
+├── packages/
+│   ├── xelis-hash/       # napi-rs native addon (Rust → Node)
+│   └── db/               # shared schema, migrations, queries
+├── docker/
+│   └── daemon/           # XELIS node image / config
+└── docs/
+    ├── PLAN.md
+    └── DECISIONS.md
+```
+
+## Build phases
+
+| # | Phase | Goal / done when |
+|---|-------|------------------|
+| 0 | **Planning** | Planning completed enough to begin the technical spike; some protocol and operations decisions remain open |
+| 1 | **Spike** (current) | Daemon syncs in Docker; a Node script fetches a template and submits a block on devnet; the hash addon matches real miner hashes |
+| 2 | **Minimal stratum** | One real miner connects at fixed difficulty; shares are validated; found blocks reach the chain |
+| 3 | **Multi-miner** | Vardiff, per-address work, shares/blocks stored in Postgres, reconnect handling |
+| 4 | **Dashboard** | API + React UI with live stats |
+| 5 | **Open-ports hardening** | Limits, bans, optional TLS, dashboard auth |
+| 6 | **Release** | Multi-arch images, docs, license, upgrade guide, v0.1.0 tag |
+
+## Known technical risks
+
+1. **Share validation in Node:** Xelishash V3 is too heavy for plain JavaScript, so it
+   needs a native addon (napi-rs wrapping the Rust hash implementation). Phase 1 must
+   prove this works.
+2. **Per-miner block templates:** check that the daemon RPC supports building work for
+   different miner addresses the way the per-address design assumes (Phase 1).
+3. **Algorithm and hard-fork changes:** the pool, addon and node must be upgraded together.

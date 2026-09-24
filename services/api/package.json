@@ -1,0 +1,12 @@
+{
+  "name": "@xeldash/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node ../../packages/db/src/migrate.js && node src/server.js"
+  },
+  "dependencies": {
+    "@xeldash/db": "*"
+  }
+}
