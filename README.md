@@ -12,8 +12,8 @@ address; xelDash has no shared-reward accounting, balances, payout service, or h
 ## Local containers
 
 Copy `.env.example` to `.env`, set a strong `POSTGRES_PASSWORD`, then start the stack with
-`docker compose up -d`. PostgreSQL migrations run automatically before the API becomes
-healthy. The API is available at `http://localhost:8081`; `/health` reports dependency
+`docker compose up -d`. A one-shot `migrate` service applies PostgreSQL migrations; the API
+and Stratum services start once it completes. The API is available at `http://localhost:8081`; `/health` reports dependency
 health and `/api/v1/overview` returns node difficulty, share totals, block statuses, and
 estimated hashrates and expected time-to-block from completed share windows. Estimates are
 `null` until their window contains accepted shares, then stabilize as the window fills.
@@ -31,7 +31,7 @@ To make the API reachable from your LAN, set `XELDASH_API_BIND_IP` to this machi
 IP address in `.env`. Its default is `127.0.0.1`. The daemon RPC and PostgreSQL remain
 private to the Compose network, and daemon P2P binds to localhost by default.
 
-Compose also runs the versioned SQL migrations after PostgreSQL is healthy. The initial
+The `migrate` service runs the versioned SQL migrations after PostgreSQL is healthy. The initial
 schema tracks miners, workers, raw share outcomes, per-minute difficulty aggregates,
 submitted blocks, bans, and service events; it contains no balance or payout tables.
 

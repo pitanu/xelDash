@@ -135,3 +135,45 @@ export async function recordShare(pool, share) {
     client.release();
   }
 }
+
+/** @typedef {{ hash: string, height?: number | null, topoheight?: number | null, minerId?: string | bigint | null, workerId?: string | bigint | null, status: string }} BlockInput */
+
+/**
+ * Record a block candidate the stratum submitted. A hash already on record keeps its
+ * original found_at; only its status changes.
+ * @param {PgPool} pool @param {BlockInput} block
+ */
+export async function recordBlock(pool, block) {
+  if (typeof block.hash !== "string" || !/^[0-9a-f]{64}$/.test(block.hash)) {
+    throw new TypeError("Block hash must be 32 bytes of lowercase hexadecimal");
+  }
+  if (typeof block.status !== "string" || block.status.length === 0) {
+    throw new TypeError("Block status is required");
+  }
+  await pool.query(
+    `INSERT INTO blocks (hash, height, topoheight, miner_id, worker_id, status)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (hash) DO UPDATE SET
+       status = EXCLUDED.status,
+       height = COALESCE(EXCLUDED.height, blocks.height),
+       topoheight = COALESCE(EXCLUDED.topoheight, blocks.topoheight),
+       updated_at = now()`,
+    [
+      block.hash,
+      block.height ?? null,
+      block.topoheight ?? null,
+      block.minerId ?? null,
+      block.workerId ?? null,
+      block.status,
+    ],
+  );
+}
+
+/** @param {PgPool} pool @param {string} type @param {Record<string, unknown>} [payload] */
+export async function recordServiceEvent(pool, type, payload = {}) {
+  if (typeof type !== "string" || type.length === 0) throw new TypeError("Event type is required");
+  await pool.query(
+    "INSERT INTO service_events (type, payload) VALUES ($1, $2::jsonb)",
+    [type, JSON.stringify(payload)],
+  );
+}

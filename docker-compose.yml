@@ -35,6 +35,26 @@ services:
     networks:
       - backend
 
+  # One-shot schema migration. api and stratum wait for it to complete successfully, so
+  # neither service's startup depends on the other's health.
+  migrate:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    command: ["node", "packages/db/src/migrate.js"]
+    restart: "no"
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-xeldash}
+      PGUSER: ${POSTGRES_USER:-xeldash}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
   api:
     build:
       context: .
@@ -54,6 +74,8 @@ services:
         condition: service_started
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "${XELDASH_API_BIND_IP:-127.0.0.1}:${XELDASH_API_PORT:-8081}:8081"
     healthcheck:
@@ -86,8 +108,12 @@ services:
       PGUSER: ${POSTGRES_USER:-xeldash}
       PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     depends_on:
-      api:
+      daemon:
+        condition: service_started
+      postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "${XELDASH_STRATUM_BIND_IP:-127.0.0.1}:${XELDASH_STRATUM_PORT:-3333}:3333"
     healthcheck:

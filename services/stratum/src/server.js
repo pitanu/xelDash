@@ -1,6 +1,7 @@
 import { createServer } from "node:net";
 import { createPool } from "@xeldash/db";
 import { createWorkerAuthorizer } from "./authorize-worker.js";
+import { ChainWatcher } from "./chain-watcher.js";
 import { DaemonClient } from "./daemon-client.js";
 import { MiningJobProvider } from "./job-provider.js";
 import { LineFramer } from "./line-framer.js";
@@ -27,6 +28,18 @@ const daemon = new DaemonClient();
 const authorizeAddress = createWorkerAuthorizer({ daemon, pool });
 const jobProvider = new MiningJobProvider({ daemon, shareDifficulty });
 const submitShare = createShareSubmitter({ daemon, pool });
+/** @type {Map<import("node:net").Socket, StratumSession>} */
+const sessions = new Map();
+
+// Push fresh work to every session as soon as the daemon sees a new block. Per-session
+// polling (STRATUM_JOB_REFRESH_MS) stays as the fallback and picks up template changes.
+const chainWatcher = new ChainWatcher({
+  rpcUrl: daemon.endpoint,
+  onNewBlock: () => {
+    for (const session of sessions.values()) void session.refreshJob();
+  },
+});
+chainWatcher.start();
 
 const server = createServer((socket) => {
   const framer = new LineFramer();
@@ -45,7 +58,11 @@ const server = createServer((socket) => {
     defaultAddress: process.env.XELIS_DEFAULT_ADDRESS ?? "",
     onAuthorized: () => clearTimeout(handshakeTimer),
   });
-  socket.once("close", () => session.close());
+  sessions.set(socket, session);
+  socket.once("close", () => {
+    session.close();
+    sessions.delete(socket);
+  });
   let queue = Promise.resolve();
   let queuedRequests = 0;
 
@@ -82,8 +99,17 @@ server.listen(port, host, () => {
   console.info(`Using fixed share difficulty ${shareDifficulty}; vardiff is not enabled.`);
 });
 
+let shuttingDown = false;
 async function shutdown() {
-  server.close();
+  if (shuttingDown) return;
+  shuttingDown = true;
+  chainWatcher.stop();
+  const closed = new Promise((resolve) => server.close(resolve));
+  for (const [socket, session] of sessions) {
+    session.close();
+    socket.destroy();
+  }
+  await closed;
   await pool.end();
 }
 

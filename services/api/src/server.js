@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { createPool } from "../../../packages/db/src/index.js";
+import { createPool } from "@xeldash/db";
 
 const port = Number.parseInt(process.env.API_PORT ?? "8081", 10);
 const host = process.env.API_HOST ?? "0.0.0.0";

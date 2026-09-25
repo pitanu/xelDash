@@ -9,6 +9,7 @@ import {
 } from "./protocol.js";
 
 const MAX_WORKER_NAME = 128;
+const MAX_TRACKED_JOBS = 5;
 /** @typedef {import("node:net").Socket} StratumSocket */
 /** @typedef {import("./protocol.js").StratumRequest} StratumRequest */
 /** @typedef {{ minerId: string | bigint, workerId: string | bigint, address: string, publicKey: string }} MiningIdentity */
@@ -39,6 +40,7 @@ export class StratumSession {
     this.logger = logger;
     this.algorithm = null;
     this.subscribed = false;
+    this.agent = "";
     /** @type {Map<string, MiningIdentity>} */
     this.authorizedWorkers = new Map();
     /** @type {Map<string, MiningJob>} */
@@ -50,6 +52,7 @@ export class StratumSession {
     this.miningIdentity = null;
     this.jobRefreshTimer = null;
     this.refreshingJob = false;
+    this.refreshQueued = false;
   }
 
   /** @param {string} line */
@@ -157,12 +160,7 @@ export class StratumSession {
     this.miningIdentity = identity;
     this.publicKey = identity.publicKey.toLowerCase();
     this.authorizedWorkers.set(workerName, identity);
-    this.jobs.set(job.jobId, job);
-    while (this.jobs.size > 5) {
-      const oldestJobId = this.jobs.keys().next().value;
-      if (!oldestJobId) break;
-      this.jobs.delete(oldestJobId);
-    }
+    this.trackJob(job, true);
     this.onAuthorized();
     this.send(response(request.id, true));
     this.send({
@@ -187,10 +185,31 @@ export class StratumSession {
     this.jobRefreshTimer.unref();
   }
 
+  /**
+   * Fetch fresh work and notify the miner if it changed. Calls that arrive while a refresh is
+   * in flight (for example a new_block event during a poll) are coalesced into one more pass,
+   * so a tip change is never dropped.
+   */
   async refreshJob() {
-    if (this.refreshingJob || !this.miningIdentity || !this.miningAddress
-        || !this.algorithm || this.socket.destroyed || !this.createJob) return;
+    if (!this.miningIdentity || !this.miningAddress || !this.algorithm
+        || this.socket.destroyed || !this.createJob) return;
+    if (this.refreshingJob) {
+      this.refreshQueued = true;
+      return;
+    }
     this.refreshingJob = true;
+    try {
+      do {
+        this.refreshQueued = false;
+        await this.refreshJobOnce();
+      } while (this.refreshQueued && !this.socket.destroyed);
+    } finally {
+      this.refreshingJob = false;
+    }
+  }
+
+  async refreshJobOnce() {
+    if (!this.miningIdentity || !this.miningAddress || !this.algorithm || !this.createJob) return;
     try {
       const job = await this.createJob({
         address: this.miningAddress,
@@ -199,16 +218,16 @@ export class StratumSession {
         algorithm: this.algorithm,
       });
       const latestJob = [...this.jobs.values()].at(-1);
-      const cleanJobs = !latestJob || latestJob.headerWorkHash !== job.headerWorkHash
+      if (latestJob && latestJob.headerWorkHash === job.headerWorkHash
+          && latestJob.timestampHex === job.timestampHex
+          && latestJob.shareDifficulty === job.shareDifficulty
+          && latestJob.networkDifficulty === job.networkDifficulty) return;
+      // Only a new chain tip (height) or difficulty change invalidates earlier work. A new
+      // header hash at the same height usually means new mempool transactions; work on the
+      // previous template is still a valid block, so miners need not restart.
+      const cleanJobs = !latestJob || latestJob.height !== job.height
         || latestJob.networkDifficulty !== job.networkDifficulty;
-      if (latestJob && !cleanJobs && latestJob.timestampHex === job.timestampHex
-          && latestJob.shareDifficulty === job.shareDifficulty) return;
-      this.jobs.set(job.jobId, job);
-      while (this.jobs.size > 5) {
-        const oldestJobId = this.jobs.keys().next().value;
-        if (!oldestJobId) break;
-        this.jobs.delete(oldestJobId);
-      }
+      this.trackJob(job, cleanJobs);
       if (!latestJob || latestJob.shareDifficulty !== job.shareDifficulty) {
         this.send({ jsonrpc: "2.0", id: null, method: "mining.set_difficulty", params: [job.shareDifficulty] });
       }
@@ -222,8 +241,21 @@ export class StratumSession {
       this.logger.warn?.("Unable to refresh Stratum job", {
         error: error instanceof Error ? error.message : String(error),
       });
-    } finally {
-      this.refreshingJob = false;
+    }
+  }
+
+  /**
+   * Keep recent jobs for late submissions. On a clean job, earlier jobs build on a superseded
+   * tip, so they are dropped and their shares are rejected as stale.
+   * @param {MiningJob} job @param {boolean} clean
+   */
+  trackJob(job, clean) {
+    if (clean) this.jobs.clear();
+    this.jobs.set(job.jobId, job);
+    while (this.jobs.size > MAX_TRACKED_JOBS) {
+      const oldestJobId = this.jobs.keys().next().value;
+      if (!oldestJobId) break;
+      this.jobs.delete(oldestJobId);
     }
   }
 
@@ -251,7 +283,7 @@ export class StratumSession {
     }
     const job = this.jobs.get(jobId);
     if (!job) {
-      this.send(errorResponse(request.id, STRATUM_ERRORS.STALE_JOB, "Job not found"));
+      this.send(errorResponse(request.id, STRATUM_ERRORS.STALE_JOB, "Stale or unknown job"));
       return;
     }
     const result = await this.submitShare({ worker, workerName, job, nonce: nonce.toLowerCase(), algorithm: this.algorithm });

@@ -4,7 +4,7 @@ const MINER_WORK_BYTES = 112;
 const HEADER_HASH_BYTES = 32;
 const TIMESTAMP_OFFSET = 32;
 
-/** @typedef {{ jobId: string, template: string, timestampHex: string, headerWorkHash: string, algorithm: string, networkDifficulty: string, shareDifficulty: number, extraNonce: Buffer, publicKey: Buffer, buildMinerWork: (nonce: string) => Buffer }} MiningJob */
+/** @typedef {{ jobId: string, template: string, timestampHex: string, headerWorkHash: string, algorithm: string, networkDifficulty: string, height: number, shareDifficulty: number, extraNonce: Buffer, publicKey: Buffer, buildMinerWork: (nonce: string) => Buffer }} MiningJob */
 
 export class MiningJobProvider {
   /**
@@ -35,6 +35,9 @@ export class MiningJobProvider {
     if (work?.algorithm !== "xel/v3") {
       throw new Error(`Daemon returned unsupported PoW algorithm: ${work?.algorithm ?? "unknown"}`);
     }
+    if (!Number.isSafeInteger(work.height) || work.height < 0) {
+      throw new Error("Daemon returned an invalid block height");
+    }
     if (!/^[1-9]\d*$/.test(work.difficulty)) {
       throw new Error("Daemon returned an invalid network difficulty");
     }
@@ -63,6 +66,7 @@ export class MiningJobProvider {
       headerWorkHash,
       algorithm,
       networkDifficulty: work.difficulty,
+      height: work.height,
       shareDifficulty,
       extraNonce: extraNonceBytes,
       publicKey: publicKeyBytes,

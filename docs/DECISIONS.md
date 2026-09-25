@@ -20,16 +20,13 @@ the phase that depends on it.
 | 2026-09    | Collect and validate shares for pool-quality statistics, while submitting only solved blocks | No shared rewards, balances, payout processing, or hot wallet; miner-authorized address receives the block reward |
 | 2026-09    | Keep miner and dashboard services LAN-only by default | Public internet exposure is outside the v1 deployment model |
 | 2026-09    | Use plain SQL migrations and start with indexed, unpartitioned raw shares | Keeps the first schema simple; add partitioning when retention and observed volume justify it |
+| 2026-09    | Custom Node stratum server instead of wrapping xelis-mining-proxy | The proxy runs with a single wallet address; per-address mining and share stats need a custom server |
+| 2026-09    | Native hash addon via napi-rs, wrapping the official Rust `xelis-hash` crate | Share validation is too slow in plain JavaScript |
+| 2026-09    | Separate services: daemon, stratum, api, web, postgres, plus a one-shot `migrate` service | Clear boundaries; api and stratum depend on migrations, not on each other |
+| 2026-09    | Develop against devnet | Finding blocks quickly makes testing practical |
+| 2026-09    | Push new work on the daemon's `new_block` WebSocket event; keep polling as a fallback | Polling alone leaves miners on a stale tip for a large fraction of block time |
+| 2026-09    | Record every submitted block candidate before trusting shares | Block hash is BLAKE3 of the 112-byte MinerWork (as in xelis_common); submission happens before any database write |
 | 2026-09    | Calculate V3 share difficulty and pool estimates using XELIS U256 targets | Hash bytes are interpreted big-endian; valid target is `floor((2^256 - 1) / difficulty)`. Accepted assigned share difficulty divided by elapsed completed-window seconds estimates H/s; expected TTB is network difficulty divided by H/s. |
-
-## Proposed (confirm or reject)
-
-| Proposal | Why |
-|----------|-----|
-| Write a custom Node stratum server instead of wrapping xelis-mining-proxy | The proxy runs with a single wallet address; per-address mining and share stats need a custom server |
-| Native hash addon via napi-rs | Share validation is too slow in plain JavaScript |
-| Separate services: daemon, stratum, api, web, postgres | Clear boundaries, and each can be scaled or restarted on its own |
-| Develop against testnet/devnet | Finding blocks quickly makes testing practical |
 
 ## Open
 
