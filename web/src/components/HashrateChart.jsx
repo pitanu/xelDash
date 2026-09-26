@@ -113,7 +113,8 @@ export default function HashrateChart({ points, dimmed = false }) {
             {!empty && shown === null && last >= 0 && (
               <>
                 <circle cx={x(last)} cy={y(values[last])} r="4" fill="var(--series-1)" stroke="var(--surface)" strokeWidth="2" />
-                <text x={x(last) - 8} y={y(values[last]) - 10} textAnchor="end" fontSize="12" fill="var(--ink-2)" className="tabular">
+                <text x={x(last) - 8} y={y(values[last]) - 10} textAnchor="end" fontSize="12" fill="var(--ink-2)" className="tabular"
+                  stroke="var(--surface)" strokeWidth="4" strokeLinejoin="round" paintOrder="stroke">
                   {formatHashrate(values[last])}
                 </text>
               </>

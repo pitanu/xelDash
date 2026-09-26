@@ -44,7 +44,7 @@ export default function Miner({ address }) {
         {history.data ? <HashrateChart points={history.data.points} dimmed={history.loading} /> : <div className="h-[220px]" />}
       </Card>
 
-      <Card title="Workers">{m && <WorkersTable workers={m.workers} />}</Card>
+      <Card title="Workers">{m && <WorkersTable workers={m.workers} address={address} />}</Card>
       <Card title="Blocks">{blocks.data && <BlocksTable blocks={blockList} showMiner={false} />}</Card>
     </div>
   );

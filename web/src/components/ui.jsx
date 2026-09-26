@@ -129,8 +129,8 @@ export function MinersTable({ miners }) {
   );
 }
 
-/** @param {{ workers: any[] }} props */
-export function WorkersTable({ workers }) {
+/** @param {{ workers: any[], address: string }} props */
+export function WorkersTable({ workers, address }) {
   if (workers.length === 0) return <p className="text-sm text-muted">No workers.</p>;
   return (
     <Table>
@@ -141,7 +141,9 @@ export function WorkersTable({ workers }) {
       <tbody className="tabular">
         {workers.map((w) => (
           <tr key={w.name} className="border-t border-line">
-            <td className={td}>{w.name}</td>
+            <td className={td}>
+              <a href={`#/miner/${address}/worker/${encodeURIComponent(w.name)}`} className="text-ink hover:underline">{w.name}</a>
+            </td>
             <td className={`${td} text-right`}>{formatHashrate(w.hashrate5m)}</td>
             <td className={`${td} text-right`}>{formatHashrate(w.hashrate1h)}</td>
             <td className={`${td} text-right`}>{formatInteger(w.accepted1h)}</td>

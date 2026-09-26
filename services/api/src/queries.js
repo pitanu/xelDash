@@ -17,11 +17,11 @@ export function clampLimit(value, fallback, max) {
 }
 
 /**
- * Hashrate per bucket for one miner address, or for everyone when address is null.
+ * Hashrate per bucket for everyone, one miner address, or one worker of that address.
  * Buckets with no shares are returned as zero so gaps show as drops, not interpolation.
- * @param {PgPool} pool @param {{ address: string | null, range: string }} input
+ * @param {PgPool} pool @param {{ address: string | null, worker?: string | null, range: string }} input
  */
-export async function getHashrateHistory(pool, { address, range }) {
+export async function getHashrateHistory(pool, { address, worker = null, range }) {
   const settings = HISTORY_RANGES[/** @type {keyof typeof HISTORY_RANGES} */ (range)] ?? HISTORY_RANGES["24h"];
   const result = await pool.query(
     `WITH buckets AS (
@@ -42,6 +42,7 @@ export async function getHashrateHistory(pool, { address, range }) {
        WHERE s.bucket >= date_trunc('minute', now()) - $1::interval - $2::interval
          AND s.bucket < date_trunc('minute', now())
          AND ($3::text IS NULL OR m.address = $3)
+         AND ($4::text IS NULL OR w.name = $4)
        GROUP BY 1
      )
      SELECT b.bucket,
@@ -51,7 +52,7 @@ export async function getHashrateHistory(pool, { address, range }) {
      FROM buckets b
      LEFT JOIN stats st ON st.bucket = b.bucket
      ORDER BY b.bucket`,
-    [`${settings.hours} hours`, `${settings.bucketMinutes} minutes`, address],
+    [`${settings.hours} hours`, `${settings.bucketMinutes} minutes`, address, worker],
   );
   return {
     range: HISTORY_RANGES[/** @type {keyof typeof HISTORY_RANGES} */ (range)] ? range : "24h",
@@ -130,8 +131,8 @@ export async function getMiner(pool, address) {
   };
 }
 
-/** @param {PgPool} pool @param {{ address: string | null, limit: number }} input */
-export async function listBlocks(pool, { address, limit }) {
+/** @param {PgPool} pool @param {{ address: string | null, worker?: string | null, limit: number }} input */
+export async function listBlocks(pool, { address, worker = null, limit }) {
   const result = await pool.query(
     `SELECT b.hash, b.height, b.topoheight, b.status, b.reward::text AS reward, b.found_at,
             m.address, w.name AS worker
@@ -139,9 +140,10 @@ export async function listBlocks(pool, { address, limit }) {
      LEFT JOIN miners m ON m.id = b.miner_id
      LEFT JOIN workers w ON w.id = b.worker_id
      WHERE ($1::text IS NULL OR m.address = $1)
+       AND ($3::text IS NULL OR w.name = $3)
      ORDER BY b.found_at DESC
      LIMIT $2`,
-    [address, limit],
+    [address, limit, worker],
   );
   return result.rows.map((row) => ({
     hash: row.hash,
@@ -167,4 +169,57 @@ export async function listEvents(pool, limit) {
     payload: row.payload,
     createdAt: row.created_at.toISOString(),
   }));
+}
+
+/** @param {PgPool} pool @param {string} address @param {string} name */
+export async function getWorker(pool, address, name) {
+  const worker = await pool.query(
+    `SELECT w.id, w.name, w.first_seen, w.last_seen, host(w.last_ip) AS last_ip
+     FROM workers w JOIN miners m ON m.id = w.miner_id
+     WHERE m.address = $1 AND w.name = $2`,
+    [address, name],
+  );
+  if (worker.rowCount === 0) return null;
+  const row = worker.rows[0];
+  const [stats, reasons] = await Promise.all([
+    pool.query(
+      `SELECT
+         ROUND(COALESCE(SUM(sum_difficulty) FILTER (WHERE bucket >= date_trunc('minute', now()) - interval '5 minutes'), 0) / 300, 3)::text AS hashrate_5m,
+         ROUND(COALESCE(SUM(sum_difficulty) FILTER (WHERE bucket >= date_trunc('minute', now()) - interval '1 hour'), 0) / 3600, 3)::text AS hashrate_1h,
+         ROUND(COALESCE(SUM(sum_difficulty), 0) / 86400, 3)::text AS hashrate_24h,
+         COALESCE(SUM(accepted) FILTER (WHERE bucket >= date_trunc('minute', now()) - interval '1 hour'), 0)::text AS accepted_1h,
+         COALESCE(SUM(rejected) FILTER (WHERE bucket >= date_trunc('minute', now()) - interval '1 hour'), 0)::text AS rejected_1h,
+         COALESCE(SUM(accepted), 0)::text AS accepted_24h,
+         COALESCE(SUM(rejected), 0)::text AS rejected_24h
+       FROM worker_stats_1m
+       WHERE worker_id = $1
+         AND bucket >= date_trunc('minute', now()) - interval '24 hours'
+         AND bucket < date_trunc('minute', now())`,
+      [row.id],
+    ),
+    pool.query(
+      `SELECT reject_reason AS reason, COUNT(*)::text AS count
+       FROM shares
+       WHERE worker_id = $1 AND NOT accepted AND created_at >= now() - interval '24 hours'
+       GROUP BY reject_reason
+       ORDER BY COUNT(*) DESC`,
+      [row.id],
+    ),
+  ]);
+  const s = stats.rows[0];
+  return {
+    address,
+    name: row.name,
+    firstSeen: row.first_seen.toISOString(),
+    lastSeen: row.last_seen.toISOString(),
+    lastIp: row.last_ip,
+    hashrate: { "5m": s.hashrate_5m, "1h": s.hashrate_1h, "24h": s.hashrate_24h },
+    shares: {
+      accepted1h: s.accepted_1h,
+      rejected1h: s.rejected_1h,
+      accepted24h: s.accepted_24h,
+      rejected24h: s.rejected_24h,
+    },
+    rejectReasons24h: reasons.rows,
+  };
 }

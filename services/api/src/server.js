@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { createPool } from "@xeldash/db";
-import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, listBlocks, listEvents, listMiners } from "./queries.js";
+import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, listBlocks, listEvents, listMiners } from "./queries.js";
 
 const port = Number.parseInt(process.env.API_PORT ?? "8081", 10);
 const host = process.env.API_HOST ?? "0.0.0.0";
@@ -138,6 +138,12 @@ const server = createServer(async (request, response) => {
       sendJson(response, 400, { error: "invalid_address" });
       return;
     }
+    // Worker names are only unique per miner, so a worker filter needs an address.
+    const worker = searchParams.get("worker");
+    if (worker !== null && (address === null || worker.length === 0 || worker.length > 128)) {
+      sendJson(response, 400, { error: "invalid_worker" });
+      return;
+    }
     if (pathname === "/health") {
       await pool.query("SELECT 1");
       const height = await daemonCall("get_height");
@@ -151,12 +157,25 @@ const server = createServer(async (request, response) => {
     }
 
     if (pathname === "/api/v1/hashrate") {
-      sendJson(response, 200, await getHashrateHistory(pool, { address, range: searchParams.get("range") ?? "24h" }));
+      sendJson(response, 200, await getHashrateHistory(pool, { address, worker, range: searchParams.get("range") ?? "24h" }));
       return;
     }
 
     if (pathname === "/api/v1/miners") {
       sendJson(response, 200, { miners: await listMiners(pool) });
+      return;
+    }
+
+    const workerMatch = /^\/api\/v1\/miners\/([^/]+)\/workers\/([^/]+)$/.exec(pathname);
+    if (workerMatch) {
+      const minerAddress = decodeURIComponent(workerMatch[1] ?? "");
+      const workerName = decodeURIComponent(workerMatch[2] ?? "");
+      if (!ADDRESS_PATTERN.test(minerAddress) || workerName.length === 0 || workerName.length > 128) {
+        sendJson(response, 400, { error: "invalid_worker" });
+        return;
+      }
+      const found = await getWorker(pool, minerAddress, workerName);
+      sendJson(response, found ? 200 : 404, found ?? { error: "not_found" });
       return;
     }
 
@@ -173,7 +192,7 @@ const server = createServer(async (request, response) => {
     }
 
     if (pathname === "/api/v1/blocks") {
-      sendJson(response, 200, { blocks: await listBlocks(pool, { address, limit: clampLimit(searchParams.get("limit"), 50, 500) }) });
+      sendJson(response, 200, { blocks: await listBlocks(pool, { address, worker, limit: clampLimit(searchParams.get("limit"), 50, 500) }) });
       return;
     }
 
