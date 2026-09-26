@@ -54,9 +54,10 @@ Questions to settle:
 - **Stratum spec:** follow the [official XELIS Stratum protocol documentation](https://docs.xelis.io/developers-api/stratum).
   The implementation negotiates `xel/v3` and documented aliases; confirm behavior with
   real miner clients before release.
-- **Getwork:** also offer a getwork (WebSocket) endpoint for miners that only speak
-  getwork, or support stratum only in v1?
-- **TLS stratum:** include in v1 or leave for later?
+- **Getwork (decided):** v1 offers a getwork (WebSocket) proxy for miners that only speak
+  getwork, such as the official xelis_miner.
+- **TLS stratum (decided, implemented):** optional `stratum+ssl` listener on port 3334,
+  enabled with `STRATUM_TLS_ENABLED=true` and a cert/key in `docker/stratum-tls/`.
 - **Miner compatibility matrix:** SRBMiner, lolMiner, OneZeroMiner, Rigel, xelis_miner, and
   others. Test each against the server.
 - **Algorithm:** XELIS currently uses **Xelishash V3**. Plan how to handle future
@@ -186,8 +187,8 @@ Open items:
   of that IP's submissions; stale shares do not count). Bans are stored and survive restarts.
 - Maximum message size and handshake timeouts.
 - Dashboard: LAN-only by default; optional password or reverse-proxy auth when exposed.
-- Optional TLS for stratum and HTTPS for the dashboard (bring your own reverse proxy vs.
-  built-in).
+- Optional built-in TLS for Stratum (implemented). HTTPS for the dashboard is left to a
+  reverse proxy.
 
 ## 8. API and dashboard (Draft)
 

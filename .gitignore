@@ -4,3 +4,4 @@ target/
 *.node
 .env
 *.log
+docker/stratum-tls/*.pem

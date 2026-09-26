@@ -1,4 +1,5 @@
 import { createServer } from "node:net";
+import { createServer as createTlsServer } from "node:tls";
 import {
   createPool, listActiveBans, notifyLive, recordBan, recordServiceEvent, retentionConfigFromEnv, runRetention,
 } from "@xeldash/db";
@@ -10,6 +11,7 @@ import { IpGuard, MessageRateLimiter, ipGuardConfigFromEnv, normalizeIp } from "
 import { MiningJobProvider } from "./job-provider.js";
 import { LineFramer } from "./line-framer.js";
 import { StratumSession } from "./session.js";
+import { tlsConfigFromEnv } from "./tls-config.js";
 import { createShareSubmitter } from "./share-submitter.js";
 import { vardiffConfigFromEnv } from "./vardiff.js";
 
@@ -21,6 +23,7 @@ const jobRefreshIntervalMs = Number.parseInt(process.env.STRATUM_JOB_REFRESH_MS 
 const vardiff = vardiffConfigFromEnv(process.env);
 const ipGuardConfig = ipGuardConfigFromEnv(process.env);
 const retention = retentionConfigFromEnv(process.env);
+const tls = tlsConfigFromEnv(process.env);
 if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
   throw new Error("STRATUM_PORT must be an integer from 1 to 65535");
 }
@@ -87,7 +90,12 @@ const chainWatcher = new ChainWatcher({
 });
 chainWatcher.start();
 
-const server = createServer((socket) => {
+/**
+ * One Stratum connection. Plain and TLS listeners share this, so limits, bans and sessions
+ * behave the same on both.
+ * @param {import("node:net").Socket} socket
+ */
+function handleConnection(socket) {
   const ip = normalizeIp(socket.remoteAddress);
   const refused = ipGuard.connect(ip);
   if (refused) {
@@ -155,22 +163,40 @@ const server = createServer((socket) => {
     }
   });
   socket.on("error", (error) => console.warn("Stratum socket error:", error.message));
+}
+
+const server = createServer(handleConnection);
+const tlsServer = tls
+  ? createTlsServer({ cert: tls.cert, key: tls.key, minVersion: "TLSv1.2" }, handleConnection)
+  : null;
+// Failed handshakes (plain Stratum sent to the TLS port, untrusted certs) never reach a session.
+tlsServer?.on("tlsClientError", (error, socket) => {
+  const code = /** @type {{ code?: string }} */ (error).code;
+  console.warn(`TLS handshake failed from ${normalizeIp(socket.remoteAddress)}: ${code ?? error.message}`);
 });
 
 server.listen(port, host, () => {
   console.info(`xelDash Stratum server listening on ${host}:${port}`);
   console.info(`Vardiff: start ${vardiff.startDifficulty}, min ${vardiff.minDifficulty}, one share per ${vardiff.targetShareSeconds}s`);
   // The dashboard reads the latest start event as Stratum's uptime.
-  recordServiceEvent(pool, "stratum_started", { port })
+  recordServiceEvent(pool, "stratum_started", { port, tlsPort: tls?.port ?? null })
     .catch((error) => console.warn("Failed to record start event:", error instanceof Error ? error.message : String(error)));
 });
+if (tlsServer && tls) {
+  tlsServer.listen(tls.port, host, () => {
+    console.info(`xelDash Stratum TLS listening on ${host}:${tls.port} (certificate ${tls.certFile})`);
+  });
+}
 
 let shuttingDown = false;
 async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
   chainWatcher.stop();
-  const closed = new Promise((resolve) => server.close(resolve));
+  const closed = Promise.all([
+    new Promise((resolve) => server.close(resolve)),
+    tlsServer ? new Promise((resolve) => tlsServer.close(resolve)) : null,
+  ]);
   for (const [socket, session] of sessions) {
     session.close();
     socket.destroy();

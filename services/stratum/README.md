@@ -33,6 +33,11 @@ has not been tested yet. Abuse limits: at most 64 connections per IP and 20 mess
 submissions that are over half of its submissions; stale shares do not count. Bans are
 stored in `bans` and survive restarts. All limits are `STRATUM_*` settings in `.env.example`.
 
+Optional TLS: set `STRATUM_TLS_ENABLED=true` and put `cert.pem` and `key.pem` in
+`docker/stratum-tls/` (see its README). A second listener on port 3334 then serves
+`stratum+ssl` with the same limits and sessions as the plain port. A missing certificate
+stops Stratum from starting.
+
 The wire format follows the
 [XELIS Stratum protocol](https://docs.xelis.io/developers-api/stratum). The daemon methods
 used for address checks are documented in the [Daemon API](https://docs.xelis.io/developers-api/daemon).

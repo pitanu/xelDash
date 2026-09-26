@@ -4,14 +4,17 @@
 //
 //   docker compose run --rm -v ./services/stratum/scripts:/app/services/stratum/scripts \
 //     stratum node services/stratum/scripts/devnet-miner.js <address> [blocks]
+import { readFileSync } from "node:fs";
 import { connect } from "node:net";
+import { connect as connectTls } from "node:tls";
 import { blake3 } from "@noble/hashes/blake3.js";
 import { hashMinerWork } from "@xeldash/xelis-hash";
 
 const address = process.argv[2];
 const wantedBlocks = Number.parseInt(process.argv[3] ?? "3", 10);
 const stratumHost = process.env.MINER_STRATUM_HOST ?? "stratum";
-const stratumPort = Number.parseInt(process.env.MINER_STRATUM_PORT ?? "3333", 10);
+const useTls = process.env.MINER_TLS === "1";
+const stratumPort = Number.parseInt(process.env.MINER_STRATUM_PORT ?? (useTls ? "3334" : "3333"), 10);
 const rpcUrl = process.env.XELIS_RPC_URL ?? "http://daemon:8080/json_rpc";
 const MAX_U256 = (1n << 256n) - 1n;
 const WORKER = "devnet-verify";
@@ -33,7 +36,16 @@ async function rpc(method, params) {
   return body.result;
 }
 
-const socket = connect(stratumPort, stratumHost);
+// MINER_TLS=1 uses the TLS port. MINER_TLS_CA verifies the server against that CA file;
+// without it the certificate is not verified (fine for a devnet check, not for real use).
+const socket = useTls
+  ? connectTls({
+    host: stratumHost,
+    port: stratumPort,
+    servername: process.env.MINER_TLS_SERVERNAME ?? stratumHost,
+    ...(process.env.MINER_TLS_CA ? { ca: readFileSync(process.env.MINER_TLS_CA) } : { rejectUnauthorized: false }),
+  })
+  : connect(stratumPort, stratumHost);
 let nextId = 1;
 /** @type {Map<number, (message: any) => void>} */
 const pending = new Map();
@@ -166,7 +178,7 @@ async function mine() {
   process.exit(failures === 0 ? 0 : 1);
 }
 
-socket.once("connect", async () => {
+socket.once(useTls ? "secureConnect" : "connect", async () => {
   const subscribed = await request("mining.subscribe", ["xeldash-devnet-miner", ["xel/v3"]]);
   if (subscribed.error) throw new Error(subscribed.error.message);
   const authorized = await request("mining.authorize", [address, WORKER, ""]);

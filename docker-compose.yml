@@ -123,6 +123,8 @@ services:
       STRATUM_BAN_EXEMPT_IPS: ${STRATUM_BAN_EXEMPT_IPS:-}
       RETENTION_RAW_SHARE_DAYS: ${RETENTION_RAW_SHARE_DAYS:-7}
       RETENTION_MINUTE_STATS_DAYS: ${RETENTION_MINUTE_STATS_DAYS:-90}
+      STRATUM_TLS_ENABLED: ${STRATUM_TLS_ENABLED:-false}
+      STRATUM_TLS_PORT: 3334
       XELIS_DEFAULT_ADDRESS: ${XELIS_DEFAULT_ADDRESS:-}
       XELIS_RPC_URL: http://daemon:8080/json_rpc
       PGHOST: postgres
@@ -130,6 +132,8 @@ services:
       PGDATABASE: ${POSTGRES_DB:-xeldash}
       PGUSER: ${POSTGRES_USER:-xeldash}
       PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - ${XELDASH_STRATUM_TLS_DIR:-./docker/stratum-tls}:/tls:ro
     depends_on:
       daemon:
         condition: service_healthy
@@ -139,6 +143,7 @@ services:
         condition: service_completed_successfully
     ports:
       - "${XELDASH_STRATUM_BIND_IP:-127.0.0.1}:${XELDASH_STRATUM_PORT:-3333}:3333"
+      - "${XELDASH_STRATUM_BIND_IP:-127.0.0.1}:${XELDASH_STRATUM_TLS_PORT:-3334}:3334"
     healthcheck:
       test: ["CMD", "node", "-e", "const n=require('node:net');const s=n.connect(3333,'127.0.0.1');s.once('connect',()=>{s.end();process.exit(0)});s.once('error',()=>process.exit(1));"]
       interval: 10s
