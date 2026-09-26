@@ -77,86 +77,36 @@ To confirm against the daemon's RPC documentation and a test run:
   `main-chain`, Side to `side`, and Orphaned (or unknown) to `orphaned`.
 - Which network to run: `mainnet`, `testnet`, `devnet`, chosen through config.
 
-## 5. Data model (Draft)
+## 5. Data model (Decided)
 
-PostgreSQL from day one. The initial migration stores raw share records and per-minute
-worker aggregates. The first raw shares table is indexed but unpartitioned; retention and
-partitioning will be added after limits are selected.
+PostgreSQL, with plain SQL migrations applied in order by the one-shot `migrate` service.
+The migrations in [`packages/db/migrations/`](../packages/db/migrations/) are the source of
+truth for columns, types and constraints; this section only summarizes them.
 
-```sql
-miners (
-  id           BIGSERIAL PRIMARY KEY,
-  address      TEXT UNIQUE NOT NULL,
-  first_seen   TIMESTAMPTZ NOT NULL,
-  last_seen    TIMESTAMPTZ NOT NULL
-);
+| Table | Holds | Written by | Kept |
+|-------|-------|-----------|------|
+| `miners` | One row per mining address | Stratum (on authorize) | Forever |
+| `workers` | Worker names per address, last IP | Stratum (on authorize) | Forever |
+| `shares` | Every submission: difficulty, accepted or reject reason | Stratum | 7 days |
+| `worker_stats_1m` | Per-worker, per-minute accepted/rejected counts and difficulty sum | Stratum, with each share | 90 days |
+| `worker_stats_1h` | Hourly rollup of the minute stats (migration 003) | Stratum's hourly retention job | Forever |
+| `blocks` | Block candidates with status, topoheight and miner reward | Stratum (submit and block tracker) | Forever |
+| `bans` | Stratum IP bans with reason and expiry | Stratum | Forever |
+| `service_events` | Blocks submitted/final, bans, Stratum starts | Stratum | Forever |
 
-workers (
-  id           BIGSERIAL PRIMARY KEY,
-  miner_id     BIGINT NOT NULL REFERENCES miners(id),
-  name         TEXT NOT NULL,
-  last_ip      INET,
-  first_seen   TIMESTAMPTZ NOT NULL,
-  last_seen    TIMESTAMPTZ NOT NULL,
-  UNIQUE (miner_id, name)
-);
+Notes:
 
-shares (
-  id            BIGSERIAL,
-  worker_id     BIGINT NOT NULL,
-  job_id        TEXT NOT NULL,
-  nonce         TEXT NOT NULL,
-  difficulty    NUMERIC NOT NULL,
-  accepted      BOOLEAN NOT NULL,
-  reject_reason TEXT,
-  created_at    TIMESTAMPTZ NOT NULL
-);
-
-worker_stats_1m (
-  bucket         TIMESTAMPTZ NOT NULL,
-  worker_id      BIGINT NOT NULL,
-  accepted       INTEGER NOT NULL,
-  rejected       INTEGER NOT NULL,
-  sum_difficulty NUMERIC NOT NULL,
-  PRIMARY KEY (bucket, worker_id)
-);
--- hashrate ≈ sum_difficulty / bucket length (exact formula: see section 6)
-
-blocks (
-  hash        TEXT PRIMARY KEY,
-  height      BIGINT,
-  topoheight  BIGINT,
-  miner_id    BIGINT REFERENCES miners(id),
-  worker_id   BIGINT REFERENCES workers(id),
-  reward      NUMERIC,
-  status      TEXT NOT NULL,  -- submitted → main-chain / side / orphaned, or rejected
-  found_at    TIMESTAMPTZ NOT NULL,
-  updated_at  TIMESTAMPTZ NOT NULL
-);
-
-bans (
-  ip          INET NOT NULL,
-  reason      TEXT,
-  until       TIMESTAMPTZ,
-  created_at  TIMESTAMPTZ NOT NULL
-);
-
-service_events (
-  id          BIGSERIAL PRIMARY KEY,
-  type        TEXT NOT NULL,       -- node sync, job errors, bans, config changes
-  payload     JSONB,
-  created_at  TIMESTAMPTZ NOT NULL
-);
-```
-
-Open items:
-
-- Migration/query choice is plain SQL; a versioned migration runner applies migrations.
-  The initial shares table is unpartitioned.
-- Retention (decided): raw shares 7 days, per-minute stats 90 days, hourly rollups
-  (`worker_stats_1h`, migration 003) kept indefinitely along with blocks and events.
-  Stratum runs the rollup and deletes hourly, in batches. `RETENTION_*` settings override
-  the periods. No partitioning at this size; revisit if raw-share volume grows a lot.
+- Hashrate is accepted share difficulty divided by elapsed seconds over completed buckets
+  (section 6). The API reads the minute stats for ranges up to 30 days and the hourly
+  rollups for one year.
+- Block status moves from `submitted` to `main-chain`, `side` or `orphaned` at the daemon's
+  stable height, or is `rejected` when the daemon refuses the block.
+- Every `service_events` insert is announced on the `xeldash_live` channel (migration 002)
+  for live dashboard updates.
+- Retention: raw shares 7 days, minute stats 90 days, set with `RETENTION_*`. Stratum runs
+  the rollup and deletes hourly, in batches. There is no partitioning at this size; revisit
+  if raw-share volume grows a lot.
+- There are no balance, payout or wallet tables: rewards go straight to each miner's address.
 
 ## 6. Difficulty and stats (Decided)
 

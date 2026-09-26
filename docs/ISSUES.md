@@ -7,11 +7,11 @@ Open:
 - Upstream glibc mismatch (built on Debian 13, shipped on cc-debian12; commit 99599508) is
   reported and being fixed. Once a fixed release ships, drop the Debian 13 re-base in
   docker/daemon/Dockerfile.
-- Make the data model in `docs/PLAN.md` reference the migration instead of duplicating DDL
-  with mismatched identity/count types.
 
 Resolved:
 
+- `docs/PLAN.md` section 5 summarizes the tables and points to the migrations instead of
+  duplicating DDL.
 - Native hash, MinerWork layout, block submission and BLAKE3 block hash verified on devnet
   (see `docs/DEVNET.md`).
 - Shares are hashed on the libuv thread pool (`hashMinerWorkAsync`), reusing one V3
