@@ -10,6 +10,7 @@ Open:
 
 Resolved:
 
+- Snapshots: official mainnet download (opt-in automatic on first start) and dashboard upload, behind an admin token.
 - Multiple nodes with automatic failover and failback (`XELIS_RPC_URLS`, optional `daemon2`).
 - Changelog, contributing guide, code of conduct, issue and pull request templates.
 - CI workflow and multi-arch (amd64, arm64) release images on GHCR.

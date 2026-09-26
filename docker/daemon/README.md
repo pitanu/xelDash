@@ -16,6 +16,10 @@ ships on `cc-debian13`, the wrapper can go back to using the image directly.
 the V7 emergency hard fork at 6,909,122, which requires 1.24.0 or newer. Older daemons
 cannot follow the chain.
 
+The entrypoint (`entrypoint.sh`) runs the daemon and swaps in snapshots prepared by the
+snapshot service: it waits during a first-start snapshot download, and on a restart request
+moves the current database to `<network>.previous` and the staged snapshot into place.
+
 The pin is `XELIS_DAEMON_IMAGE`, and the tested release is 1.25.0. To upgrade:
 
 1. Build the wrapper with the new tag and check that it starts (`--version`).

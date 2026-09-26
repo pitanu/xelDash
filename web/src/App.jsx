@@ -5,6 +5,7 @@ import Miner from "./pages/Miner.jsx";
 import Overview from "./pages/Overview.jsx";
 import Worker from "./pages/Worker.jsx";
 import Health from "./pages/Health.jsx";
+import NodeData from "./pages/NodeData.jsx";
 
 const NAV = [["/", "Overview"], ["/blocks", "Blocks"], ["/health", "Health"]];
 
@@ -55,8 +56,9 @@ export default function App() {
   } else if (minerMatch) page = <Miner key={minerMatch[1]} address={decodeURIComponent(minerMatch[1])} />;
   else if (route === "/blocks") page = <Blocks />;
   else if (route === "/health") page = <Health />;
+  else if (route === "/node-data") page = <NodeData />;
 
-  const section = route === "/blocks" || route === "/health" ? route : "/";
+  const section = route === "/blocks" || route === "/health" ? route : route === "/node-data" ? "/health" : "/";
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">

@@ -42,6 +42,9 @@ First public version, planned as 0.1.0.
 
 - Docker Compose stack; the daemon runs XELIS 1.25.0, which mainnet requires (1.24.0 or
   newer).
+- Snapshots: start or replace a node's chain data from the official daily mainnet snapshot
+  (downloaded, resumable, checksum-verified) or a zip dropped onto the dashboard. Optional
+  automatic download on a first start. Needs `XELDASH_ADMIN_TOKEN`.
 - Share retention (raw 7 days, per-minute 90 days, hourly kept) with an hourly rollup.
 - Optional daily database backups, and a guide for backups, restores and upgrades.
 - Multi-arch images (amd64, arm64) published to GHCR on version tags; CI on every push.

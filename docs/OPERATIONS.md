@@ -88,6 +88,44 @@ docker compose exec -T postgres pg_restore -U xeldash -d restore_test /tmp/resto
 docker compose exec -T postgres dropdb -U xeldash restore_test
 ```
 
+## Snapshots
+
+A snapshot is a zip of a node's database. Starting from one takes minutes instead of syncing
+the chain from the network. The XELIS team publishes a mainnet snapshot every day at
+`https://node.xelis.io/files/mainnet.zip` (about 9 GB) with a SHA-256 checksum next to it.
+Using a snapshot means trusting whoever made it instead of verifying the chain yourself.
+
+Snapshot actions replace the node's data, so they need an admin token. Set a long random
+`XELDASH_ADMIN_TOKEN` in `.env` (for example the output of `openssl rand -hex 24`) and restart
+xelDash. Without it, the dashboard only shows status.
+
+### From the dashboard
+
+Open **Health → Snapshots and chain data** and enter the admin token. Then either:
+
+- drop a snapshot `.zip` onto the page: the official `mainnet.zip` downloaded elsewhere, or a
+  zip of another node's `<network>` data directory; or
+- click **Download and check** to fetch today's official mainnet snapshot. A stopped download
+  resumes; if the XELIS team publishes a newer file meanwhile, it starts over.
+
+xelDash checks the file (the official checksum when it applies, the zip's own CRCs, safe
+paths, and a RocksDB database inside), unpacks it next to the node's data, and shows
+**Ready to switch**. Nothing changes until you click **Restart node now**: the node stops,
+the current data is moved to `<network>.previous`, the snapshot takes its place, and the node
+starts again. Delete the previous data from the same page once the node runs well.
+
+Disk space: the zip plus its unpacked copy (about 2 × 9 GB for mainnet), plus the previous
+data until you delete it. The page shows free space and refuses to start without enough.
+
+### Automatic on first start
+
+With `XELIS_SNAPSHOT_AUTO=true` on mainnet, a node with no chain data waits while the official
+snapshot downloads and unpacks, then starts on it. If the download fails, the node syncs from
+the network as usual. The dashboard shows the progress. `XELIS_SNAPSHOT_URL` and
+`XELIS_SNAPSHOT_CHECKSUM_URL` point at another source (then used on any network).
+
+With two nodes, only `daemon` uses snapshots; `daemon2` syncs from it over the local network.
+
 ## Upgrading xelDash
 
 1. Back up the database.
