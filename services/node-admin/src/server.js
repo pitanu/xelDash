@@ -53,8 +53,11 @@ function send(response, status, body) {
  */
 function authorized(request) {
   if (!adminToken) return false;
-  const header = request.headers.authorization ?? "";
-  return header.startsWith("Bearer ") && tokensMatch(header.slice(7), adminToken);
+  // Its own header, not Authorization: a login proxy in front (docker/proxy) uses
+  // Authorization for the browser's password. As a custom header it also means other
+  // websites cannot send it without a CORS preflight, which is never allowed.
+  const header = request.headers["x-admin-token"];
+  return typeof header === "string" && tokensMatch(header, adminToken);
 }
 
 const server = createServer(async (request, response) => {

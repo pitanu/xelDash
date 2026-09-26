@@ -1,0 +1,22 @@
+# Optional HTTPS and login in front of the dashboard (Compose profile "proxy").
+# See docs/OPERATIONS.md#https-and-a-login.
+{
+	# No Caddy admin API; this proxy is configured only by this file.
+	admin off
+}
+
+# Only this host name is answered: requests for any other name (including DNS-rebinding
+# attempts) get no response.
+{$XELDASH_PROXY_HOST}:443 {
+	# Certificate from Caddy's own local certificate authority; trust its root once per device.
+	tls internal
+
+	basic_auth {
+		{$XELDASH_PROXY_USER} {$XELDASH_PROXY_PASSWORD_HASH}
+	}
+
+	# Everything, including the live WebSocket and snapshot uploads, goes to the dashboard.
+	reverse_proxy web:8080 {
+		flush_interval -1
+	}
+}

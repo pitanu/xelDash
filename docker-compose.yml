@@ -262,6 +262,37 @@ services:
     networks:
       - backend
 
+  # Optional: HTTPS and a login in front of the dashboard (profile "proxy"). Keep the
+  # dashboard's own port on loopback so this is the only way in from the LAN.
+  # See docs/OPERATIONS.md#https-and-a-login.
+  proxy:
+    image: caddy:2.11-alpine
+    profiles: ["proxy"]
+    restart: unless-stopped
+    environment:
+      XELDASH_PROXY_HOST: ${XELDASH_PROXY_HOST:-}
+      XELDASH_PROXY_USER: ${XELDASH_PROXY_USER:-admin}
+      XELDASH_PROXY_PASSWORD_HASH: ${XELDASH_PROXY_PASSWORD_HASH:-}
+    # Refuse to start half-configured: an empty host would answer any name, and an empty
+    # hash would mean no login.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        if [ -z "$$XELDASH_PROXY_HOST" ] || [ -z "$$XELDASH_PROXY_PASSWORD_HASH" ]; then
+        echo "Set XELDASH_PROXY_HOST and XELDASH_PROXY_PASSWORD_HASH in .env (see docs/OPERATIONS.md#https-and-a-login)"; exit 1; fi;
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    volumes:
+      - ./docker/proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Keeps Caddy's local certificate authority, so devices only trust it once.
+      - proxy-data:/data
+    ports:
+      - "${XELDASH_PROXY_BIND_IP:-127.0.0.1}:${XELDASH_PROXY_PORT:-8443}:443"
+    depends_on:
+      web:
+        condition: service_healthy
+    networks:
+      - backend
+
   # Optional: `docker compose --profile backup up -d`. Dumps the database to ./backups every
   # BACKUP_INTERVAL_HOURS and keeps the newest BACKUP_KEEP. See docs/OPERATIONS.md.
   backup:
@@ -290,6 +321,7 @@ volumes:
   xelis-data:
   xelis-data-2:
   postgres-data:
+  proxy-data:
 
 networks:
   backend:

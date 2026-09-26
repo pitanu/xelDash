@@ -85,7 +85,7 @@ export default function DaemonSettings({ token, onUnauthorized }) {
     setBusy(true);
     setError(null);
     try {
-      const headers = { authorization: `Bearer ${token}`, "content-type": "application/json" };
+      const headers = { "x-admin-token": token, "content-type": "application/json" };
       const response = await fetch("/api/v1/node/settings", { method: "PUT", headers, body: JSON.stringify({ values: draft }) });
       const body = await response.json().catch(() => ({}));
       if (response.status === 401) onUnauthorized();
@@ -106,7 +106,7 @@ export default function DaemonSettings({ token, onUnauthorized }) {
   async function discard() {
     setError(null);
     if (data?.pending) {
-      await fetch("/api/v1/node/settings/discard", { method: "POST", headers: { authorization: `Bearer ${token}` } });
+      await fetch("/api/v1/node/settings/discard", { method: "POST", headers: { "x-admin-token": token } });
       await load();
     }
     setDraft({ ...current });

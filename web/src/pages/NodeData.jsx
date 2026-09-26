@@ -102,7 +102,7 @@ export default function NodeData() {
   /** @param {string} path */
   async function action(path) {
     setActionError(null);
-    const response = await fetch(`/api/v1/node/snapshot/${path}`, { method: "POST", headers: { authorization: `Bearer ${token}` } });
+    const response = await fetch(`/api/v1/node/snapshot/${path}`, { method: "POST", headers: { "x-admin-token": token } });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       if (response.status === 401) forgetToken();
@@ -149,7 +149,7 @@ export default function NodeData() {
     const request = new XMLHttpRequest();
     xhr.current = request;
     request.open("PUT", "/api/v1/node/snapshot/upload");
-    request.setRequestHeader("authorization", `Bearer ${token}`);
+    request.setRequestHeader("x-admin-token", token);
     request.setRequestHeader("content-type", "application/zip");
     request.upload.onprogress = (event) => setUpload({ bytes: event.loaded, total: event.total || file.size });
     request.onloadend = () => {

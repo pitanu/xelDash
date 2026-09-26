@@ -40,6 +40,8 @@ First public version, planned as 0.1.0.
 
 ### Security
 
+- Optional HTTPS and login in front of the dashboard (Compose profile `proxy`, Caddy), which
+  only answers the configured host name.
 - Malformed requests no longer crash Stratum, the API or node-admin.
 - Failed logins count toward Stratum bans; at most 32 workers per connection; worker names
   may not contain control characters.

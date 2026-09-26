@@ -30,7 +30,7 @@ Leave it unset if you do not need these features.
   dashboard's own origin, so other websites cannot use a visitor's browser against them.
 - **Dashboard headers.** A strict Content-Security-Policy (scripts, styles and connections
   from the dashboard itself only), no framing by other sites, no referrer, no server version.
-- **Admin actions** need the token in an `Authorization` header (not a cookie), so other
+- **Admin actions** need the token in an `X-Admin-Token` header (not a cookie), so other
   websites cannot trigger them. It is compared in constant time and kept in the browser tab's
   session storage only.
 - **Snapshots** are checked before use: the official checksum where it applies, the zip's own
@@ -43,16 +43,15 @@ Leave it unset if you do not need these features.
 
 ## Remaining risks
 
-- **Anyone on the LAN can read the dashboard.** There is no login for viewing. If your LAN is
-  not trusted, keep the defaults (`127.0.0.1`) and reach the dashboard through an SSH tunnel
-  or a reverse proxy with authentication.
-- **No HTTPS on the dashboard.** The admin token crosses the LAN in clear text when you
-  use it from another machine. Use a reverse proxy with TLS, or only use node changes from the
-  host itself.
+The first three are solved by the optional `proxy` service (HTTPS, a login, and a host-name
+check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
+
+- **Anyone who can reach the dashboard can read it.** There is no login for viewing.
+- **No HTTPS.** The admin token crosses the LAN in clear text when you use it from another
+  machine.
 - **DNS rebinding.** A malicious website could, in principle, read dashboard data from a
   browser on the same network by rebinding its domain to the dashboard's address. It cannot
-  use the admin token, which stays with the dashboard's own origin. A reverse proxy that only
-  accepts your hostname removes this.
+  use the admin token, which stays with the dashboard's own origin.
 - **Some bad daemon settings do not stop the node** (for example, an invalid P2P bind address
   leaves it running without P2P), so they are not rolled back automatically. Check the Health
   page after a change.

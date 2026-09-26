@@ -88,6 +88,39 @@ docker compose exec -T postgres pg_restore -U xeldash -d restore_test /tmp/resto
 docker compose exec -T postgres dropdb -U xeldash restore_test
 ```
 
+## HTTPS and a login
+
+By default the dashboard has no login and no HTTPS, which is fine on a trusted LAN or when you
+only open it on the xelDash machine itself. Otherwise, turn on the optional `proxy` service:
+Caddy in front of the dashboard with HTTPS, a username and password, and a check that only
+answers your chosen host name (which also blocks DNS-rebinding attacks).
+
+1. Make a password hash:
+   `docker run --rm caddy:2.11-alpine caddy hash-password --plaintext 'your-password'`
+2. Add to `.env`, keeping the single quotes around the hash (it contains `$` signs):
+
+   ```sh
+   COMPOSE_PROFILES=proxy
+   XELDASH_PROXY_HOST=192.168.1.10      # the address or name you will type in the browser
+   XELDASH_PROXY_USER=admin
+   XELDASH_PROXY_PASSWORD_HASH='$2a$14$...'
+   XELDASH_PROXY_BIND_IP=192.168.1.10   # this machine's LAN address
+   ```
+
+   Leave `XELDASH_WEB_BIND_IP` and `XELDASH_API_BIND_IP` at `127.0.0.1`, so the proxy is the
+   only way in from the LAN.
+3. `docker compose up -d`, then open `https://192.168.1.10:8443`.
+
+The certificate comes from Caddy's own local certificate authority, so browsers warn until
+you trust it. Copy it out with
+`docker compose cp proxy:/data/caddy/pki/authorities/local/root.crt ./xeldash-root.crt` and
+install it as a trusted root on each device that opens the dashboard. It is kept in the
+`proxy-data` volume, so this is needed once.
+
+The proxy's login is separate from the admin token: after logging in, node changes still need
+`XELDASH_ADMIN_TOKEN`. If both lines are not set, the proxy refuses to start rather than run
+without a login.
+
 ## Daemon settings
 
 Every option of the XELIS daemon can be changed from the dashboard: open **Health →

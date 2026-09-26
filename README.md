@@ -22,7 +22,8 @@ Before 0.1.0: a license, a mainnet trial, and tests with third-party GPU miners 
   mining; mining pauses by itself while no node is in sync.
 - **Node management from the dashboard:** every daemon setting, and chain snapshots (the
   official daily mainnet snapshot, or a zip you drop onto the page).
-- **Alerts** to Discord, Telegram or a webhook; optional daily database backups.
+- **Alerts** to Discord, Telegram or a webhook; optional daily database backups; optional
+  HTTPS and login in front of the dashboard.
 
 ## Quick start
 

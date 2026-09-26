@@ -7,7 +7,8 @@ container's entrypoint (`docker/daemon/entrypoint.sh`) swaps a staged snapshot i
 restarts; the two only share marker files under `<data>/.xeldash`.
 
 It is not published to the host: the dashboard's nginx proxies `/api/v1/node/` to it,
-streaming uploads without buffering. Every action needs `XELDASH_ADMIN_TOKEN`.
+streaming uploads without buffering. Every action needs `XELDASH_ADMIN_TOKEN`, sent in the
+`X-Admin-Token` header.
 
 | Endpoint | Does |
 |----------|------|

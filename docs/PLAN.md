@@ -125,8 +125,8 @@ LAN-only by default; the model, protections and remaining risks are in
 [SECURITY.md](SECURITY.md). In short: nothing sensitive is published, Stratum and getwork
 have per-IP connection, message and ban limits, the dashboard sends a strict
 Content-Security-Policy, and every change to the node (settings, snapshots) needs
-`XELDASH_ADMIN_TOKEN`. Viewing the dashboard needs no login; HTTPS and a login for viewing are
-left to a reverse proxy.
+`XELDASH_ADMIN_TOKEN`. Viewing the dashboard needs no login by default; the optional `proxy` service adds
+HTTPS, a login and a host-name check.
 
 ## 8. API and dashboard (Decided)
 

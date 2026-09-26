@@ -2,7 +2,6 @@
 
 Open:
 
-- Dashboard HTTPS and viewing login are left to a reverse proxy; document a worked example.
 - Select and add a project license before any public release.
 - Test a third-party Stratum miner (SRBMiner, lolMiner or similar) against the devnet stack.
 - Upstream glibc mismatch (built on Debian 13, shipped on cc-debian12; commit 99599508) is
@@ -11,6 +10,8 @@ Open:
 
 Resolved:
 
+- Optional `proxy` profile (Caddy): HTTPS, a login for the dashboard, and a host-name check.
+  The admin token moved to its own `X-Admin-Token` header so it works behind the login.
 - Cleanup: PLAN.md and README.md describe the current project; the phase-1 spike client and
   notes are removed (their results are in `docs/DEVNET.md`).
 - Security review (2026-09-27): three request-crash bugs, login flooding, worker limits,
