@@ -1,5 +1,37 @@
 # Operations
 
+## Alerts
+
+The API can send alerts to Discord, Telegram and/or any JSON webhook. Set one or more in
+`.env` and restart the API (`docker compose up -d api`):
+
+| Setting | Use |
+|---------|-----|
+| `ALERT_DISCORD_WEBHOOK_URL` | A Discord channel webhook URL |
+| `ALERT_TELEGRAM_BOT_TOKEN` and `ALERT_TELEGRAM_CHAT_ID` | A bot token from @BotFather and the chat to post in |
+| `ALERT_WEBHOOK_URL` | Receives `{ event, text, ...details, sentAt }` as a JSON POST |
+| `ALERT_EVENTS` | Which alerts to send (default: all, see below) |
+| `ALERT_WORKER_OFFLINE_MINUTES` | Minutes without an accepted share before a worker counts as offline (10) |
+| `ALERT_DASHBOARD_URL` | Adds dashboard links, for example `http://192.168.1.10:8088` |
+
+Events:
+
+- `block_found`: a block candidate was accepted by the node.
+- `block_rejected`: the node refused a block candidate.
+- `block_final`: a block reached the stable height, as main chain, side or orphaned, with its
+  reward. Blocks that become final within 5 seconds of each other arrive as one summary.
+- `mining_paused`: Stratum paused work because the node is syncing or down, and when it
+  resumes.
+- `worker_offline`: a worker stopped sending accepted shares, and when it comes back. Only
+  workers with shares in the last 24 hours are watched. After an API restart the first check
+  only records state, so workers that were already offline are not announced again.
+
+Each channel sends at most one message per second. If alerts pile up, extra ones are skipped
+and the next message says how many.
+
+The API log lists the enabled channels at startup ("Alerts enabled: ..."). Failed deliveries
+are logged and not retried.
+
 Backups, restores and upgrades for a running xelDash stack. Commands run from the repository
 directory. The PostgreSQL database holds everything xelDash knows about your miners, shares
 and blocks. The daemon's chain data is in the `xelis-data` volume and can always be synced

@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { createPool } from "@xeldash/db";
 import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, listBlocks, listEvents, listMiners } from "./queries.js";
+import { alertConfigFromEnv, startAlerts } from "./alerts.js";
 import { startLiveUpdates } from "./live.js";
 import { getStatus } from "./status.js";
 
@@ -224,7 +225,8 @@ const server = createServer(async (request, response) => {
   }
 });
 
-const live = startLiveUpdates({ server, pool });
+const alerts = startAlerts({ pool, config: alertConfigFromEnv(process.env) });
+const live = startLiveUpdates({ server, pool, onNotification: (payload) => alerts?.handleNotification(payload) });
 
 server.listen(port, host, () => {
   console.info(`xelDash API listening on ${host}:${port}`);
@@ -232,6 +234,7 @@ server.listen(port, host, () => {
 
 async function shutdown() {
   server.close();
+  alerts?.stop();
   await live.stop();
   await pool.end();
 }

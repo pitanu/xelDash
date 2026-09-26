@@ -74,6 +74,13 @@ services:
       API_PORT: 8081
       # DNS lookups share libuv's thread pool; a stopped container's name takes seconds to fail.
       UV_THREADPOOL_SIZE: 16
+      ALERT_DISCORD_WEBHOOK_URL: ${ALERT_DISCORD_WEBHOOK_URL:-}
+      ALERT_TELEGRAM_BOT_TOKEN: ${ALERT_TELEGRAM_BOT_TOKEN:-}
+      ALERT_TELEGRAM_CHAT_ID: ${ALERT_TELEGRAM_CHAT_ID:-}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      ALERT_EVENTS: ${ALERT_EVENTS:-}
+      ALERT_WORKER_OFFLINE_MINUTES: ${ALERT_WORKER_OFFLINE_MINUTES:-10}
+      ALERT_DASHBOARD_URL: ${ALERT_DASHBOARD_URL:-}
       XELIS_RPC_URL: http://daemon:8080/json_rpc
       PGHOST: postgres
       PGPORT: 5432

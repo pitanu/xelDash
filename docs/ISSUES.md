@@ -10,6 +10,7 @@ Open:
 
 Resolved:
 
+- Alerts (Discord, Telegram, JSON webhook) for blocks, mining pauses and offline workers.
 - Backups (optional `backup` profile, restore steps) and an upgrade guide in
   `docs/OPERATIONS.md`.
 - Stratum pauses work while the node is syncing or not responding, and resumes on its own.

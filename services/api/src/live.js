@@ -15,9 +15,10 @@ function message(error) {
  * Relays `xeldash_live` Postgres notifications to dashboards over WebSocket. Messages are
  * hints to refetch ({ type: "block" | "event", ... }); the REST endpoints stay the source of
  * truth. Clients fall back to polling whenever the socket is down.
- * @param {{ server: import("node:http").Server, pool: import("pg").Pool, logger?: Pick<Console, "info" | "warn"> }} options
+ * @param {{ server: import("node:http").Server, pool: import("pg").Pool,
+ *   onNotification?: (payload: string) => void, logger?: Pick<Console, "info" | "warn"> }} options
  */
-export function startLiveUpdates({ server, pool, logger = console }) {
+export function startLiveUpdates({ server, pool, onNotification = () => {}, logger = console }) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
   /** @type {WeakSet<import("ws").WebSocket>} */
   const alive = new WeakSet();
@@ -68,7 +69,9 @@ export function startLiveUpdates({ server, pool, logger = console }) {
     try {
       const client = await pool.connect();
       client.on("notification", (notification) => {
-        if (notification.channel === LIVE_CHANNEL && notification.payload) broadcast(notification.payload);
+        if (notification.channel !== LIVE_CHANNEL || !notification.payload) return;
+        broadcast(notification.payload);
+        onNotification(notification.payload);
       });
       client.on("error", (error) => {
         logger.warn?.("Live update listener failed; reconnecting", { error: message(error) });

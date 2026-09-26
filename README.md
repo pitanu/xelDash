@@ -11,7 +11,7 @@ address; xelDash has no shared-reward accounting, balances, payout service, or h
 
 ## Local containers
 
-Backups, restores and upgrades are covered in [docs/OPERATIONS.md](docs/OPERATIONS.md).
+Alerts, backups, restores and upgrades are covered in [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 Copy `.env.example` to `.env`, set a strong `POSTGRES_PASSWORD`, then start the stack with
 `docker compose up -d`. A one-shot `migrate` service applies PostgreSQL migrations; the API

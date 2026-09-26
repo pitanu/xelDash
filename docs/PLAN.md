@@ -145,6 +145,9 @@ Notes:
 
 ## 8. API and dashboard (Draft)
 
+Alerts (implemented): the API sends block, mining-pause and worker-offline alerts to
+Discord, Telegram or a JSON webhook; see [OPERATIONS.md](OPERATIONS.md#alerts).
+
 Candidate views:
 
 - **Overview:** observed hashrate, active miners and workers, node sync status, network
