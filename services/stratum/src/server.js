@@ -137,6 +137,9 @@ const server = createServer((socket) => {
 server.listen(port, host, () => {
   console.info(`xelDash Stratum server listening on ${host}:${port}`);
   console.info(`Vardiff: start ${vardiff.startDifficulty}, min ${vardiff.minDifficulty}, one share per ${vardiff.targetShareSeconds}s`);
+  // The dashboard reads the latest start event as Stratum's uptime.
+  recordServiceEvent(pool, "stratum_started", { port })
+    .catch((error) => console.warn("Failed to record start event:", error instanceof Error ? error.message : String(error)));
 });
 
 let shuttingDown = false;

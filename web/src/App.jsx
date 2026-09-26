@@ -4,6 +4,9 @@ import { BlocksTable, Card } from "./components/ui.jsx";
 import Miner from "./pages/Miner.jsx";
 import Overview from "./pages/Overview.jsx";
 import Worker from "./pages/Worker.jsx";
+import Health from "./pages/Health.jsx";
+
+const NAV = [["/", "Overview"], ["/blocks", "Blocks"], ["/health", "Health"]];
 
 function useHashRoute() {
   const [hash, setHash] = useState(window.location.hash);
@@ -39,12 +42,21 @@ export default function App() {
     page = <Worker key={route} address={address} name={name} />;
   } else if (minerMatch) page = <Miner key={minerMatch[1]} address={decodeURIComponent(minerMatch[1])} />;
   else if (route === "/blocks") page = <Blocks />;
+  else if (route === "/health") page = <Health />;
 
+  const section = route === "/blocks" || route === "/health" ? route : "/";
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-      <header className="mb-6 flex items-center justify-between">
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <a href="#/" className="text-base font-semibold text-ink">xelDash</a>
-        <span className="text-xs text-muted">Solo mining dashboard</span>
+        <nav className="flex gap-1 text-sm">
+          {NAV.map(([href, label]) => (
+            <a key={href} href={`#${href}`} aria-current={section === href ? "page" : undefined}
+              className={`rounded-md px-2.5 py-1 ${section === href ? "bg-wash font-semibold text-ink" : "text-ink-2 hover:bg-wash hover:text-ink"}`}>
+              {label}
+            </a>
+          ))}
+        </nav>
       </header>
       <main>{page}</main>
     </div>

@@ -160,7 +160,30 @@ const EVENT_LABELS = {
   block_submitted: "Block submitted",
   block_rejected: "Block rejected by daemon",
   block_final: "Block final",
+  ip_banned: "IP banned",
+  stratum_started: "Stratum started",
 };
+
+const LEVELS = {
+  good: { color: "var(--good)", icon: "M3 8.5l3 3 7-7" },
+  warning: { color: "var(--warning)", icon: "M8 4v5M8 11.5v.5" },
+  critical: { color: "var(--critical)", icon: "M4 4l8 8M12 4l-8 8" },
+  unknown: { color: "var(--muted)", icon: "M8 5v4M8 11v.5" },
+};
+
+/** Health state with the reserved status colors; always paired with an icon and a label. @param {{ level: keyof typeof LEVELS, label: string }} props */
+export function HealthBadge({ level, label }) {
+  const l = LEVELS[level];
+  return (
+    <span className="inline-flex items-center gap-1.5 text-sm text-ink">
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+        <circle cx="8" cy="8" r="7.5" fill={l.color} fillOpacity="0.16" />
+        <path d={l.icon} fill="none" stroke={l.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      {label}
+    </span>
+  );
+}
 
 /** @param {{ events: any[] }} props */
 export function EventsList({ events }) {
@@ -173,6 +196,7 @@ export function EventsList({ events }) {
             {EVENT_LABELS[/** @type {keyof typeof EVENT_LABELS} */ (e.type)] ?? e.type}
             {e.payload?.height !== undefined && <span className="text-ink-2 tabular"> · height {formatInteger(e.payload.height)}</span>}
             {e.payload?.status && <span className="text-ink-2"> · {e.payload.status}</span>}
+            {e.payload?.ip && <span className="text-ink-2"> · {e.payload.ip}</span>}
           </span>
           <span className="text-xs text-muted" title={formatTime(e.createdAt)}>{formatAgo(e.createdAt)}</span>
         </li>

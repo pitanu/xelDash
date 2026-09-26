@@ -1,10 +1,14 @@
 import { createServer } from "node:http";
 import { createPool } from "@xeldash/db";
 import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, listBlocks, listEvents, listMiners } from "./queries.js";
+import { getStatus } from "./status.js";
 
 const port = Number.parseInt(process.env.API_PORT ?? "8081", 10);
 const host = process.env.API_HOST ?? "0.0.0.0";
 const daemonUrl = process.env.XELIS_RPC_URL ?? "http://daemon:8080/json_rpc";
+// Where the status page probes Stratum; the Compose service name by default.
+const stratumHost = process.env.STRATUM_PROBE_HOST ?? "stratum";
+const stratumPort = Number.parseInt(process.env.STRATUM_PROBE_PORT ?? "3333", 10);
 const pool = createPool();
 let rpcId = 0;
 const HASHRATE_WINDOWS = Object.freeze([
@@ -148,6 +152,11 @@ const server = createServer(async (request, response) => {
       await pool.query("SELECT 1");
       const height = await daemonCall("get_height");
       sendJson(response, 200, { status: "ok", nodeHeight: height });
+      return;
+    }
+
+    if (pathname === "/api/v1/status") {
+      sendJson(response, 200, await getStatus({ pool, daemonCall, stratumHost, stratumPort }));
       return;
     }
 
