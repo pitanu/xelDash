@@ -186,5 +186,15 @@ socket.once(useTls ? "secureConnect" : "connect", async () => {
     console.error("authorize failed:", authorized.error?.message ?? authorized.result);
     process.exit(1);
   }
+  // Report measured hashrate like real Stratum miners (shown as "Reported" on the dashboard).
+  let lastHashes = 0;
+  let lastReport = Date.now();
+  setInterval(() => {
+    const now = Date.now();
+    const rate = ((hashes - lastHashes) * 1000) / (now - lastReport);
+    lastHashes = hashes;
+    lastReport = now;
+    void request("mining.hashrate", [Math.round(rate * 10) / 10]);
+  }, 10_000).unref();
   await mine();
 });

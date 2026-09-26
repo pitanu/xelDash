@@ -107,6 +107,7 @@ export async function getMiner(pool, address) {
   const workers = await pool.query(
     `SELECT w.name,
             w.last_seen,
+            CASE WHEN w.reported_at > now() - interval '10 minutes' THEN w.reported_hashrate END AS reported_hashrate,
             ROUND(COALESCE(SUM(s.sum_difficulty) FILTER (WHERE s.bucket >= date_trunc('minute', now()) - interval '5 minutes'), 0) / 300, 3)::text AS hashrate_5m,
             ROUND(COALESCE(SUM(s.sum_difficulty), 0) / 3600, 3)::text AS hashrate_1h,
             COALESCE(SUM(s.accepted), 0)::text AS accepted_1h,
@@ -131,6 +132,8 @@ export async function getMiner(pool, address) {
       hashrate1h: row.hashrate_1h,
       accepted1h: row.accepted_1h,
       rejected1h: row.rejected_1h,
+      // What the miner reports about itself, when it did so in the last 10 minutes.
+      reportedHashrate: row.reported_hashrate === null ? null : String(row.reported_hashrate),
     })),
   };
 }
@@ -178,7 +181,8 @@ export async function listEvents(pool, limit) {
 /** @param {PgPool} pool @param {string} address @param {string} name */
 export async function getWorker(pool, address, name) {
   const worker = await pool.query(
-    `SELECT w.id, w.name, w.first_seen, w.last_seen, host(w.last_ip) AS last_ip
+    `SELECT w.id, w.name, w.first_seen, w.last_seen, host(w.last_ip) AS last_ip,
+            CASE WHEN w.reported_at > now() - interval '10 minutes' THEN w.reported_hashrate END AS reported_hashrate
      FROM workers w JOIN miners m ON m.id = w.miner_id
      WHERE m.address = $1 AND w.name = $2`,
     [address, name],
@@ -217,6 +221,7 @@ export async function getWorker(pool, address, name) {
     firstSeen: row.first_seen.toISOString(),
     lastSeen: row.last_seen.toISOString(),
     lastIp: row.last_ip,
+    reportedHashrate: row.reported_hashrate === null ? null : String(row.reported_hashrate),
     hashrate: { "5m": s.hashrate_5m, "1h": s.hashrate_1h, "24h": s.hashrate_24h },
     shares: {
       accepted1h: s.accepted_1h,

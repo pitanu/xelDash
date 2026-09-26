@@ -1,7 +1,8 @@
 import { createServer } from "node:net";
 import { createServer as createTlsServer } from "node:tls";
 import {
-  createPool, listActiveBans, notifyLive, recordBan, recordServiceEvent, retentionConfigFromEnv, runRetention,
+  createPool, listActiveBans, notifyLive, recordBan, recordReportedHashrate, recordServiceEvent, retentionConfigFromEnv,
+  runRetention,
 } from "@xeldash/db";
 import { createWorkerAuthorizer } from "./authorize-worker.js";
 import { BlockTracker } from "./block-tracker.js";
@@ -92,6 +93,11 @@ const chainWatcher = new ChainWatcher({
 });
 chainWatcher.start();
 
+// Miners may report hashrate every few seconds; store at most one value per worker per 30 s.
+const HASHRATE_WRITE_INTERVAL_MS = 30_000;
+/** @type {Map<string, number>} */
+const hashrateWrites = new Map();
+
 /**
  * A mining session with this server's job source, share pipeline, vardiff and abuse limits.
  * Stratum and getwork connections both use it.
@@ -108,6 +114,14 @@ function newSession(socket, ip, onAuthorized = () => {}) {
     defaultAddress: process.env.XELIS_DEFAULT_ADDRESS ?? "",
     onAuthorized,
     onSubmission: (valid) => ipGuard.record(ip, valid),
+    onHashrate: ({ worker, hashrate }) => {
+      const key = String(worker.workerId);
+      const now = Date.now();
+      if (now - (hashrateWrites.get(key) ?? 0) < HASHRATE_WRITE_INTERVAL_MS) return;
+      hashrateWrites.set(key, now);
+      recordReportedHashrate(pool, worker.workerId, hashrate)
+        .catch((error) => console.warn("Failed to record reported hashrate:", error instanceof Error ? error.message : String(error)));
+    },
     canMine: () => (syncMonitor.ready ? null : syncMonitor.reason),
   });
 }

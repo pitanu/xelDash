@@ -10,6 +10,7 @@ Open:
 
 Resolved:
 
+- Miner-reported hashrate is stored and shown next to the share-based estimate.
 - Alerts (Discord, Telegram, JSON webhook) for blocks, mining pauses and offline workers.
 - Backups (optional `backup` profile, restore steps) and an upgrade guide in
   `docs/OPERATIONS.md`.

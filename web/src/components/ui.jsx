@@ -136,6 +136,7 @@ export function WorkersTable({ workers, address }) {
     <Table>
       <thead>
         <tr><th className={th}>Worker</th><th className={`${th} text-right`}>Hashrate (5 min)</th><th className={`${th} text-right`}>Hashrate (1 h)</th>
+          <th className={`${th} text-right`} title="What the miner reports about itself">Reported</th>
           <th className={`${th} text-right`}>Accepted (1 h)</th><th className={`${th} text-right`}>Rejected (1 h)</th><th className={`${th} text-right`}>Last seen</th></tr>
       </thead>
       <tbody className="tabular">
@@ -146,6 +147,7 @@ export function WorkersTable({ workers, address }) {
             </td>
             <td className={`${td} text-right`}>{formatHashrate(w.hashrate5m)}</td>
             <td className={`${td} text-right`}>{formatHashrate(w.hashrate1h)}</td>
+            <td className={`${td} text-right text-ink-2`}>{formatHashrate(w.reportedHashrate)}</td>
             <td className={`${td} text-right`}>{formatInteger(w.accepted1h)}</td>
             <td className={`${td} text-right`}>{formatInteger(w.rejected1h)}</td>
             <td className={`${td} text-right text-ink-2`}>{formatAgo(w.lastSeen)}</td>

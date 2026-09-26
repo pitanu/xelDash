@@ -44,7 +44,8 @@ export default function Worker({ address, name }) {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="col-span-2">
           <StatTile hero label="Hashrate, last hour" value={formatHashrate(w?.hashrate["1h"])}
-            detail={w ? `Last 5 min: ${formatHashrate(w.hashrate["5m"])} · 24 h: ${formatHashrate(w.hashrate["24h"])}` : undefined} />
+            detail={w ? `Last 5 min: ${formatHashrate(w.hashrate["5m"])} · 24 h: ${formatHashrate(w.hashrate["24h"])}`
+              + (w.reportedHashrate !== null ? ` · miner reports ${formatHashrate(w.reportedHashrate)}` : "") : undefined} />
         </div>
         <StatTile label="Accepted shares, 24 h" value={formatInteger(w?.shares.accepted24h)}
           detail={w ? `${formatInteger(w.shares.accepted1h)} in the last hour` : undefined} />

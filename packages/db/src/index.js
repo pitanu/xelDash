@@ -215,6 +215,11 @@ export async function recordBan(pool, { ip, reason, until }) {
   await pool.query("INSERT INTO bans (ip, reason, until) VALUES ($1, $2, $3)", [ip, reason, until]);
 }
 
+/** @param {PgPool} pool @param {string | bigint} workerId @param {number} hashrate */
+export async function recordReportedHashrate(pool, workerId, hashrate) {
+  await pool.query("UPDATE workers SET reported_hashrate = $2, reported_at = now() WHERE id = $1", [workerId, hashrate]);
+}
+
 /** Channel the API relays to live dashboards (see migration 002). */
 export const LIVE_CHANNEL = "xeldash_live";
 

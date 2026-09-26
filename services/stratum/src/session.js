@@ -417,7 +417,9 @@ export class StratumSession {
 
   /** @param {StratumRequest} request */
   hashrate(request) {
-    const [reported] = request.params;
+    // Most miners send a number; some send it as a decimal string.
+    const [raw] = request.params;
+    const reported = typeof raw === "string" && /^\d+(\.\d+)?$/.test(raw) ? Number(raw) : raw;
     if (typeof reported !== "number" || !Number.isFinite(reported) || reported < 0) {
       if (request.id !== null) this.send(errorResponse(request.id, -32602, "Hashrate must be a nonnegative number"));
       return;

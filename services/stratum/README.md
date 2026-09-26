@@ -33,6 +33,10 @@ has not been tested yet. Abuse limits: at most 64 connections per IP and 20 mess
 submissions that are over half of its submissions; stale shares do not count. Bans are
 stored in `bans` and survive restarts. All limits are `STRATUM_*` settings in `.env.example`.
 
+Reported hashrate: `mining.hashrate` (a number, or a decimal string) is stored per worker,
+at most every 30 seconds. The dashboard shows it next to the estimate from accepted shares
+when it is under 10 minutes old; a large gap between the two points at lost work.
+
 Sync gating: work is only issued while the node is caught up. If the peers' median
 topoheight gets more than 16 ahead, or the daemon stops responding, Stratum disconnects every
 miner (so it retries or fails over to a backup pool), refuses new logins with the reason, and
