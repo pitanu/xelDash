@@ -24,16 +24,18 @@ export function toWebSocketUrl(rpcUrl) {
 export class ChainWatcher {
   /**
    * @param {{ rpcUrl: string,
+   *   onDisconnect?: () => void,
    *   onNewBlock: (block: { hash?: string, height?: number, topoheight?: number }) => void,
    *   logger?: Pick<Console, "info" | "warn">,
    *   WebSocketImpl?: typeof WebSocket }} options
    */
-  constructor({ rpcUrl, onNewBlock, logger = console, WebSocketImpl = globalThis.WebSocket }) {
+  constructor({ rpcUrl, onNewBlock, onDisconnect = () => {}, logger = console, WebSocketImpl = globalThis.WebSocket }) {
     if (typeof WebSocketImpl !== "function") {
       throw new Error("A WebSocket implementation is required (Node.js 22 provides one globally)");
     }
     this.url = toWebSocketUrl(rpcUrl);
     this.onNewBlock = onNewBlock;
+    this.onDisconnect = onDisconnect;
     this.logger = logger;
     this.WebSocketImpl = WebSocketImpl;
     /** @type {WebSocket | null} */
@@ -114,7 +116,10 @@ export class ChainWatcher {
     socket.addEventListener("close", () => {
       if (this.socket !== socket) return;
       this.socket = null;
-      if (this.subscribed) this.logger.warn?.("Daemon event connection closed; falling back to polling until it reconnects");
+      if (this.subscribed) {
+        this.logger.warn?.(`Daemon event connection to ${this.url} closed; falling back to polling until it reconnects`);
+        this.onDisconnect();
+      }
       this.subscribed = false;
       this.#scheduleReconnect();
     });

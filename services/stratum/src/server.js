@@ -7,13 +7,12 @@ import {
 import { createWorkerAuthorizer } from "./authorize-worker.js";
 import { BlockTracker } from "./block-tracker.js";
 import { ChainWatcher } from "./chain-watcher.js";
-import { DaemonClient } from "./daemon-client.js";
 import { startGetworkServer } from "./getwork.js";
 import { IpGuard, MessageRateLimiter, ipGuardConfigFromEnv, normalizeIp } from "./ip-guard.js";
 import { MiningJobProvider } from "./job-provider.js";
+import { NodePool, rpcUrlsFromEnv } from "./node-pool.js";
 import { LineFramer } from "./line-framer.js";
 import { StratumSession } from "./session.js";
-import { SyncMonitor } from "./sync-monitor.js";
 import { tlsConfigFromEnv } from "./tls-config.js";
 import { createShareSubmitter } from "./share-submitter.js";
 import { vardiffConfigFromEnv } from "./vardiff.js";
@@ -37,10 +36,12 @@ if (!Number.isSafeInteger(handshakeTimeoutMs) || handshakeTimeoutMs < 1000
 }
 
 const pool = createPool();
-const daemon = new DaemonClient();
-const authorizeAddress = createWorkerAuthorizer({ daemon, pool });
-const jobProvider = new MiningJobProvider({ daemon });
-const submitShare = createShareSubmitter({ daemon, pool });
+// One or more XELIS nodes, in priority order (XELIS_RPC_URLS). Work comes from the first one
+// that is in sync; see node-pool.js.
+const nodes = new NodePool({ urls: rpcUrlsFromEnv(process.env), onActiveChange: handleActiveChange });
+const authorizeAddress = createWorkerAuthorizer({ daemon: nodes, pool });
+const jobProvider = new MiningJobProvider({ nodes });
+const submitShare = createShareSubmitter({ daemon: nodes, pool });
 /** @type {Map<{ remoteAddress?: string, destroy: () => void }, StratumSession>} */
 const sessions = new Map();
 const ipGuard = new IpGuard(ipGuardConfig, {
@@ -76,22 +77,31 @@ async function retentionPass() {
 }
 setTimeout(retentionPass, 60_000).unref();
 setInterval(retentionPass, 3_600_000).unref();
-const blockTracker = new BlockTracker({ daemon, pool });
+const blockTracker = new BlockTracker({ daemon: nodes, pool });
 blockTracker.start();
 
-// Push fresh work to every session as soon as the daemon sees a new block. Per-session
-// polling (STRATUM_JOB_REFRESH_MS) stays as the fallback and picks up template changes.
-// A new block can also advance the stable height, so check submitted blocks too.
-const chainWatcher = new ChainWatcher({
-  rpcUrl: daemon.endpoint,
-  onNewBlock: (block) => {
-    for (const session of sessions.values()) void session.refreshJob();
-    blockTracker.check();
-    // Network blocks are not stored as events; tell live dashboards directly.
-    notifyLive(pool, { type: "block", height: block.height ?? null, hash: block.hash ?? null }).catch(() => {});
-  },
-});
-chainWatcher.start();
+// Push fresh work to every session as soon as any node sees a new block. Per-session polling
+// (STRATUM_JOB_REFRESH_MS) stays as the fallback and picks up template changes. A new block
+// can also advance the stable height, so check submitted blocks too. Every node reports the
+// same block, so live dashboards are told once per hash.
+/** @type {Set<string>} */
+const announcedBlocks = new Set();
+/** @param {{ hash?: string, height?: number }} block */
+function handleNewBlock(block) {
+  for (const session of sessions.values()) void session.refreshJob();
+  blockTracker.check();
+  if (!block.hash || announcedBlocks.has(block.hash)) return;
+  announcedBlocks.add(block.hash);
+  if (announcedBlocks.size > 256) announcedBlocks.delete(/** @type {string} */ (announcedBlocks.values().next().value));
+  notifyLive(pool, { type: "block", height: block.height ?? null, hash: block.hash }).catch(() => {});
+}
+const chainWatchers = nodes.nodes.map((node) => new ChainWatcher({
+  rpcUrl: node.url,
+  onNewBlock: handleNewBlock,
+  // A dropped event connection is the quickest sign a node went away; check it right away.
+  onDisconnect: () => nodes.checkNow(node),
+}));
+for (const watcher of chainWatchers) watcher.start();
 
 // Miners may report hashrate every few seconds; store at most one value per worker per 30 s.
 const HASHRATE_WRITE_INTERVAL_MS = 30_000;
@@ -122,7 +132,7 @@ function newSession(socket, ip, onAuthorized = () => {}) {
       recordReportedHashrate(pool, worker.workerId, hashrate)
         .catch((error) => console.warn("Failed to record reported hashrate:", error instanceof Error ? error.message : String(error)));
     },
-    canMine: () => (syncMonitor.ready ? null : syncMonitor.reason),
+    canMine: () => (nodes.ready ? null : nodes.reason),
   });
 }
 
@@ -191,22 +201,36 @@ function handleConnection(socket) {
   socket.on("error", (error) => console.warn("Stratum socket error:", error.message));
 }
 
-// Work is only issued while the node is caught up. When it falls behind or stops responding,
-// every miner is disconnected so it retries (or fails over to a backup pool) instead of
-// hashing on an old chain; logins are refused until the node is ready again.
-const syncMonitor = new SyncMonitor({
-  daemon,
-  onChange: (state, detail) => {
-    if (state !== "ready") {
-      for (const socket of sessions.keys()) socket.destroy();
-    }
-    if (state === "ready" && detail.previous === "unknown") return;
-    const type = state === "ready" ? "node_ready" : state === "syncing" ? "node_syncing" : "node_unreachable";
-    recordServiceEvent(pool, type, detail)
-      .catch((error) => console.warn("Failed to record node state:", error instanceof Error ? error.message : String(error)));
-  },
-});
-await syncMonitor.start();
+// Work is only issued while some node is caught up. When the active node falls behind or
+// stops responding, mining moves to the next ready node and every miner gets fresh work from
+// it. When no node is ready, every miner is disconnected so it retries (or fails over to a
+// backup pool) instead of hashing on an old chain, and logins are refused until one recovers.
+let nodesStarted = false;
+/**
+ * @param {import("./node-pool.js").PoolNode | null} active
+ * @param {import("./node-pool.js").PoolNode | null} previous
+ */
+function handleActiveChange(active, previous) {
+  /** @param {string} type @param {Record<string, unknown>} payload */
+  const record = (type, payload) => recordServiceEvent(pool, type, payload)
+    .catch((error) => console.warn("Failed to record node state:", error instanceof Error ? error.message : String(error)));
+  const states = Object.fromEntries(nodes.nodes.map((node) => [node.label, node.monitor.state]));
+  if (!active) {
+    for (const socket of sessions.keys()) socket.destroy();
+    const syncing = nodes.nodes.find((node) => node.monitor.state === "syncing");
+    record(syncing ? "node_syncing" : "node_unreachable", { ...(syncing?.monitor.detail ?? {}), nodes: states, reason: nodes.reason });
+    return;
+  }
+  if (!nodesStarted) return;
+  if (!previous) {
+    record("node_ready", { node: active.label, nodes: states });
+    return;
+  }
+  record("node_switched", { from: previous.label, to: active.label, nodes: states });
+  for (const session of sessions.values()) void session.refreshJob(true);
+}
+await nodes.start();
+nodesStarted = true;
 
 const server = createServer(handleConnection);
 const tlsServer = tls
@@ -222,7 +246,7 @@ server.listen(port, host, () => {
   console.info(`xelDash Stratum server listening on ${host}:${port}`);
   console.info(`Vardiff: start ${vardiff.startDifficulty}, min ${vardiff.minDifficulty}, one share per ${vardiff.targetShareSeconds}s`);
   // The dashboard reads the latest start event as Stratum's uptime.
-  recordServiceEvent(pool, "stratum_started", { port, tlsPort: tls?.port ?? null })
+  recordServiceEvent(pool, "stratum_started", { port, tlsPort: tls?.port ?? null, node: nodes.active?.label ?? null })
     .catch((error) => console.warn("Failed to record start event:", error instanceof Error ? error.message : String(error)));
 });
 if (tlsServer && tls) {
@@ -245,8 +269,8 @@ let shuttingDown = false;
 async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
-  chainWatcher.stop();
-  syncMonitor.stop();
+  for (const watcher of chainWatchers) watcher.stop();
+  nodes.stop();
   const closed = Promise.all([
     new Promise((resolve) => server.close(resolve)),
     tlsServer ? new Promise((resolve) => tlsServer.close(resolve)) : null,

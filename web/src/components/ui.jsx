@@ -167,6 +167,7 @@ const EVENT_LABELS = {
   node_syncing: "Node syncing, work paused",
   node_unreachable: "Node not responding, work paused",
   node_ready: "Node ready, work resumed",
+  node_switched: "Mining switched node",
 };
 
 const LEVELS = {
@@ -202,6 +203,7 @@ export function EventsList({ events }) {
             {e.payload?.height !== undefined && <span className="text-ink-2 tabular"> · height {formatInteger(e.payload.height)}</span>}
             {e.payload?.status && <span className="text-ink-2"> · {e.payload.status}</span>}
             {e.payload?.ip && <span className="text-ink-2"> · {e.payload.ip}</span>}
+            {e.payload?.from && e.payload?.to && <span className="text-ink-2"> · {e.payload.from} → {e.payload.to}</span>}
           </span>
           <span className="text-xs text-muted" title={formatTime(e.createdAt)}>{formatAgo(e.createdAt)}</span>
         </li>

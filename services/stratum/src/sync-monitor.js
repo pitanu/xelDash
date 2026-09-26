@@ -15,12 +15,13 @@ export class SyncMonitor {
   /**
    * @param {{ daemon: import("./daemon-client.js").DaemonClient,
    *   onChange?: (state: SyncState, detail: Record<string, unknown>) => void,
-   *   intervalMs?: number, tolerance?: number, confirmations?: number,
+   *   label?: string, intervalMs?: number, tolerance?: number, confirmations?: number,
    *   logger?: Pick<Console, "info" | "warn"> }} options
    */
-  constructor({ daemon, onChange = () => {}, intervalMs = 10_000, tolerance = 16, confirmations = 2, logger = console }) {
+  constructor({ daemon, onChange = () => {}, label = "Node", intervalMs = 10_000, tolerance = 16, confirmations = 2, logger = console }) {
     this.daemon = daemon;
     this.onChange = onChange;
+    this.label = label;
     this.intervalMs = intervalMs;
     this.tolerance = tolerance;
     this.confirmations = confirmations;
@@ -106,8 +107,8 @@ export class SyncMonitor {
     this.state = observed;
     this.detail = detail;
     this.pending = null;
-    if (observed === "ready") this.logger.info?.("Node is ready; issuing work", detail);
-    else this.logger.warn?.(`Pausing work: ${this.reason}`, detail);
+    if (observed === "ready") this.logger.info?.(`${this.label} is ready`, detail);
+    else this.logger.warn?.(`${this.label} is not ready: ${this.reason}`, detail);
     this.onChange(observed, { ...detail, previous });
   }
 }

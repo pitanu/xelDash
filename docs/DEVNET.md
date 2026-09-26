@@ -56,8 +56,37 @@ docker run --rm --network xeldash_backend xelis/miner:1.21.3 \
 
 Its shares then appear under that worker on the dashboard.
 
+## Two-node check
+
+Devnet nodes generate their own genesis block, so a second devnet node must be given the
+first node's genesis (printed as "Genesis generated: <hex>" when the chain was created)
+and should keep reconnecting to it. Use a local override file, not the main Compose file:
+
+```yaml
+# redundant-devnet.yml
+services:
+  daemon2:
+    command:
+      - --network=devnet
+      - --rpc-bind-address=0.0.0.0:8080
+      - --dir-path=/root/.xelis/
+      - --genesis-block-hex=<genesis hex>
+      - --exclusive-nodes=daemon:2125
+```
+
+```sh
+COMPOSE_PROFILES=redundant XELIS_RPC_URLS=http://daemon:8080/json_rpc,http://daemon2:8080/json_rpc \
+  docker compose -f docker-compose.yml -f redundant-devnet.yml up -d
+```
+
+Run the Stratum check with `-e XELIS_RPC_URL=http://daemon2:8080/json_rpc` (so its block
+verification does not depend on `daemon`), then stop and start `daemon` while it mines.
+
 ## Results so far
 
+- Two nodes (2026-09-26): mining continued through `docker compose stop daemon` and start;
+  14 of 14 blocks verified, no miner disconnects. Failover took about 8 seconds and failback
+  about 6; a block found on a job from the stopped node was submitted through `daemon2`.
 - Getwork (2026-09-26): official xelis_miner 1.21.3 through port 8090. 38 blocks accepted,
   all found by hash in the daemon. With a lower share target, 78 shares and 5 blocks were
   recorded and the miner reported exactly 5 accepted blocks.

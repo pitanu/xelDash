@@ -3,16 +3,16 @@ import { createPool } from "@xeldash/db";
 import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, listBlocks, listEvents, listMiners } from "./queries.js";
 import { alertConfigFromEnv, startAlerts } from "./alerts.js";
 import { startLiveUpdates } from "./live.js";
+import { callAnyNode, rpcUrlsFromEnv } from "./nodes.js";
 import { getStatus } from "./status.js";
 
 const port = Number.parseInt(process.env.API_PORT ?? "8081", 10);
 const host = process.env.API_HOST ?? "0.0.0.0";
-const daemonUrl = process.env.XELIS_RPC_URL ?? "http://daemon:8080/json_rpc";
+const nodeUrls = rpcUrlsFromEnv(process.env);
 // Where the status page probes Stratum; the Compose service name by default.
 const stratumHost = process.env.STRATUM_PROBE_HOST ?? "stratum";
 const stratumPort = Number.parseInt(process.env.STRATUM_PROBE_PORT ?? "3333", 10);
 const pool = createPool();
-let rpcId = 0;
 const HASHRATE_WINDOWS = Object.freeze([
   { key: "5m", seconds: 300, difficultyColumn: "difficulty_5m" },
   { key: "1h", seconds: 3600, difficultyColumn: "difficulty_1h" },
@@ -61,18 +61,8 @@ function estimateMining(activity, network) {
 }
 
 /** @param {string} method @param {number} [timeoutMs] */
-async function daemonCall(method, timeoutMs = 5_000) {
-  const response = await fetch(daemonUrl, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: ++rpcId, method }),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-
-  if (!response.ok) throw new Error(`Daemon RPC returned HTTP ${response.status}`);
-  const body = await response.json();
-  if (body.error) throw new Error(`Daemon RPC ${method} failed: ${body.error.message}`);
-  return body.result;
+function daemonCall(method, timeoutMs = 5_000) {
+  return callAnyNode(nodeUrls, method, timeoutMs);
 }
 
 async function getOverview() {
@@ -160,8 +150,7 @@ const server = createServer(async (request, response) => {
     if (pathname === "/api/v1/status") {
       sendJson(response, 200, await getStatus({
         pool,
-        // The status page must render quickly when the daemon is down.
-        daemonCall: (method) => daemonCall(method, 2_000),
+        nodeUrls,
         stratumHost,
         stratumPort,
       }));

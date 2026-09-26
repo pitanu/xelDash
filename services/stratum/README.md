@@ -37,7 +37,12 @@ Reported hashrate: `mining.hashrate` (a number, or a decimal string) is stored p
 at most every 30 seconds. The dashboard shows it next to the estimate from accepted shares
 when it is under 10 minutes old; a large gap between the two points at lost work.
 
-Sync gating: work is only issued while the node is caught up. If the peers' median
+Nodes: `XELIS_RPC_URLS` lists one or more XELIS nodes in priority order (`node-pool.js`).
+Work comes from the first node that is in sync; if it goes down or falls behind, mining
+switches to the next one without disconnecting miners, and moves back when it recovers. See
+[docs/OPERATIONS.md](../../docs/OPERATIONS.md#redundant-nodes).
+
+Sync gating: work is only issued while a node is caught up. If the peers' median
 topoheight gets more than 16 ahead, or the daemon stops responding, Stratum disconnects every
 miner (so it retries or fails over to a backup pool), refuses new logins with the reason, and
 resumes on its own. The dashboard's Health page shows "Paused" meanwhile.

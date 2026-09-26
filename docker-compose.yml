@@ -30,6 +30,34 @@ services:
     networks:
       - backend
 
+  # Optional second node for redundancy: COMPOSE_PROFILES=redundant, and add it to
+  # XELIS_RPC_URLS. It has its own chain data and image pin (XELIS_DAEMON2_IMAGE), so the two
+  # nodes can be upgraded one at a time while mining continues on the other.
+  daemon2:
+    profiles: ["redundant"]
+    build:
+      context: docker/daemon
+      args:
+        XELIS_DAEMON_IMAGE: ${XELIS_DAEMON2_IMAGE:-${XELIS_DAEMON_IMAGE:-xelis/daemon:1.25.0}}
+    command:
+      - --network=${XELIS_NETWORK:-devnet}
+      - --rpc-bind-address=0.0.0.0:8080
+      - --dir-path=/root/.xelis/
+      - --priority-nodes=daemon:2125
+    restart: unless-stopped
+    volumes:
+      - xelis-data-2:/root/.xelis
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "busybox", "wget", "-q", "-O", "-", "--header", "Content-Type: application/json", "--post-data", "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"get_version\"}", "http://127.0.0.1:8080/json_rpc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - backend
+
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
@@ -87,7 +115,8 @@ services:
       ALERT_EVENTS: ${ALERT_EVENTS:-}
       ALERT_WORKER_OFFLINE_MINUTES: ${ALERT_WORKER_OFFLINE_MINUTES:-10}
       ALERT_DASHBOARD_URL: ${ALERT_DASHBOARD_URL:-}
-      XELIS_RPC_URL: http://daemon:8080/json_rpc
+      # Nodes in priority order; see docs/OPERATIONS.md#redundant-nodes.
+      XELIS_RPC_URLS: ${XELIS_RPC_URLS:-http://daemon:8080/json_rpc}
       PGHOST: postgres
       PGPORT: 5432
       PGDATABASE: ${POSTGRES_DB:-xeldash}
@@ -147,7 +176,8 @@ services:
       GETWORK_ENABLED: ${GETWORK_ENABLED:-true}
       GETWORK_PORT: 8090
       XELIS_DEFAULT_ADDRESS: ${XELIS_DEFAULT_ADDRESS:-}
-      XELIS_RPC_URL: http://daemon:8080/json_rpc
+      # Nodes in priority order; see docs/OPERATIONS.md#redundant-nodes.
+      XELIS_RPC_URLS: ${XELIS_RPC_URLS:-http://daemon:8080/json_rpc}
       PGHOST: postgres
       PGPORT: 5432
       PGDATABASE: ${POSTGRES_DB:-xeldash}
@@ -221,6 +251,7 @@ services:
 
 volumes:
   xelis-data:
+  xelis-data-2:
   postgres-data:
 
 networks:

@@ -65,6 +65,7 @@ export class StratumSession {
     this.jobRefreshTimer = null;
     this.refreshingJob = false;
     this.refreshQueued = false;
+    this.forceClean = false;
     this.vardiff = new Vardiff(vardiff);
   }
 
@@ -214,7 +215,9 @@ export class StratumSession {
    * in flight (for example a new_block event during a poll) are coalesced into one more pass,
    * so a tip change is never dropped.
    */
-  async refreshJob() {
+  /** @param {boolean} [clean] Drop earlier jobs even at the same height (the node changed). */
+  async refreshJob(clean = false) {
+    if (clean) this.forceClean = true;
     if (!this.miningIdentity || !this.miningAddress || !this.algorithm
         || this.socket.destroyed || !this.createJob) return;
     if (this.refreshingJob) {
@@ -246,15 +249,19 @@ export class StratumSession {
       // Vardiff may have retargeted while the template was being fetched.
       if (job.shareDifficulty !== this.vardiff.difficulty) job = reissueJob(job, this.vardiff.difficulty);
       const latestJob = [...this.jobs.values()].at(-1);
-      if (latestJob && latestJob.headerWorkHash === job.headerWorkHash
+      if (latestJob && !this.forceClean && latestJob.nodeId === job.nodeId
+          && latestJob.headerWorkHash === job.headerWorkHash
           && latestJob.timestampHex === job.timestampHex
           && latestJob.shareDifficulty === job.shareDifficulty
           && latestJob.networkDifficulty === job.networkDifficulty) return;
       // Only a new chain tip (height) or difficulty change invalidates earlier work. A new
       // header hash at the same height usually means new mempool transactions; work on the
       // previous template is still a valid block, so miners need not restart.
-      const cleanJobs = !latestJob || latestJob.height !== job.height
+      // After a node switch, earlier jobs are dropped too: their templates belong to a node
+      // that may no longer be able to take a block.
+      const cleanJobs = !latestJob || this.forceClean || latestJob.height !== job.height
         || latestJob.networkDifficulty !== job.networkDifficulty;
+      this.forceClean = false;
       this.trackJob(job, cleanJobs);
       if (!latestJob || latestJob.shareDifficulty !== job.shareDifficulty) {
         this.send({ jsonrpc: "2.0", id: null, method: "mining.set_difficulty", params: [job.shareDifficulty] });

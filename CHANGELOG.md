@@ -20,7 +20,10 @@ First public version, planned as 0.1.0.
 - Getwork endpoint (port 8090) for the official `xelis_miner`, with the same stats and
   limits as Stratum.
 - Optional TLS Stratum port (3334).
-- Work is paused while the node is syncing or down, and resumes on its own.
+- Several nodes in priority order (`XELIS_RPC_URLS`), with an optional second node in
+  Compose: mining fails over within seconds and moves back when the preferred node is in
+  sync, so node upgrades do not stop mining.
+- Work is paused while no node is in sync, and resumes on its own.
 - Per-IP connection and message limits, and timed bans for invalid submissions.
 - Block tracking: submitted blocks end as main chain, side or orphaned at the stable
   height, with their reward.

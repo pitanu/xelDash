@@ -20,7 +20,7 @@ function errorMessage(error) {
  */
 export class BlockTracker {
   /**
-   * @param {{ daemon: import("./daemon-client.js").DaemonClient, pool: import("pg").Pool,
+   * @param {{ daemon: import("./node-pool.js").NodePool, pool: import("pg").Pool,
    *   intervalMs?: number, logger?: Pick<Console, "info" | "warn"> }} options
    */
   constructor({ daemon, pool, intervalMs = 30_000, logger = console }) {

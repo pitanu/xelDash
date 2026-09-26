@@ -21,6 +21,37 @@ function syncState(node) {
   return { level: /** @type {const} */ ("good"), label: "In sync" };
 }
 
+/** @param {any} n */
+function nodeState(n) {
+  if (!n.ok) return { level: /** @type {const} */ ("critical"), label: "Not responding" };
+  return syncState(n);
+}
+
+/** Every configured node, with the one Stratum mines through marked. @param {{ nodes: any[] }} props */
+function NodesList({ nodes }) {
+  return (
+    <ul className="divide-y divide-line text-sm">
+      {nodes.map((n) => {
+        const state = nodeState(n);
+        return (
+          <li key={n.label} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2">
+            <span className="flex items-center gap-2">
+              <span className="font-medium text-ink">{n.label}</span>
+              {n.active && <span className="rounded bg-wash px-1.5 py-0.5 text-xs text-ink-2">Mining</span>}
+            </span>
+            <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <HealthBadge level={state.level} label={state.label} />
+              <span className="tabular text-xs text-muted">
+                {n.ok ? `${n.version} · topo ${formatInteger(n.topoheight)} · ${formatInteger(n.peers ?? 0)} peers` : n.error}
+              </span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export default function Health() {
   const status = usePolled("/api/v1/status");
   const events = usePolled("/api/v1/events?limit=30");
@@ -47,8 +78,13 @@ export default function Health() {
     <div className="space-y-6">
       {status.error && !s && <p className="text-sm text-critical">Unable to reach the xelDash API.</p>}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <ServiceTile label="Node" detail={s?.services.daemon.ok ? node?.version : s?.services.daemon.error}>
-          {s && <HealthBadge level={s.services.daemon.ok ? "good" : "critical"} label={s.services.daemon.ok ? "Running" : "Not responding"} />}
+        <ServiceTile label={s && s.nodes.length > 1 ? "Nodes" : "Node"}
+          detail={!s ? undefined : s.nodes.length > 1
+            ? `${s.nodes.filter((n) => n.ok).length} of ${s.nodes.length} responding`
+            : s.services.daemon.ok ? node?.version : s.services.daemon.error}>
+          {s && (s.nodes.length > 1 && s.services.daemon.ok && s.nodes.some((n) => !n.ok)
+            ? <HealthBadge level="warning" label="Degraded" />
+            : <HealthBadge level={s.services.daemon.ok ? "good" : "critical"} label={s.services.daemon.ok ? "Running" : "Not responding"} />)}
         </ServiceTile>
         <ServiceTile label="Network sync"
           detail={sync.label === "No peers" ? "Found blocks cannot reach other nodes" : sync.label === "Syncing" ? `At ${formatInteger(node.topoheight)} of ${formatInteger(node.networkTopoheight)}` : undefined}>
@@ -57,7 +93,8 @@ export default function Health() {
         <ServiceTile label="Stratum"
           detail={s?.services.stratum.paused
             ? `Work paused: node ${s.services.stratum.paused === "syncing" ? "is syncing" : "is not responding"}`
-            : s?.services.stratum.startedAt ? `Started ${formatAgo(s.services.stratum.startedAt)}` : undefined}>
+            : s?.services.stratum.node && s.nodes.length > 1 ? `Mining through ${s.services.stratum.node}`
+              : s?.services.stratum.startedAt ? `Started ${formatAgo(s.services.stratum.startedAt)}` : undefined}>
           {s && (!s.services.stratum.ok
             ? <HealthBadge level="critical" label="Not reachable" />
             : s.services.stratum.paused
@@ -69,8 +106,14 @@ export default function Health() {
         </ServiceTile>
       </div>
 
+      {s && s.nodes.length > 1 && (
+        <Card title="Nodes" subtitle="In priority order. Mining uses the first node that is in sync.">
+          <NodesList nodes={s.nodes} />
+        </Card>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Node">
+        <Card title={node && s && s.nodes.length > 1 ? `Node ${node.label}` : "Node"}>
           {node ? (
             <dl className="divide-y divide-line text-sm">
               {rows.map(([label, value]) => (

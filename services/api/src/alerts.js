@@ -208,6 +208,13 @@ export function startAlerts({ pool, config, logger = console }) {
         text: type === "node_syncing"
           ? `⏸️ Mining paused: the node is syncing (topoheight ${p.topoheight} of ${p.networkTopoheight}). Miners were disconnected and will reconnect when it catches up.`
           : "⏸️ Mining paused: the node is not responding. Miners were disconnected and will reconnect when it is back." });
+    } else if (type === "node_switched" && config.events.has("mining_paused")) {
+      // The node mining left is still ready when a higher-priority node recovered (failback).
+      const state = p.nodes?.[p.from];
+      send({ event: "node_switched", data: p,
+        text: state === "ready"
+          ? `🔀 Mining moved back to node ${p.to}, the preferred node. Miners got fresh work.`
+          : `🔀 Mining switched from node ${p.from} to ${p.to}: ${p.from} ${state === "syncing" ? "is syncing" : "is not responding"}. Miners got fresh work and keep mining.` });
     } else if (type === "node_ready" && config.events.has("mining_paused")) {
       send({ event: "mining_resumed", data: p, text: "▶️ Mining resumed: the node is ready again." });
     }

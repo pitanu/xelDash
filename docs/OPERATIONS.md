@@ -20,8 +20,8 @@ Events:
 - `block_rejected`: the node refused a block candidate.
 - `block_final`: a block reached the stable height, as main chain, side or orphaned, with its
   reward. Blocks that become final within 5 seconds of each other arrive as one summary.
-- `mining_paused`: Stratum paused work because the node is syncing or down, and when it
-  resumes.
+- `mining_paused`: Stratum paused work because no node is usable, when it resumes, and
+  when mining switches to another node.
 - `worker_offline`: a worker stopped sending accepted shares, and when it comes back. Only
   workers with shares in the last 24 hours are watched. After an API restart the first check
   only records state, so workers that were already offline are not announced again.
@@ -116,8 +116,54 @@ The daemon release is pinned with `XELIS_DAEMON_IMAGE` (see
 2. Run the devnet check in [DEVNET.md](DEVNET.md) against it.
 3. Set the tag in `.env` and run `docker compose up -d --build daemon`.
 
-While the new daemon starts and catches up, Stratum pauses work and disconnects miners; it
-resumes on its own once the node is in sync. The Health page shows "Paused" meanwhile.
+With a single node, Stratum pauses work and disconnects miners while the new daemon starts
+and catches up, and resumes on its own once it is in sync. The Health page shows "Paused"
+meanwhile. To upgrade without stopping mining, run two nodes (next section).
+
+## Redundant nodes
+
+Stratum can mine through several XELIS nodes. It uses the first node in the list that is in
+sync, and switches to the next one within seconds if that node stops responding, starts
+syncing, or falls more than 16 topoheights behind another of your nodes. Miners get fresh
+work from the new node and keep mining; nobody is disconnected. When the preferred node is
+ready again, mining moves back to it. A block found on a job from a node that just went away
+is submitted through another node. Mining only pauses when no node is usable.
+
+### A second node in this stack
+
+Add to `.env`:
+
+```sh
+COMPOSE_PROFILES=redundant
+XELIS_RPC_URLS=http://daemon:8080/json_rpc,http://daemon2:8080/json_rpc
+```
+
+then `docker compose up -d`. The `daemon2` service has its own chain data (the
+`xelis-data-2` volume) and connects to `daemon` directly. It needs to sync the chain before
+it can take over; the Health page lists both nodes and marks the one in use. Two nodes on
+one machine protect against node restarts, upgrades and crashes, not against the machine
+failing.
+
+### A node on another machine
+
+Any XELIS node whose RPC Stratum can reach works. Add its URL to `XELIS_RPC_URLS` in
+priority order, for example
+`XELIS_RPC_URLS=http://daemon:8080/json_rpc,http://192.168.1.20:8080/json_rpc`. Its RPC must
+be reachable from this machine but should stay on your LAN: never expose daemon RPC to the
+internet.
+
+### Upgrading without stopping mining
+
+Upgrade one node at a time and let it catch up before touching the next:
+
+1. Set `XELIS_DAEMON2_IMAGE=xelis/daemon:<new tag>` in `.env` and run
+   `docker compose up -d --build daemon2`.
+2. Wait until the Health page shows `daemon2` in sync.
+3. Set `XELIS_DAEMON_IMAGE` to the same tag (and remove `XELIS_DAEMON2_IMAGE`, which follows
+   it by default), then `docker compose up -d --build daemon`. Mining switches to `daemon2`
+   while `daemon` restarts, and back once it is in sync.
+
+Switches are recorded as events and, with alerts on, reported as `mining_paused` alerts.
 
 **Hard forks:** XELIS announces network upgrades with a minimum daemon version and an
 activation height (for example, the V7 fork at height 6,909,122 required 1.24.0). Upgrade

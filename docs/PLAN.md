@@ -71,10 +71,16 @@ To confirm against the daemon's RPC documentation and a test run:
 - Submitting a solved block (template plus miner work).
 - Detecting new jobs: subscribe to daemon events over WebSocket, or poll? Also how often to
   refresh the template when no new block arrives.
-- Node sync state (implemented): Stratum pauses work while the peers' median topoheight is
-  more than 16 ahead of the node's, or while the daemon does not respond (two consecutive
-  10-second checks). It disconnects miners, refuses logins with the reason, and resumes on
-  its own. No peers counts as ready (normal on devnet); the Health page warns about it.
+- Node sync state (implemented): a node is not usable while its peers' median topoheight is
+  more than 16 ahead of it, or while it does not respond (two consecutive 5-second checks).
+  No peers counts as ready (normal on devnet); the Health page warns about it.
+- Multiple nodes (implemented): `XELIS_RPC_URLS` lists nodes in priority order. Stratum
+  mines through the first usable node that is not more than 16 topoheights behind another
+  of our nodes, fails over without disconnecting miners (fresh, clean jobs), and fails back
+  when the preferred node recovers. Blocks go to the node that issued the job, then to the
+  others if it is unreachable. When no node is usable, miners are disconnected and logins
+  refused until one recovers. An optional `daemon2` Compose service (profile `redundant`)
+  allows one-at-a-time upgrades.
 - Final block status (decided): a block is final once its height is at or below the
   daemon's `stableheight`. The daemon's block type then maps Normal and Sync to
   `main-chain`, Side to `side`, and Orphaned (or unknown) to `orphaned`.

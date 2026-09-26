@@ -1,6 +1,6 @@
 import { ensureWorker } from "@xeldash/db";
 
-/** @param {{ daemon: import("./daemon-client.js").DaemonClient, pool: import("pg").Pool }} dependencies */
+/** @param {{ daemon: import("./node-pool.js").NodePool, pool: import("pg").Pool }} dependencies */
 export function createWorkerAuthorizer({ daemon, pool }) {
   /** @param {{ address: string, workerName: string, password?: string, ip?: string }} input */
   return async ({ address, workerName, ip }) => {

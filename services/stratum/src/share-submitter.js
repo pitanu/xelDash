@@ -27,7 +27,7 @@ function errorMessage(error) {
 }
 
 /**
- * @param {{ daemon: import("./daemon-client.js").DaemonClient, pool: import("pg").Pool, logger?: Pick<Console, "warn" | "info"> }} dependencies
+ * @param {{ daemon: import("./node-pool.js").NodePool, pool: import("pg").Pool, logger?: Pick<Console, "warn" | "info"> }} dependencies
  */
 export function createShareSubmitter({ daemon, pool, logger = console }) {
   /**
@@ -42,7 +42,7 @@ export function createShareSubmitter({ daemon, pool, logger = console }) {
     /** @type {string | null} */
     let failure = null;
     try {
-      const submitted = await daemon.submitBlock(job.template, minerWork.toString("hex"));
+      const submitted = await daemon.submitBlock(job.template, minerWork.toString("hex"), job.nodeId);
       status = submitted ? "submitted" : "rejected";
       if (!submitted) failure = "daemon returned false";
     } catch (error) {

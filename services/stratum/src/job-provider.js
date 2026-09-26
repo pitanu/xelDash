@@ -4,7 +4,7 @@ const MINER_WORK_BYTES = 112;
 const HEADER_HASH_BYTES = 32;
 const TIMESTAMP_OFFSET = 32;
 
-/** @typedef {{ jobId: string, template: string, timestampHex: string, headerWorkHash: string, algorithm: string, networkDifficulty: string, height: number, topoheight: number, shareDifficulty: number, extraNonce: Buffer, publicKey: Buffer, buildMinerWork: (nonce: string) => Buffer }} MiningJob */
+/** @typedef {{ jobId: string, template: string, timestampHex: string, headerWorkHash: string, algorithm: string, networkDifficulty: string, height: number, topoheight: number, nodeId: number, shareDifficulty: number, extraNonce: Buffer, publicKey: Buffer, buildMinerWork: (nonce: string) => Buffer }} MiningJob */
 
 /**
  * Share difficulty never exceeds network difficulty: work at network difficulty is a block.
@@ -28,9 +28,9 @@ export function reissueJob(job, shareDifficulty) {
 }
 
 export class MiningJobProvider {
-  /** @param {{ daemon: import("./daemon-client.js").DaemonClient }} options */
-  constructor({ daemon }) {
-    this.daemon = daemon;
+  /** @param {{ nodes: import("./node-pool.js").NodePool }} options */
+  constructor({ nodes }) {
+    this.nodes = nodes;
   }
 
   /** @param {{ address: string, publicKey: string, extraNonce: string, algorithm: string, shareDifficulty: number }} input @returns {Promise<MiningJob>} */
@@ -42,14 +42,18 @@ export class MiningJobProvider {
       throw new Error(`Only xel/v3 work can be validated; negotiated ${algorithm}`);
     }
 
-    const template = await this.daemon.getBlockTemplate(address);
+    // Template and miner work must come from the same node; the job remembers which one, so a
+    // block found on it is submitted there first.
+    const node = this.nodes.active;
+    if (!node) throw new Error(this.nodes.reason);
+    const template = await node.client.getBlockTemplate(address);
     if (typeof template?.template !== "string" || template.template.length === 0) {
       throw new Error("Daemon returned an invalid block template");
     }
     if (template.algorithm !== "xel/v3") {
       throw new Error(`Daemon returned unsupported template algorithm: ${template.algorithm ?? "unknown"}`);
     }
-    const work = await this.daemon.getMinerWork(template.template, address);
+    const work = await node.client.getMinerWork(template.template, address);
     if (work?.algorithm !== "xel/v3") {
       throw new Error(`Daemon returned unsupported PoW algorithm: ${work?.algorithm ?? "unknown"}`);
     }
@@ -82,6 +86,7 @@ export class MiningJobProvider {
       algorithm,
       networkDifficulty: work.difficulty,
       height: work.height,
+      nodeId: node.id,
       topoheight: work.topoheight !== undefined && Number.isSafeInteger(work.topoheight) ? work.topoheight : work.height,
       shareDifficulty,
       extraNonce: extraNonceBytes,

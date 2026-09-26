@@ -1,3 +1,15 @@
+/**
+ * The daemon could not be reached (connection refused, DNS failure, timeout), as opposed to
+ * answering with an error. Only this kind of failure is worth retrying on another node.
+ */
+export class DaemonUnreachableError extends Error {
+  /** @param {string} endpoint @param {unknown} cause */
+  constructor(endpoint, cause) {
+    super(`Daemon at ${endpoint} is unreachable: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    this.name = "DaemonUnreachableError";
+  }
+}
+
 export class DaemonClient {
   #id = 0;
 
@@ -8,12 +20,18 @@ export class DaemonClient {
   /** @template T @param {string} method @param {Record<string, unknown>} [params] @returns {Promise<T>} */
   async call(method, params) {
     const id = ++this.#id;
-    const response = await fetch(this.endpoint, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id, method, ...(params ? { params } : {}) }),
-      signal: AbortSignal.timeout(5_000),
-    });
+    /** @type {Response} */
+    let response;
+    try {
+      response = await fetch(this.endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id, method, ...(params ? { params } : {}) }),
+        signal: AbortSignal.timeout(5_000),
+      });
+    } catch (error) {
+      throw new DaemonUnreachableError(this.endpoint, error);
+    }
     if (!response.ok) throw new Error(`Daemon RPC returned HTTP ${response.status}`);
     const body = await response.json();
     if (body.id !== id || body.error || !Object.hasOwn(body, "result")) {
