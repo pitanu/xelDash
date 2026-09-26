@@ -1,6 +1,6 @@
 // Devnet verification miner. Mines through the xelDash Stratum server with the native
-// hash addon, then checks each accepted block against the daemon: the block must exist
-// under the BLAKE3 MinerWork hash we compute. Devnet only; this is not a production miner.
+// hash addon. For each accepted share that also meets the network target, the block must
+// exist in the daemon under the BLAKE3 MinerWork hash we compute. Devnet only; this is not a production miner.
 //
 //   docker compose run --rm -v ./services/stratum/scripts:/app/services/stratum/scripts \
 //     stratum node services/stratum/scripts/devnet-miner.js <address> [blocks]
@@ -21,12 +21,12 @@ if (!address) {
   process.exit(2);
 }
 
-/** @param {string} method @param {Record<string, unknown>} params */
+/** @param {string} method @param {Record<string, unknown> | undefined} params */
 async function rpc(method, params) {
   const response = await fetch(rpcUrl, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, ...(params ? { params } : {}) }),
   });
   const body = await response.json();
   if (body.error) throw new Error(`${method}: ${body.error.message}`);
@@ -44,6 +44,7 @@ let publicKey = Buffer.alloc(32);
 let target = 0n;
 let nonce = BigInt(Math.floor(Math.random() * 2 ** 32)) << 32n;
 let hashes = 0;
+let shares = 0;
 let found = 0;
 let failures = 0;
 const started = Date.now();
@@ -114,8 +115,8 @@ function minerWork(work, value) {
   return bytes;
 }
 
-/** @param {{ jobId: string }} work @param {Buffer} bytes @param {bigint} value */
-async function submit(work, bytes, value) {
+/** @param {{ jobId: string }} work @param {Buffer} bytes @param {bigint} value @param {bigint} hash */
+async function submit(work, bytes, value, hash) {
   const nonceHex = value.toString(16).padStart(16, "0");
   const blockHash = Buffer.from(blake3(bytes)).toString("hex");
   const reply = await request("mining.submit", [WORKER, work.jobId, nonceHex]);
@@ -123,6 +124,9 @@ async function submit(work, bytes, value) {
     console.warn(`share rejected: ${reply.error.message}`);
     return;
   }
+  shares += 1;
+  const { difficulty } = await rpc("get_info", undefined);
+  if (hash > MAX_U256 / BigInt(difficulty)) return;
   // Give the daemon a moment to process the block the Stratum server just submitted.
   await new Promise((resolve) => setTimeout(resolve, 500));
   try {
@@ -147,12 +151,12 @@ async function mine() {
       const bytes = minerWork(work, nonce);
       hashes += 1;
       const hash = BigInt(`0x${hashMinerWork(bytes).toString("hex")}`);
-      if (hash <= target) await submit(work, bytes, nonce);
+      if (hash <= target) await submit(work, bytes, nonce, hash);
     }
     await new Promise((resolve) => setImmediate(resolve));
   }
   const seconds = (Date.now() - started) / 1000;
-  console.info(`done: ${found} verified, ${failures} failed, ${hashes} hashes in ${seconds.toFixed(0)}s (${(hashes / seconds).toFixed(0)} H/s)`);
+  console.info(`done: ${shares} shares, ${found} blocks verified, ${failures} failed, ${hashes} hashes in ${seconds.toFixed(0)}s (${(hashes / seconds).toFixed(0)} H/s)`);
   socket.end();
   process.exit(failures === 0 ? 0 : 1);
 }

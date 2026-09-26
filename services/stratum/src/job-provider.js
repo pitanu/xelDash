@@ -6,20 +6,38 @@ const TIMESTAMP_OFFSET = 32;
 
 /** @typedef {{ jobId: string, template: string, timestampHex: string, headerWorkHash: string, algorithm: string, networkDifficulty: string, height: number, shareDifficulty: number, extraNonce: Buffer, publicKey: Buffer, buildMinerWork: (nonce: string) => Buffer }} MiningJob */
 
+/**
+ * Share difficulty never exceeds network difficulty: work at network difficulty is a block.
+ * @param {number} shareDifficulty @param {string} networkDifficulty
+ */
+export function capShareDifficulty(shareDifficulty, networkDifficulty) {
+  return BigInt(networkDifficulty) < BigInt(shareDifficulty) ? Number(networkDifficulty) : shareDifficulty;
+}
+
+/**
+ * The same work at a new share difficulty, under a new job id so shares are checked against
+ * the difficulty they were issued with.
+ * @param {MiningJob} job @param {number} shareDifficulty @returns {MiningJob}
+ */
+export function reissueJob(job, shareDifficulty) {
+  return {
+    ...job,
+    jobId: randomBytes(16).toString("hex"),
+    shareDifficulty: capShareDifficulty(shareDifficulty, job.networkDifficulty),
+  };
+}
+
 export class MiningJobProvider {
-  /**
-   * @param {{ daemon: import("./daemon-client.js").DaemonClient, shareDifficulty: number }} options
-   */
-  constructor({ daemon, shareDifficulty }) {
-    if (!Number.isSafeInteger(shareDifficulty) || shareDifficulty < 1) {
-      throw new TypeError("Share difficulty must be a positive safe integer");
-    }
+  /** @param {{ daemon: import("./daemon-client.js").DaemonClient }} options */
+  constructor({ daemon }) {
     this.daemon = daemon;
-    this.shareDifficulty = shareDifficulty;
   }
 
-  /** @param {{ address: string, publicKey: string, extraNonce: string, algorithm: string }} input @returns {Promise<MiningJob>} */
-  async create({ address, publicKey, extraNonce, algorithm }) {
+  /** @param {{ address: string, publicKey: string, extraNonce: string, algorithm: string, shareDifficulty: number }} input @returns {Promise<MiningJob>} */
+  async create({ address, publicKey, extraNonce, algorithm, shareDifficulty: requestedDifficulty }) {
+    if (!Number.isSafeInteger(requestedDifficulty) || requestedDifficulty < 1) {
+      throw new TypeError("Share difficulty must be a positive safe integer");
+    }
     if (algorithm !== "xel/v3") {
       throw new Error(`Only xel/v3 work can be validated; negotiated ${algorithm}`);
     }
@@ -41,10 +59,7 @@ export class MiningJobProvider {
     if (!/^[1-9]\d*$/.test(work.difficulty)) {
       throw new Error("Daemon returned an invalid network difficulty");
     }
-    const networkDifficulty = BigInt(work.difficulty);
-    const shareDifficulty = networkDifficulty < BigInt(this.shareDifficulty)
-      ? Number(networkDifficulty)
-      : this.shareDifficulty;
+    const shareDifficulty = capShareDifficulty(requestedDifficulty, work.difficulty);
     if (typeof work.miner_work !== "string" || !/^[0-9a-f]{224}$/i.test(work.miner_work)) {
       throw new Error("Daemon returned malformed MinerWork");
     }

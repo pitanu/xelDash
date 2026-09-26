@@ -12,8 +12,8 @@ endpoint:
 
 The service is available in Compose on port 3333, bound to loopback by default. Set
 `XELDASH_STRATUM_BIND_IP` to the host's LAN address to accept miners from the LAN. The
-default fixed share difficulty is 1,000,000 and is capped at the job's network difficulty;
-vardiff is not implemented yet. The service subscribes to the daemon's `new_block` WebSocket
+share difficulty is set per connection by vardiff (`src/vardiff.js`): it starts at
+100,000, aims for one share every 10 seconds, and is capped at the job's network difficulty. The service subscribes to the daemon's `new_block` WebSocket
 event and pushes fresh work to every miner as soon as the chain tip changes; per-session
 polling (`STRATUM_JOB_REFRESH_MS`) remains as a fallback and picks up template changes.
 A tip change sends `clean_jobs` and drops earlier jobs, so late shares on them are rejected

@@ -156,7 +156,7 @@ Open items:
 - Retention defaults: raw shares (for example, 7 days) and 1-minute stats (for example,
   90 days, possibly with hourly rollups beyond that).
 
-## 6. Difficulty and stats (Decided, vardiff open)
+## 6. Difficulty and stats (Decided)
 
 - Validate V3 hashes as unsigned big-endian U256 values against
   `floor((2^256 - 1) / difficulty)`, matching XELIS consensus.
@@ -165,8 +165,10 @@ Open items:
   are 5 minutes, 1 hour, and 24 hours.
 - Expected solo time-to-block is network difficulty divided by observed hashrate. It is an
   expectation, not a prediction; the API returns `null` when a window has no accepted shares.
-- Initial Stratum target is fixed by `STRATUM_SHARE_DIFFICULTY` and capped at the current
-  network difficulty. Vardiff parameters remain open.
+- Vardiff per connection: start at 100,000 and aim for one share every 10 seconds.
+  Retarget after 60 seconds or 20 accepted shares, by at most 2x up or down, skipping
+  changes under 50%. Difficulty stays between 1,000 and the network difficulty. A retarget
+  re-sends the current work under a new job id; earlier jobs keep their own difficulty.
 - Shares are hashed before persistence; low difficulty and duplicates are recorded as
   rejected. Malformed and stale submissions are rejected before share accounting.
 - Block lifecycle tracking: Stratum checks submitted blocks on every new block and every

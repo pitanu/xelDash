@@ -7,6 +7,8 @@ import {
   parseRequest,
   response,
 } from "./protocol.js";
+import { reissueJob } from "./job-provider.js";
+import { DEFAULT_VARDIFF, Vardiff } from "./vardiff.js";
 
 const MAX_WORKER_NAME = 128;
 const MAX_TRACKED_JOBS = 5;
@@ -20,15 +22,16 @@ export class StratumSession {
   /**
    * @param {{ socket: StratumSocket,
    *   authorizeAddress: (input: { address: string, workerName: string, password: string, ip?: string }) => Promise<MiningIdentity | null>,
-   *   createJob?: ((input: { address: string, publicKey: string, extraNonce: string, algorithm: string }) => Promise<MiningJob>) | null,
+   *   createJob?: ((input: { address: string, publicKey: string, extraNonce: string, algorithm: string, shareDifficulty: number }) => Promise<MiningJob>) | null,
    *   submitShare?: ((input: { worker: MiningIdentity, workerName: string, job: MiningJob, nonce: string, algorithm: string | null }) => Promise<ShareResult>) | null,
    *   onHashrate?: (input: { worker: MiningIdentity, workerName: string, hashrate: number }) => void,
    *   onAuthorized?: () => void,
    *   jobRefreshIntervalMs?: number,
+   *   vardiff?: import("./vardiff.js").VardiffConfig,
    *   defaultAddress?: string,
    *   logger?: Pick<Console, "warn"> }} options
    */
-  constructor({ socket, authorizeAddress, createJob = null, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, jobRefreshIntervalMs = 5000, defaultAddress = "", logger = console }) {
+  constructor({ socket, authorizeAddress, createJob = null, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, jobRefreshIntervalMs = 5000, vardiff = DEFAULT_VARDIFF, defaultAddress = "", logger = console }) {
     this.socket = socket;
     this.authorizeAddress = authorizeAddress;
     this.createJob = createJob;
@@ -53,6 +56,7 @@ export class StratumSession {
     this.jobRefreshTimer = null;
     this.refreshingJob = false;
     this.refreshQueued = false;
+    this.vardiff = new Vardiff(vardiff);
   }
 
   /** @param {string} line */
@@ -155,7 +159,9 @@ export class StratumSession {
       publicKey: identity.publicKey,
       extraNonce: this.extranonce,
       algorithm: this.algorithm,
+      shareDifficulty: this.vardiff.difficulty,
     });
+    if (this.miningAddress === null) this.vardiff.reset(Date.now());
     this.miningAddress = miningAddress;
     this.miningIdentity = identity;
     this.publicKey = identity.publicKey.toLowerCase();
@@ -181,7 +187,10 @@ export class StratumSession {
 
   startJobRefresh() {
     if (this.jobRefreshTimer || !this.createJob) return;
-    this.jobRefreshTimer = setInterval(() => void this.refreshJob(), this.jobRefreshIntervalMs);
+    this.jobRefreshTimer = setInterval(() => {
+      this.applyDifficulty(this.vardiff.retargetIfDue(this.maxShareDifficulty()));
+      void this.refreshJob();
+    }, this.jobRefreshIntervalMs);
     this.jobRefreshTimer.unref();
   }
 
@@ -211,12 +220,15 @@ export class StratumSession {
   async refreshJobOnce() {
     if (!this.miningIdentity || !this.miningAddress || !this.algorithm || !this.createJob) return;
     try {
-      const job = await this.createJob({
+      let job = await this.createJob({
         address: this.miningAddress,
         publicKey: this.miningIdentity.publicKey,
         extraNonce: this.extranonce,
         algorithm: this.algorithm,
+        shareDifficulty: this.vardiff.difficulty,
       });
+      // Vardiff may have retargeted while the template was being fetched.
+      if (job.shareDifficulty !== this.vardiff.difficulty) job = reissueJob(job, this.vardiff.difficulty);
       const latestJob = [...this.jobs.values()].at(-1);
       if (latestJob && latestJob.headerWorkHash === job.headerWorkHash
           && latestJob.timestampHex === job.timestampHex
@@ -242,6 +254,31 @@ export class StratumSession {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+  }
+
+  maxShareDifficulty() {
+    const latestJob = [...this.jobs.values()].at(-1);
+    return latestJob ? Number(latestJob.networkDifficulty) : Number.MAX_SAFE_INTEGER;
+  }
+
+  /**
+   * Send the latest work again at a new share difficulty. Earlier jobs stay valid at the
+   * difficulty they were issued with, so in-flight shares are not lost.
+   * @param {number | null} difficulty
+   */
+  applyDifficulty(difficulty) {
+    const latestJob = [...this.jobs.values()].at(-1);
+    if (difficulty === null || !latestJob || latestJob.shareDifficulty === difficulty) return;
+    const job = reissueJob(latestJob, difficulty);
+    if (job.shareDifficulty === latestJob.shareDifficulty) return;
+    this.trackJob(job, false);
+    this.send({ jsonrpc: "2.0", id: null, method: "mining.set_difficulty", params: [job.shareDifficulty] });
+    this.send({
+      jsonrpc: "2.0",
+      id: null,
+      method: "mining.notify",
+      params: [job.jobId, job.timestampHex, job.headerWorkHash, job.algorithm, false],
+    });
   }
 
   /**
@@ -292,6 +329,9 @@ export class StratumSession {
       return;
     }
     this.send(response(request.id, result?.accepted === true));
+    if (result?.accepted === true) {
+      this.applyDifficulty(this.vardiff.recordShare(job.shareDifficulty, this.maxShareDifficulty()));
+    }
   }
 
   /** @param {StratumRequest} request */

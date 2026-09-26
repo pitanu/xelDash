@@ -24,8 +24,9 @@ development overlay binds RPC to `127.0.0.1:8080`.
 
 Stratum listens on host port 3333, bound to `127.0.0.1` by default. Set
 `XELDASH_STRATUM_BIND_IP` to the host's LAN address in `.env` to allow miners on that LAN
-to connect. The share target defaults to 1,000,000 and is capped at the network difficulty;
-automatic vardiff is not enabled yet.
+to connect. Share difficulty adjusts per connection (vardiff) to about one share every 10
+seconds and never exceeds the network difficulty. The `STRATUM_*` settings in `.env.example`
+tune it.
 
 To make the API reachable from your LAN, set `XELDASH_API_BIND_IP` to this machine's LAN
 IP address in `.env`. Its default is `127.0.0.1`. The daemon RPC and PostgreSQL remain

@@ -8,13 +8,14 @@ import { MiningJobProvider } from "./job-provider.js";
 import { LineFramer } from "./line-framer.js";
 import { StratumSession } from "./session.js";
 import { createShareSubmitter } from "./share-submitter.js";
+import { vardiffConfigFromEnv } from "./vardiff.js";
 
 const host = process.env.STRATUM_HOST ?? "0.0.0.0";
 const port = Number.parseInt(process.env.STRATUM_PORT ?? "3333", 10);
 const handshakeTimeoutMs = Number.parseInt(process.env.STRATUM_HANDSHAKE_TIMEOUT_MS ?? "10000", 10);
 const maxQueuedRequests = Number.parseInt(process.env.STRATUM_MAX_QUEUED_REQUESTS ?? "32", 10);
 const jobRefreshIntervalMs = Number.parseInt(process.env.STRATUM_JOB_REFRESH_MS ?? "5000", 10);
-const shareDifficulty = Number(process.env.STRATUM_SHARE_DIFFICULTY ?? "1000000");
+const vardiff = vardiffConfigFromEnv(process.env);
 if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
   throw new Error("STRATUM_PORT must be an integer from 1 to 65535");
 }
@@ -27,7 +28,7 @@ if (!Number.isSafeInteger(handshakeTimeoutMs) || handshakeTimeoutMs < 1000
 const pool = createPool();
 const daemon = new DaemonClient();
 const authorizeAddress = createWorkerAuthorizer({ daemon, pool });
-const jobProvider = new MiningJobProvider({ daemon, shareDifficulty });
+const jobProvider = new MiningJobProvider({ daemon });
 const submitShare = createShareSubmitter({ daemon, pool });
 /** @type {Map<import("node:net").Socket, StratumSession>} */
 const sessions = new Map();
@@ -60,6 +61,7 @@ const server = createServer((socket) => {
     createJob: (input) => jobProvider.create(input),
     submitShare,
     jobRefreshIntervalMs,
+    vardiff,
     defaultAddress: process.env.XELIS_DEFAULT_ADDRESS ?? "",
     onAuthorized: () => clearTimeout(handshakeTimer),
   });
@@ -101,7 +103,7 @@ const server = createServer((socket) => {
 
 server.listen(port, host, () => {
   console.info(`xelDash Stratum server listening on ${host}:${port}`);
-  console.info(`Using fixed share difficulty ${shareDifficulty}; vardiff is not enabled.`);
+  console.info(`Vardiff: start ${vardiff.startDifficulty}, min ${vardiff.minDifficulty}, one share per ${vardiff.targetShareSeconds}s`);
 });
 
 let shuttingDown = false;
