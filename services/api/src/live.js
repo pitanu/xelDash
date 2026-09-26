@@ -1,0 +1,103 @@
+import { LIVE_CHANNEL } from "@xeldash/db";
+import { WebSocketServer } from "ws";
+
+const PATH = "/api/v1/live";
+const MAX_CLIENTS = 100;
+const HEARTBEAT_MS = 30_000;
+const RELISTEN_MS = 5_000;
+
+/** @param {unknown} error */
+function message(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Relays `xeldash_live` Postgres notifications to dashboards over WebSocket. Messages are
+ * hints to refetch ({ type: "block" | "event", ... }); the REST endpoints stay the source of
+ * truth. Clients fall back to polling whenever the socket is down.
+ * @param {{ server: import("node:http").Server, pool: import("pg").Pool, logger?: Pick<Console, "info" | "warn"> }} options
+ */
+export function startLiveUpdates({ server, pool, logger = console }) {
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
+  /** @type {WeakSet<import("ws").WebSocket>} */
+  const alive = new WeakSet();
+  /** @type {import("pg").PoolClient | null} */
+  let listener = null;
+  let stopped = false;
+
+  server.on("upgrade", (request, socket, head) => {
+    const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
+    if (pathname !== PATH || wss.clients.size >= MAX_CLIENTS) {
+      socket.write(`HTTP/1.1 ${pathname !== PATH ? "404 Not Found" : "503 Service Unavailable"}\r\n\r\n`);
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(request, socket, head, (ws) => wss.emit("connection", ws));
+  });
+
+  wss.on("connection", (ws) => {
+    alive.add(ws);
+    ws.on("pong", () => alive.add(ws));
+    // Dashboards only listen; anything they send is ignored.
+    ws.on("message", () => {});
+    ws.on("error", () => ws.terminate());
+    ws.send(JSON.stringify({ type: "hello", listening: listener !== null }));
+  });
+
+  const heartbeat = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (!alive.has(ws)) {
+        ws.terminate();
+        continue;
+      }
+      alive.delete(ws);
+      ws.ping();
+    }
+  }, HEARTBEAT_MS);
+  heartbeat.unref();
+
+  /** @param {string} payload */
+  function broadcast(payload) {
+    for (const ws of wss.clients) {
+      if (ws.readyState === ws.OPEN) ws.send(payload);
+    }
+  }
+
+  async function listen() {
+    if (stopped) return;
+    try {
+      const client = await pool.connect();
+      client.on("notification", (notification) => {
+        if (notification.channel === LIVE_CHANNEL && notification.payload) broadcast(notification.payload);
+      });
+      client.on("error", (error) => {
+        logger.warn?.("Live update listener failed; reconnecting", { error: message(error) });
+        client.release(true);
+        if (listener === client) listener = null;
+        setTimeout(listen, RELISTEN_MS).unref();
+      });
+      await client.query(`LISTEN ${LIVE_CHANNEL}`);
+      listener = client;
+      logger.info?.("Relaying live updates on /api/v1/live");
+    } catch (error) {
+      logger.warn?.("Unable to listen for live updates; retrying", { error: message(error) });
+      setTimeout(listen, RELISTEN_MS).unref();
+    }
+  }
+  void listen();
+
+  return {
+    async stop() {
+      stopped = true;
+      clearInterval(heartbeat);
+      for (const ws of wss.clients) ws.terminate();
+      wss.close();
+      if (listener) {
+        const client = listener;
+        listener = null;
+        await client.query(`UNLISTEN ${LIVE_CHANNEL}`).catch(() => {});
+        client.release();
+      }
+    },
+  };
+}

@@ -1,5 +1,5 @@
 import { createServer } from "node:net";
-import { createPool, listActiveBans, recordBan, recordServiceEvent } from "@xeldash/db";
+import { createPool, listActiveBans, notifyLive, recordBan, recordServiceEvent } from "@xeldash/db";
 import { createWorkerAuthorizer } from "./authorize-worker.js";
 import { BlockTracker } from "./block-tracker.js";
 import { ChainWatcher } from "./chain-watcher.js";
@@ -57,9 +57,11 @@ blockTracker.start();
 // A new block can also advance the stable height, so check submitted blocks too.
 const chainWatcher = new ChainWatcher({
   rpcUrl: daemon.endpoint,
-  onNewBlock: () => {
+  onNewBlock: (block) => {
     for (const session of sessions.values()) void session.refreshJob();
     blockTracker.check();
+    // Network blocks are not stored as events; tell live dashboards directly.
+    notifyLive(pool, { type: "block", height: block.height ?? null, hash: block.hash ?? null }).catch(() => {});
   },
 });
 chainWatcher.start();

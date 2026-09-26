@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { createPool } from "@xeldash/db";
 import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, listBlocks, listEvents, listMiners } from "./queries.js";
+import { startLiveUpdates } from "./live.js";
 import { getStatus } from "./status.js";
 
 const port = Number.parseInt(process.env.API_PORT ?? "8081", 10);
@@ -217,12 +218,15 @@ const server = createServer(async (request, response) => {
   }
 });
 
+const live = startLiveUpdates({ server, pool });
+
 server.listen(port, host, () => {
   console.info(`xelDash API listening on ${host}:${port}`);
 });
 
 async function shutdown() {
   server.close();
+  await live.stop();
   await pool.end();
 }
 

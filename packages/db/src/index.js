@@ -214,3 +214,11 @@ export async function listActiveBans(pool) {
 export async function recordBan(pool, { ip, reason, until }) {
   await pool.query("INSERT INTO bans (ip, reason, until) VALUES ($1, $2, $3)", [ip, reason, until]);
 }
+
+/** Channel the API relays to live dashboards (see migration 002). */
+export const LIVE_CHANNEL = "xeldash_live";
+
+/** Announce a live update without storing it. @param {PgPool} pool @param {Record<string, unknown>} message */
+export async function notifyLive(pool, message) {
+  await pool.query("SELECT pg_notify($1, $2)", [LIVE_CHANNEL, JSON.stringify(message)]);
+}

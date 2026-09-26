@@ -1,6 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { getLiveState, subscribeLive } from "./live.js";
 
-const REFRESH_MS = 15_000;
+// Polling is the fallback; with live updates it only catches minute-bucket stats.
+const POLL_MS = 15_000;
+const LIVE_POLL_MS = 60_000;
+// Coalesces a burst of live messages (new block, block submitted, block final) into one fetch.
+const LIVE_DEBOUNCE_MS = 400;
 
 /** @param {string} path */
 async function getJson(path) {
@@ -9,14 +14,20 @@ async function getJson(path) {
   return response.json();
 }
 
+export function useLive() {
+  return useSyncExternalStore(subscribeLive, getLiveState);
+}
+
 /**
- * Fetch a JSON endpoint and refresh it every 15 seconds. While a refetch is in flight the
- * previous data stays, so views hold their frame instead of flashing.
+ * Fetch a JSON endpoint, refetch on live updates, and poll as a fallback. While a refetch is
+ * in flight the previous data stays, so views hold their frame instead of flashing.
  * @param {string | null} path
  */
 export function usePolled(path) {
   const [state, setState] = useState({ data: null, error: null, loading: true });
+  const live = useLive();
   const current = useRef(path);
+  const loadRef = useRef(() => {});
 
   useEffect(() => {
     current.current = path;
@@ -32,13 +43,20 @@ export function usePolled(path) {
           if (!cancelled) setState((previous) => ({ ...previous, error, loading: false }));
         });
     };
+    loadRef.current = load;
     load();
-    const timer = setInterval(load, REFRESH_MS);
+    const timer = setInterval(load, live.status === "live" ? LIVE_POLL_MS : POLL_MS);
     return () => {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [path]);
+  }, [path, live.status]);
+
+  useEffect(() => {
+    if (live.version === 0) return undefined;
+    const timer = setTimeout(() => loadRef.current(), LIVE_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [live.version]);
 
   return state;
 }

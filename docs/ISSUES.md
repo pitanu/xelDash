@@ -10,8 +10,6 @@ Open:
 - Make the data model in `docs/PLAN.md` reference the migration instead of duplicating DDL
   with mismatched identity/count types.
 - Reconcile remaining planning details: getwork support, TLS, and retention.
-- Dashboard: WebSocket live updates (it polls every 15 s), a worker detail page, and a node
-  health view.
 
 Resolved:
 
@@ -21,7 +19,8 @@ Resolved:
   scratchpad per thread.
 - Per-IP connection limits, per-connection message rate limits, and timed bans for
   invalid submissions, stored in `bans` and reloaded on restart.
-- Dashboard with Overview, Miner and Blocks pages, served by the `web` service.
+- Dashboard with Overview, Miner, Worker, Blocks and Health pages, served by the `web`
+  service, with live updates over `/api/v1/live` (Postgres LISTEN/NOTIFY).
 - Vardiff per connection, with configurable defaults (see `docs/PLAN.md` section 6).
 - Block lifecycle: submitted blocks move to `main-chain`, `side` or `orphaned` at stable
   height, with topoheight and miner reward.

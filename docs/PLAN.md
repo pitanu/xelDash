@@ -200,16 +200,24 @@ Candidate views:
 - **Blocks:** list with status (submitted / main-chain / side / orphaned / rejected).
 - **Health:** node status, stratum uptime, recent events.
 
-Implemented: the Overview, Miner and Blocks pages. The dashboard (React, Vite, Tailwind,
-served by nginx) polls every 15 seconds; WebSocket live updates can come later. No auth: it
-is LAN-only like the API.
+Implemented: the Overview, Miner, Worker, Blocks and Health pages. The dashboard (React,
+Vite, Tailwind, served by nginx) has no auth; it is LAN-only like the API.
 
-REST endpoints (all `GET`; `address` must be a valid `xel:`/`xet:` address):
+Live updates: every `service_events` insert (migration 002) and every network block
+(announced by Stratum) is sent on the Postgres channel `xeldash_live`. The API relays it to
+dashboards over the WebSocket `/api/v1/live`, and they refetch the REST endpoints. While
+live, dashboards also poll every 60 seconds for per-minute stats; without the socket they
+poll every 15 seconds.
+
+REST endpoints (all `GET`; `address` must be a valid `xel:`/`xet:` address; `worker` needs
+`address`):
 
 - `/api/v1/overview`: node, network, share totals, estimates, block status counts.
-- `/api/v1/hashrate?range=6h|24h|7d[&address=]`: hashrate per completed bucket.
+- `/api/v1/status`: node and sync state, database/daemon/Stratum health, active bans.
+- `/api/v1/hashrate?range=6h|24h|7d[&address=[&worker=]]`: hashrate per completed bucket.
 - `/api/v1/miners` and `/api/v1/miners/{address}`: per-miner and per-worker stats.
-- `/api/v1/blocks?limit=&address=`: recent blocks with status and reward.
+- `/api/v1/miners/{address}/workers/{name}`: one worker, with reject reasons.
+- `/api/v1/blocks?limit=&address=&worker=`: recent blocks with status and reward.
 - `/api/v1/events?limit=`: recent service events.
 
 ## 9. Deployment and ops (Draft)

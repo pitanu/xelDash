@@ -6,6 +6,6 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    proxy: { "/api": process.env.XELDASH_API_URL ?? "http://127.0.0.1:8081" },
+    proxy: { "/api": { target: process.env.XELDASH_API_URL ?? "http://127.0.0.1:8081", ws: true } },
   },
 });
