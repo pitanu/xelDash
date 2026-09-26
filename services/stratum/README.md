@@ -33,6 +33,14 @@ has not been tested yet. Abuse limits: at most 64 connections per IP and 20 mess
 submissions that are over half of its submissions; stale shares do not count. Bans are
 stored in `bans` and survive restarts. All limits are `STRATUM_*` settings in `.env.example`.
 
+Getwork: miners that only speak the daemon getwork protocol, like the official
+`xelis_miner`, connect to `ws://<host>:8090/getwork/<address>/<worker>` (for example
+`xelis_miner --daemon-address ws://<host>:8090`). Each connection is a normal mining session
+with vardiff, share stats and the same abuse limits. Jobs carry the share difficulty, so the
+miner submits shares; xelDash submits the ones that meet network difficulty. The miner only
+hears `block_accepted` for real blocks, but its own log says "block found" for every share.
+Set `GETWORK_ENABLED=false` to turn the listener off.
+
 Optional TLS: set `STRATUM_TLS_ENABLED=true` and put `cert.pem` and `key.pem` in
 `docker/stratum-tls/` (see its README). A second listener on port 3334 then serves
 `stratum+ssl` with the same limits and sessions as the plain port. A missing certificate

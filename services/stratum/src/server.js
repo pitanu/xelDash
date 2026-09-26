@@ -7,6 +7,7 @@ import { createWorkerAuthorizer } from "./authorize-worker.js";
 import { BlockTracker } from "./block-tracker.js";
 import { ChainWatcher } from "./chain-watcher.js";
 import { DaemonClient } from "./daemon-client.js";
+import { startGetworkServer } from "./getwork.js";
 import { IpGuard, MessageRateLimiter, ipGuardConfigFromEnv, normalizeIp } from "./ip-guard.js";
 import { MiningJobProvider } from "./job-provider.js";
 import { LineFramer } from "./line-framer.js";
@@ -38,7 +39,7 @@ const daemon = new DaemonClient();
 const authorizeAddress = createWorkerAuthorizer({ daemon, pool });
 const jobProvider = new MiningJobProvider({ daemon });
 const submitShare = createShareSubmitter({ daemon, pool });
-/** @type {Map<import("node:net").Socket, StratumSession>} */
+/** @type {Map<{ remoteAddress?: string, destroy: () => void }, StratumSession>} */
 const sessions = new Map();
 const ipGuard = new IpGuard(ipGuardConfig, {
   onBan: ({ ip, reason, until }) => {
@@ -91,6 +92,25 @@ const chainWatcher = new ChainWatcher({
 chainWatcher.start();
 
 /**
+ * A mining session with this server's job source, share pipeline, vardiff and abuse limits.
+ * Stratum and getwork connections both use it.
+ * @param {import("./session.js").StratumSocket} socket @param {string} ip @param {() => void} [onAuthorized]
+ */
+function newSession(socket, ip, onAuthorized = () => {}) {
+  return new StratumSession({
+    socket,
+    authorizeAddress,
+    createJob: (input) => jobProvider.create(input),
+    submitShare,
+    jobRefreshIntervalMs,
+    vardiff,
+    defaultAddress: process.env.XELIS_DEFAULT_ADDRESS ?? "",
+    onAuthorized,
+    onSubmission: (valid) => ipGuard.record(ip, valid),
+  });
+}
+
+/**
  * One Stratum connection. Plain and TLS listeners share this, so limits, bans and sessions
  * behave the same on both.
  * @param {import("node:net").Socket} socket
@@ -112,17 +132,7 @@ function handleConnection(socket) {
   }, handshakeTimeoutMs);
   handshakeTimer.unref();
   socket.once("close", () => clearTimeout(handshakeTimer));
-  const session = new StratumSession({
-    socket,
-    authorizeAddress,
-    createJob: (input) => jobProvider.create(input),
-    submitShare,
-    jobRefreshIntervalMs,
-    vardiff,
-    defaultAddress: process.env.XELIS_DEFAULT_ADDRESS ?? "",
-    onAuthorized: () => clearTimeout(handshakeTimer),
-    onSubmission: (valid) => ipGuard.record(ip, valid),
-  });
+  const session = newSession(socket, ip, () => clearTimeout(handshakeTimer));
   sessions.set(socket, session);
   socket.once("close", () => {
     session.close();
@@ -188,6 +198,16 @@ if (tlsServer && tls) {
   });
 }
 
+// Getwork for miners that do not speak Stratum (the official xelis_miner).
+const getworkEnabled = (process.env.GETWORK_ENABLED ?? "true").toLowerCase() !== "false";
+const getworkPort = Number.parseInt(process.env.GETWORK_PORT ?? "8090", 10);
+if (!Number.isSafeInteger(getworkPort) || getworkPort < 1 || getworkPort > 65535) {
+  throw new Error("GETWORK_PORT must be an integer from 1 to 65535");
+}
+const getwork = getworkEnabled
+  ? startGetworkServer({ host, port: getworkPort, ipGuard, rateLimit: ipGuardConfig, sessions, createSession: newSession })
+  : null;
+
 let shuttingDown = false;
 async function shutdown() {
   if (shuttingDown) return;
@@ -196,6 +216,7 @@ async function shutdown() {
   const closed = Promise.all([
     new Promise((resolve) => server.close(resolve)),
     tlsServer ? new Promise((resolve) => tlsServer.close(resolve)) : null,
+    getwork?.close(),
   ]);
   for (const [socket, session] of sessions) {
     session.close();

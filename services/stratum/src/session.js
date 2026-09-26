@@ -12,10 +12,12 @@ import { DEFAULT_VARDIFF, Vardiff } from "./vardiff.js";
 
 const MAX_WORKER_NAME = 128;
 const MAX_TRACKED_JOBS = 5;
-/** @typedef {import("node:net").Socket} StratumSocket */
+// Timestamp slack for getwork submissions: miners bump the work timestamp while hashing.
+const MAX_FUTURE_TIMESTAMP_MS = 30_000;
+/** A TCP socket, or the getwork WebSocket adapter. @typedef {{ remoteAddress?: string, destroyed: boolean, write: (data: string) => unknown }} StratumSocket */
 /** @typedef {import("./protocol.js").StratumRequest} StratumRequest */
 /** @typedef {{ minerId: string | bigint, workerId: string | bigint, address: string, publicKey: string }} MiningIdentity */
-/** @typedef {{ error?: { code: number, message: string, data?: unknown }, accepted?: boolean }} ShareResult */
+/** @typedef {{ error?: { code: number, message: string, data?: unknown }, accepted?: boolean, block?: { hash: string, accepted: boolean, error: string | null } | null, stale?: boolean }} ShareResult */
 /** @typedef {import("./job-provider.js").MiningJob} MiningJob */
 
 export class StratumSession {
@@ -23,7 +25,7 @@ export class StratumSession {
    * @param {{ socket: StratumSocket,
    *   authorizeAddress: (input: { address: string, workerName: string, password: string, ip?: string }) => Promise<MiningIdentity | null>,
    *   createJob?: ((input: { address: string, publicKey: string, extraNonce: string, algorithm: string, shareDifficulty: number }) => Promise<MiningJob>) | null,
-   *   submitShare?: ((input: { worker: MiningIdentity, workerName: string, job: MiningJob, nonce: string, algorithm: string | null }) => Promise<ShareResult>) | null,
+   *   submitShare?: ((input: { worker: MiningIdentity, workerName: string, job: MiningJob, nonce: string, minerWork?: Buffer | null, algorithm: string | null }) => Promise<ShareResult>) | null,
    *   onHashrate?: (input: { worker: MiningIdentity, workerName: string, hashrate: number }) => void,
    *   onAuthorized?: () => void,
    *   onSubmission?: (valid: boolean) => void,
@@ -330,19 +332,78 @@ export class StratumSession {
       this.send(errorResponse(request.id, STRATUM_ERRORS.STALE_JOB, "Stale or unknown job"));
       return;
     }
-    const result = await this.submitShare({ worker, workerName, job, nonce: nonce.toLowerCase(), algorithm: this.algorithm });
+    const result = await this.processShare({ worker, workerName, job, nonce: nonce.toLowerCase(), minerWork: null });
+    if (result.error) {
+      this.send(errorResponse(request.id, result.error.code, result.error.message, result.error.data ?? null));
+    } else {
+      this.send(response(request.id, result.accepted === true));
+    }
+    this.afterShare(result, job);
+  }
+
+  /**
+   * Validate and record one share, reporting it for abuse limits. The caller replies to the
+   * miner, then calls afterShare so a retarget reaches the miner after the reply.
+   * @param {{ worker: MiningIdentity, workerName: string, job: MiningJob, nonce: string, minerWork: Buffer | null }} input
+   * @returns {Promise<ShareResult>}
+   */
+  async processShare({ worker, workerName, job, nonce, minerWork }) {
+    if (!this.submitShare) return { error: { code: STRATUM_ERRORS.STALE_JOB, message: "No active mining job" } };
+    const result = await this.submitShare({ worker, workerName, job, nonce, minerWork, algorithm: this.algorithm });
     if (result?.error) {
       if (result.error.code === STRATUM_ERRORS.LOW_DIFFICULTY || result.error.code === STRATUM_ERRORS.DUPLICATE_SHARE) {
         this.onSubmission(false);
       }
-      this.send(errorResponse(request.id, result.error.code, result.error.message, result.error.data ?? null));
-      return;
+      return result;
     }
     if (result?.accepted === true) this.onSubmission(true);
-    this.send(response(request.id, result?.accepted === true));
-    if (result?.accepted === true) {
+    return result ?? {};
+  }
+
+  /** @param {ShareResult} result @param {MiningJob} job */
+  afterShare(result, job) {
+    if (result.accepted === true) {
       this.applyDifficulty(this.vardiff.recordShare(job.shareDifficulty, this.maxShareDifficulty()));
     }
+  }
+
+  /**
+   * Getwork submission: the miner sends its full 112-byte MinerWork. It may change the nonce,
+   * the timestamp and the last two extranonce bytes (thread id); everything else must match a
+   * job issued to this session. Stale work is reported, not counted against the miner.
+   * @param {string} workerName @param {string} minerWorkHex @returns {Promise<ShareResult>}
+   */
+  async submitWork(workerName, minerWorkHex) {
+    const worker = this.authorizedWorkers.get(workerName);
+    if (!worker) {
+      this.onSubmission(false);
+      return { error: { code: STRATUM_ERRORS.UNAUTHORIZED, message: "Worker is not authorized" } };
+    }
+    if (typeof minerWorkHex !== "string" || !/^[0-9a-f]{224}$/i.test(minerWorkHex)) {
+      this.onSubmission(false);
+      return { error: { code: -32602, message: "MinerWork must be 112 bytes of hexadecimal" } };
+    }
+    const work = Buffer.from(minerWorkHex, "hex");
+    const headerWorkHash = work.subarray(0, 32).toString("hex");
+    // A header can be reissued at a new difficulty; the latest issue is what the miner has.
+    const job = [...this.jobs.values()].reverse().find((candidate) => candidate.headerWorkHash === headerWorkHash);
+    if (!job) return { stale: true, error: { code: STRATUM_ERRORS.STALE_JOB, message: "Stale or unknown job" } };
+
+    const timestamp = work.readBigUInt64BE(32);
+    const issued = BigInt(`0x${job.timestampHex}`);
+    const validWork = work.subarray(80, 112).equals(job.publicKey)
+      && work.subarray(48, 78).equals(job.extraNonce.subarray(0, 30))
+      && timestamp >= issued
+      && timestamp <= BigInt(Date.now() + MAX_FUTURE_TIMESTAMP_MS);
+    if (!validWork) {
+      this.onSubmission(false);
+      return { error: { code: -32602, message: "MinerWork does not match the issued job" } };
+    }
+    // Timestamp, nonce and thread id identify the work, for duplicate detection.
+    const nonce = `${work.subarray(32, 48).toString("hex")}${work.subarray(78, 80).toString("hex")}`;
+    const result = await this.processShare({ worker, workerName, job, nonce, minerWork: work });
+    this.afterShare(result, job);
+    return result;
   }
 
   /** @param {StratumRequest} request */

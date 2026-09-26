@@ -54,8 +54,8 @@ Questions to settle:
 - **Stratum spec:** follow the [official XELIS Stratum protocol documentation](https://docs.xelis.io/developers-api/stratum).
   The implementation negotiates `xel/v3` and documented aliases; confirm behavior with
   real miner clients before release.
-- **Getwork (decided):** v1 offers a getwork (WebSocket) proxy for miners that only speak
-  getwork, such as the official xelis_miner.
+- **Getwork (decided, implemented):** a getwork WebSocket endpoint on port 8090 for miners
+  that only speak getwork, such as the official xelis_miner. Verified with xelis_miner 1.21.3.
 - **TLS stratum (decided, implemented):** optional `stratum+ssl` listener on port 3334,
   enabled with `STRATUM_TLS_ENABLED=true` and a cert/key in `docker/stratum-tls/`.
 - **Miner compatibility matrix:** SRBMiner, lolMiner, OneZeroMiner, Rigel, xelis_miner, and

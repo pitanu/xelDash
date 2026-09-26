@@ -44,11 +44,25 @@ docker compose run --rm --no-deps \
 It prints `OK block <hash> height <n>` per verified block and exits non-zero on any
 mismatch. Afterwards, `blocks` and `service_events` should have one row per block.
 
+## Getwork check
+
+The official miner can also mine through xelDash's getwork endpoint instead of the daemon:
+
+```sh
+docker run --rm --network xeldash_backend xelis/miner:1.21.3 \
+  --miner-address <devnet address> --daemon-address ws://stratum:8090 \
+  --worker official-miner --num-threads 4 --disable-interactive-mode
+```
+
+Its shares then appear under that worker on the dashboard.
+
 ## Results so far
 
+- Getwork (2026-09-26): official xelis_miner 1.21.3 through port 8090. 38 blocks accepted,
+  all found by hash in the daemon. With a lower share target, 78 shares and 5 blocks were
+  recorded and the miner reported exactly 5 accepted blocks.
 - Daemon 1.25.0: 5 of 5 Stratum blocks verified at block version 6 (heights 33 to 37), all
   finalized as `main-chain` with rewards.
-
 - Native V3 hash, the 112-byte MinerWork layout, `submit_block`, and the BLAKE3 block hash
   match the daemon: 3 of 3 blocks accepted and found by hash (heights 17 to 19).
 - `new_block` subscription works; blocks, service events and shares are recorded.

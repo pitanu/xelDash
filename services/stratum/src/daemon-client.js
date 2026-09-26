@@ -42,7 +42,7 @@ export class DaemonClient {
     return this.call("get_block_template", { address });
   }
 
-  /** @param {string} template @param {string} address @returns {Promise<{ algorithm: string, difficulty: string, height: number, miner_work: string }>} */
+  /** @param {string} template @param {string} address @returns {Promise<{ algorithm: string, difficulty: string, height: number, topoheight?: number, miner_work: string }>} */
   getMinerWork(template, address) {
     return this.call("get_miner_work", { template, address });
   }

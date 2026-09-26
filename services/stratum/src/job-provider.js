@@ -4,7 +4,7 @@ const MINER_WORK_BYTES = 112;
 const HEADER_HASH_BYTES = 32;
 const TIMESTAMP_OFFSET = 32;
 
-/** @typedef {{ jobId: string, template: string, timestampHex: string, headerWorkHash: string, algorithm: string, networkDifficulty: string, height: number, shareDifficulty: number, extraNonce: Buffer, publicKey: Buffer, buildMinerWork: (nonce: string) => Buffer }} MiningJob */
+/** @typedef {{ jobId: string, template: string, timestampHex: string, headerWorkHash: string, algorithm: string, networkDifficulty: string, height: number, topoheight: number, shareDifficulty: number, extraNonce: Buffer, publicKey: Buffer, buildMinerWork: (nonce: string) => Buffer }} MiningJob */
 
 /**
  * Share difficulty never exceeds network difficulty: work at network difficulty is a block.
@@ -82,6 +82,7 @@ export class MiningJobProvider {
       algorithm,
       networkDifficulty: work.difficulty,
       height: work.height,
+      topoheight: work.topoheight !== undefined && Number.isSafeInteger(work.topoheight) ? work.topoheight : work.height,
       shareDifficulty,
       extraNonce: extraNonceBytes,
       publicKey: publicKeyBytes,

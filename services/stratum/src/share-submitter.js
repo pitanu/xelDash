@@ -74,24 +74,28 @@ export function createShareSubmitter({ daemon, pool, logger = console }) {
     } catch (error) {
       logger.warn?.("Failed to record a submitted block candidate", { hash, error: errorMessage(error) });
     }
+    return { hash, accepted: failure === null, error: failure };
   }
 
-  /** @param {{ worker: { minerId?: string | bigint, workerId: string | bigint }, workerName: string, job: import("./job-provider.js").MiningJob, nonce: string, algorithm: string | null }} input */
-  return async ({ worker, workerName, job, nonce, algorithm }) => {
+  /**
+   * Stratum sends a nonce and the work is rebuilt from the job. Getwork miners send their full
+   * MinerWork (they also change the timestamp and thread id), which the caller has already
+   * checked against the job; `nonce` is then the dedupe key.
+   * @param {{ worker: { minerId?: string | bigint, workerId: string | bigint }, workerName: string, job: import("./job-provider.js").MiningJob, nonce: string, minerWork?: Buffer | null, algorithm: string | null }} input
+   */
+  return async ({ worker, workerName, job, nonce, minerWork: submittedWork = null, algorithm }) => {
     if (algorithm !== "xel/v3" || job.algorithm !== "xel/v3") {
       return { error: { code: STRATUM_ERRORS.UNKNOWN, message: "Unsupported PoW algorithm" } };
     }
 
-    const minerWork = job.buildMinerWork(nonce);
+    const minerWork = submittedWork ?? job.buildMinerWork(nonce);
     const hash = asU256(await hashMinerWorkAsync(minerWork));
     const shareDifficulty = BigInt(job.shareDifficulty);
     const networkDifficulty = BigInt(job.networkDifficulty);
     const meetsShareTarget = hash <= MAX_U256 / shareDifficulty;
     const meetsNetworkTarget = hash <= MAX_U256 / networkDifficulty;
 
-    if (meetsNetworkTarget) {
-      await submitBlockCandidate({ worker, workerName, job, minerWork });
-    }
+    const block = meetsNetworkTarget ? await submitBlockCandidate({ worker, workerName, job, minerWork }) : null;
 
     const persisted = await recordShare(pool, {
       workerId: worker.workerId,
@@ -107,6 +111,6 @@ export function createShareSubmitter({ daemon, pool, logger = console }) {
     if (!meetsShareTarget) {
       return { error: { code: STRATUM_ERRORS.LOW_DIFFICULTY, message: "Share difficulty is below the assigned target" } };
     }
-    return { accepted: true };
+    return { accepted: true, block };
   };
 }
