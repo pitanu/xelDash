@@ -70,8 +70,9 @@ To confirm against the daemon's RPC documentation and a test run:
 - Detecting new jobs: subscribe to daemon events over WebSocket, or poll? Also how often to
   refresh the template when no new block arrives.
 - Checking node health and sync state (pool refuses or pauses work while syncing).
-- Final block status: exact names of the XELIS block types (normal / side / orphaned
-  etc.) and when a block counts as final.
+- Final block status (decided): a block is final once its height is at or below the
+  daemon's `stableheight`. The daemon's block type then maps Normal and Sync to
+  `main-chain`, Side to `side`, and Orphaned (or unknown) to `orphaned`.
 - Which network to run: `mainnet`, `testnet`, `devnet`, chosen through config.
 
 ## 5. Data model (Draft)
@@ -126,7 +127,7 @@ blocks (
   miner_id    BIGINT REFERENCES miners(id),
   worker_id   BIGINT REFERENCES workers(id),
   reward      NUMERIC,
-  status      TEXT NOT NULL,  -- submitted → pending → main-chain / side / orphaned / rejected
+  status      TEXT NOT NULL,  -- submitted → main-chain / side / orphaned, or rejected
   found_at    TIMESTAMPTZ NOT NULL,
   updated_at  TIMESTAMPTZ NOT NULL
 );
@@ -152,7 +153,6 @@ Open items:
   The initial shares table is unpartitioned.
 - Partitioning and raw-share retention defaults remain open; the initial migration does not
   drop historical share records.
-- Final `blocks.status` values: align with section 4.
 - Retention defaults: raw shares (for example, 7 days) and 1-minute stats (for example,
   90 days, possibly with hourly rollups beyond that).
 
@@ -169,7 +169,8 @@ Open items:
   network difficulty. Vardiff parameters remain open.
 - Shares are hashed before persistence; low difficulty and duplicates are recorded as
   rejected. Malformed and stale submissions are rejected before share accounting.
-- Block lifecycle tracking: poll the daemon until each found block is final.
+- Block lifecycle tracking: Stratum checks submitted blocks on every new block and every
+  30 seconds, and records the final status, topoheight and miner reward.
 
 ## 7. LAN security (Draft)
 
@@ -190,7 +191,7 @@ Candidate views:
   difficulty, expected time-to-block, blocks found.
 - **Miner page (by address):** workers, hashrate chart, shares, blocks.
 - **Worker page:** hashrate, accepted/rejected shares, last seen.
-- **Blocks:** list with status (pending / main-chain / side / orphaned).
+- **Blocks:** list with status (submitted / main-chain / side / orphaned / rejected).
 - **Health:** node status, stratum uptime, recent events.
 
 API: REST for queries plus WebSocket for live updates. The endpoint list is still to be

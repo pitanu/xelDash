@@ -1,6 +1,7 @@
 import { createServer } from "node:net";
 import { createPool } from "@xeldash/db";
 import { createWorkerAuthorizer } from "./authorize-worker.js";
+import { BlockTracker } from "./block-tracker.js";
 import { ChainWatcher } from "./chain-watcher.js";
 import { DaemonClient } from "./daemon-client.js";
 import { MiningJobProvider } from "./job-provider.js";
@@ -30,13 +31,17 @@ const jobProvider = new MiningJobProvider({ daemon, shareDifficulty });
 const submitShare = createShareSubmitter({ daemon, pool });
 /** @type {Map<import("node:net").Socket, StratumSession>} */
 const sessions = new Map();
+const blockTracker = new BlockTracker({ daemon, pool });
+blockTracker.start();
 
 // Push fresh work to every session as soon as the daemon sees a new block. Per-session
 // polling (STRATUM_JOB_REFRESH_MS) stays as the fallback and picks up template changes.
+// A new block can also advance the stable height, so check submitted blocks too.
 const chainWatcher = new ChainWatcher({
   rpcUrl: daemon.endpoint,
   onNewBlock: () => {
     for (const session of sessions.values()) void session.refreshJob();
+    blockTracker.check();
   },
 });
 chainWatcher.start();
@@ -110,6 +115,7 @@ async function shutdown() {
     socket.destroy();
   }
   await closed;
+  await blockTracker.stop();
   await pool.end();
 }
 

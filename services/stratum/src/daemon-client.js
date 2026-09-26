@@ -5,13 +5,13 @@ export class DaemonClient {
     this.endpoint = endpoint;
   }
 
-  /** @template T @param {string} method @param {Record<string, unknown>} params @returns {Promise<T>} */
+  /** @template T @param {string} method @param {Record<string, unknown>} [params] @returns {Promise<T>} */
   async call(method, params) {
     const id = ++this.#id;
     const response = await fetch(this.endpoint, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
+      body: JSON.stringify({ jsonrpc: "2.0", id, method, ...(params ? { params } : {}) }),
       signal: AbortSignal.timeout(5_000),
     });
     if (!response.ok) throw new Error(`Daemon RPC returned HTTP ${response.status}`);
@@ -50,5 +50,24 @@ export class DaemonClient {
   /** @param {string} template @param {string} minerWork @returns {Promise<boolean>} */
   submitBlock(template, minerWork) {
     return this.call("submit_block", { block_template: template, miner_work: minerWork });
+  }
+
+  /** @returns {Promise<{ height: number, stableheight: number }>} */
+  getInfo() {
+    return this.call("get_info");
+  }
+
+  /**
+   * @param {string} hash
+   * @returns {Promise<{ block_type: string, height: number, topoheight: number | null, miner_reward?: number | null } | null>}
+   * Resolves to null when the daemon does not know the block.
+   */
+  async getBlockByHash(hash) {
+    try {
+      return await this.call("get_block_by_hash", { hash });
+    } catch (error) {
+      if (error instanceof Error && /not found/i.test(error.message)) return null;
+      throw error;
+    }
   }
 }

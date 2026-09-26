@@ -26,6 +26,7 @@ the phase that depends on it.
 | 2026-09    | Develop against devnet | Finding blocks quickly makes testing practical |
 | 2026-09    | Push new work on the daemon's `new_block` WebSocket event; keep polling as a fallback | Polling alone leaves miners on a stale tip for a large fraction of block time |
 | 2026-09    | Record every submitted block candidate before trusting shares | Block hash is BLAKE3 of the 112-byte MinerWork (as in xelis_common); submission happens before any database write |
+| 2026-09    | Block status is final at the daemon's stable height | `submitted` → `main-chain` (Normal/Sync), `side` or `orphaned`; `rejected` if the daemon refuses it. `reward` stores the miner reward, not the dev share. |
 | 2026-09    | Calculate V3 share difficulty and pool estimates using XELIS U256 targets | Hash bytes are interpreted big-endian; valid target is `floor((2^256 - 1) / difficulty)`. Accepted assigned share difficulty divided by elapsed completed-window seconds estimates H/s; expected TTB is network difficulty divided by H/s. |
 
 ## Open

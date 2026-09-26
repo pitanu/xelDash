@@ -177,3 +177,27 @@ export async function recordServiceEvent(pool, type, payload = {}) {
     [type, JSON.stringify(payload)],
   );
 }
+
+/** @param {PgPool} pool @returns {Promise<{ hash: string, height: number }[]>} */
+export async function listSubmittedBlocks(pool) {
+  const result = await pool.query(
+    "SELECT hash, height::int AS height FROM blocks WHERE status = 'submitted' AND height IS NOT NULL ORDER BY height",
+  );
+  return result.rows;
+}
+
+/**
+ * Move a submitted block to its final status. Returns false if the block was not in
+ * `submitted`, so a second tracker pass cannot finalize it twice.
+ * @param {PgPool} pool
+ * @param {{ hash: string, status: string, topoheight: number | null, reward: string | number | bigint | null }} block
+ */
+export async function finalizeBlock(pool, { hash, status, topoheight, reward }) {
+  const result = await pool.query(
+    `UPDATE blocks
+     SET status = $2, topoheight = COALESCE($3, topoheight), reward = $4, updated_at = now()
+     WHERE hash = $1 AND status = 'submitted'`,
+    [hash, status, topoheight, reward === null ? null : String(reward)],
+  );
+  return result.rowCount === 1;
+}

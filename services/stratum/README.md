@@ -23,7 +23,9 @@ Only `xel/v3` jobs are currently accepted. A mining submission is hashed from th
 112-byte Stratum MinerWork layout, compared against both its share target and network
 target, then recorded in PostgreSQL. Work at network difficulty is submitted to the local
 daemon before any database write, then recorded in `blocks` (status `submitted` or
-`rejected`) with a matching `service_events` row. The block hash is BLAKE3 of the 112-byte
+`rejected`) with a matching `service_events` row. Once the daemon's stable height passes
+a submitted block, it moves to `main-chain`, `side` or `orphaned` with its topoheight and
+miner reward, and a `block_final` event. The block hash is BLAKE3 of the 112-byte
 MinerWork, matching the daemon's block hash. Hashing, block submission and block hashes
 are verified on devnet (see [docs/DEVNET.md](../../docs/DEVNET.md)); a third-party miner
 has not been tested yet. The wire format follows the
