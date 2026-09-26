@@ -1,4 +1,4 @@
-# Development-only daemon RPC access for the host-run template spike.
+# Development only: publish the daemon's RPC on loopback for debugging from the host.
 # Keep the binding on loopback; do not use this overlay on a public host.
 services:
   daemon:

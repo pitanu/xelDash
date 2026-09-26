@@ -1,8 +1,0 @@
-{
-  "name": "@xeldash/daemon-spike",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "spike:template": "node src/get-template.js"
-  }
-}

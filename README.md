@@ -1,76 +1,79 @@
 # xelDash *(working name)*
 
-> Self-hosted, LAN-only XELIS solo mining statistics in Docker.
+> Self-hosted XELIS solo mining with pool-style statistics, in Docker, for your LAN.
 
-xelDash runs a local XELIS node, a LAN stratum endpoint that validates and records shares,
-and a dashboard for worker hashrate, accepted/rejected shares, and time-to-block estimates.
-It submits only solved blocks to the node. Rewards go directly to each miner's authorized
-address; xelDash has no shared-reward accounting, balances, payout service, or hot wallet.
+xelDash runs your own XELIS node, a Stratum (and getwork) endpoint for your miners, and a
+dashboard. Every share is validated, so you get per-worker hashrate, accepted and rejected
+shares, and time-to-block estimates like a pool would show. Only solved blocks are submitted,
+to your own node, and each block pays the miner's own address directly: xelDash holds no
+funds and has no balances, payouts or wallet.
 
-**Status:** early Phase 1 implementation. Compose now builds and runs the V3 hash addon and Stratum service, which fetches address-specific work, validates shares, records them, and submits network-target candidates. Known-good miner-vector and devnet verification remain outstanding.
+**Status:** feature-complete for a first release and verified end to end on a private devnet.
+Before 0.1.0: a license, a mainnet trial, and tests with third-party GPU miners (see
+[docs/ISSUES.md](docs/ISSUES.md)).
 
-## Local containers
+## What you get
 
-Alerts, snapshots, backups, restores and upgrades are covered in [docs/OPERATIONS.md](docs/OPERATIONS.md);
-the security model and remaining risks are in [docs/SECURITY.md](docs/SECURITY.md).
-Changes are listed in [CHANGELOG.md](CHANGELOG.md); to contribute, see [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Mining endpoints:** Stratum (`xel/v3`) on port 3333, optional Stratum over TLS on 3334,
+  and getwork on 8090 for the official `xelis_miner`. Per-connection vardiff.
+- **Dashboard** at port 8088: overview, per-miner and per-worker pages, blocks with their final
+  status and reward, and node health, with live updates, in light and dark mode.
+- **Reliability:** optional second node with automatic failover, so node upgrades do not stop
+  mining; mining pauses by itself while no node is in sync.
+- **Node management from the dashboard:** every daemon setting, and chain snapshots (the
+  official daily mainnet snapshot, or a zip you drop onto the page).
+- **Alerts** to Discord, Telegram or a webhook; optional daily database backups.
 
-Copy `.env.example` to `.env`, set a strong `POSTGRES_PASSWORD`, then start the stack with
-`docker compose up -d`. A one-shot `migrate` service applies PostgreSQL migrations; the API
-and Stratum services start once it completes. The dashboard is at `http://localhost:8088`
-(set `XELDASH_WEB_BIND_IP` to open it to your LAN). The API is available at `http://localhost:8081`; `/health` reports dependency
-health and `/api/v1/overview` returns node difficulty, share totals, block statuses, and
-estimated hashrates and expected time-to-block from completed share windows. Estimates are
-`null` until their window contains accepted shares, then stabilize as the window fills.
+## Quick start
 
-The daemon RPC stays private to Compose. For the host-run daemon template spike only, use
-`docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d daemon`; this
-development overlay binds RPC to `127.0.0.1:8080`.
+You need Docker with Compose.
 
-Stratum listens on host port 3333, bound to `127.0.0.1` by default. Set
-`XELDASH_STRATUM_BIND_IP` to the host's LAN address in `.env` to allow miners on that LAN
-to connect. Share difficulty adjusts per connection (vardiff) to about one share every 10
-seconds and never exceeds the network difficulty. The `STRATUM_*` settings in `.env.example`
-tune it.
-
-To make the API reachable from your LAN, set `XELDASH_API_BIND_IP` to this machine's LAN
-IP address in `.env`. Its default is `127.0.0.1`. The daemon RPC and PostgreSQL remain
-private to the Compose network, and daemon P2P binds to localhost by default.
-
-The `migrate` service runs the versioned SQL migrations after PostgreSQL is healthy. The initial
-schema tracks miners, workers, raw share outcomes, per-minute difficulty aggregates,
-submitted blocks, bans, and service events; it contains no balance or payout tables.
-
-The current folder layout follows the planned service boundaries:
-
-```text
-docker-compose.yml
-docker/daemon/       daemon deployment notes
-services/daemon-spike/ JSON-RPC spike client
-services/stratum/    initial Stratum framing, session, and worker authorization layer
-services/api/        LAN-bound REST API
-web/                 React dashboard, served by nginx
-packages/db/         database migrations
-packages/db/src/     migration runner and transactional share persistence
-packages/xelis-hash/ native XELIS Hash V3 addon (initial implementation)
+```sh
+cp .env.example .env
+# Edit .env: set POSTGRES_PASSWORD, XELIS_NETWORK (devnet, testnet or mainnet) and, for
+# mainnet, XELIS_DAEMON_IMAGE=xelis/daemon:1.25.0 (mainnet needs 1.24.0 or newer).
+docker compose up -d
 ```
 
-- [Project plan](docs/PLAN.md): scope, architecture, data model, phases
-- [Decision log](docs/DECISIONS.md): what's decided and what's still open
-- [Follow-up issues](docs/ISSUES.md): deferred items from the initial-commit review
-- [Phase 1 spike notes](docs/PHASE-1-SPIKE.md): current implementation and validation gaps
+Open the dashboard at `http://localhost:8088`. The node syncs the chain first; on mainnet,
+set `XELIS_SNAPSHOT_AUTO=true` (or use the dashboard's Node page) to start from the official
+snapshot instead. Everything listens on `127.0.0.1` until you set the `*_BIND_IP` values in
+`.env` to this machine's LAN address.
 
-## Planned stack
+## Connecting miners
 
-| Part            | Tech                                        |
-|-----------------|---------------------------------------------|
-| Node            | Official `xelis_daemon` (Docker)            |
-| Stratum server  | Node.js + native Xelishash addon (napi-rs)  |
-| API             | Node.js (Fastify or Express), REST + WebSocket |
-| Dashboard       | React + Vite + Tailwind                     |
-| Database        | PostgreSQL                                  |
-| Deployment      | Docker Compose                              |
+Use your own XELIS address as the user name; the worker name is optional.
+
+| Miner type | Pool URL | User / worker |
+|------------|----------|---------------|
+| Stratum (SRBMiner, lolMiner, ...) | `stratum+tcp://<host>:3333` | `<your xel: address>` / `<rig name>` |
+| Stratum over TLS (if enabled) | `stratum+ssl://<host>:3334` | same |
+| Official xelis_miner | `--daemon-address ws://<host>:8090 --miner-address <address> --worker <rig>` | |
+
+## Documentation
+
+- [Operations](docs/OPERATIONS.md): daemon settings, snapshots, redundant nodes, alerts,
+  backups, restores and upgrades
+- [Security](docs/SECURITY.md): what is protected, the admin token, remaining risks
+- [Devnet checks](docs/DEVNET.md): how the mining path is verified
+- [Plan](docs/PLAN.md), [decisions](docs/DECISIONS.md), [open issues](docs/ISSUES.md)
+- [Changelog](CHANGELOG.md), [contributing](CONTRIBUTING.md)
+
+## How it is built
+
+| Part | Tech |
+|------|------|
+| Node | Official XELIS daemon (Docker), under a small supervisor for settings and snapshots |
+| Stratum, getwork | Node.js with the official XELIS Hash V3 code as a native addon (Rust, napi-rs) |
+| API, node admin | Node.js |
+| Dashboard | React, Vite, Tailwind, served by nginx |
+| Database | PostgreSQL |
+| Deployment | Docker Compose; multi-arch images (amd64, arm64) |
+
+The daemon's RPC, PostgreSQL and node-admin stay on the internal Compose network. For
+debugging, `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d daemon`
+publishes the daemon's RPC on `127.0.0.1:8080`.
 
 ## License
 
-TBD (see docs/DECISIONS.md).
+Not chosen yet (see [docs/DECISIONS.md](docs/DECISIONS.md)).

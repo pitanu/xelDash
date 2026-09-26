@@ -11,6 +11,8 @@ Open:
 
 Resolved:
 
+- Cleanup: PLAN.md and README.md describe the current project; the phase-1 spike client and
+  notes are removed (their results are in `docs/DEVNET.md`).
 - Security review (2026-09-27): three request-crash bugs, login flooding, worker limits,
   dashboard headers, snapshot links and more fixed; model and remaining risks in
   `docs/SECURITY.md`.

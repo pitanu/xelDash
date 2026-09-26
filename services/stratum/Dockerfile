@@ -35,7 +35,6 @@ COPY package.json package-lock.json ./
 COPY packages/db/package.json packages/db/package.json
 COPY packages/xelis-hash/package.json packages/xelis-hash/package.json
 COPY services/api/package.json services/api/package.json
-COPY services/daemon-spike/package.json services/daemon-spike/package.json
 COPY services/stratum/package.json services/stratum/package.json
 RUN npm ci --omit=dev
 
