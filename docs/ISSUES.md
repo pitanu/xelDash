@@ -4,7 +4,8 @@ Open:
 
 - Select and add a project license before any public release.
 - Test a third-party Stratum miner (SRBMiner, lolMiner or similar) against the devnet stack.
-- Recheck newer daemon images when upstream fixes the glibc mismatch in 1.22.0 and later.
+- Report the glibc mismatch upstream (built on Debian 13, shipped on cc-debian12; commit
+  99599508). Once fixed, drop the Debian 13 re-base in docker/daemon/Dockerfile.
 - Add per-IP connection and invalid-share rate limits; per-connection request queues are
   capped and unauthenticated handshakes time out.
 - Make the data model in `docs/PLAN.md` reference the migration instead of duplicating DDL
@@ -23,7 +24,8 @@ Resolved:
 - Vardiff per connection, with configurable defaults (see `docs/PLAN.md` section 6).
 - Block lifecycle: submitted blocks move to `main-chain`, `side` or `orphaned` at stable
   height, with topoheight and miner reward.
-- Daemon pinned to 1.21.3 with a Compose healthcheck and a documented upgrade check.
+- Daemon pinned to 1.25.0, re-based onto Debian 13 to work around the upstream glibc
+  mismatch, with a Compose healthcheck and a documented upgrade check.
 - Submitted block candidates are recorded in `blocks` and `service_events`.
 - Stratum pushes new work on daemon `new_block` events; polling is only a fallback, and
   shares on superseded jobs are rejected as stale.

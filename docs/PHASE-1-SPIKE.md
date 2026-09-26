@@ -28,7 +28,7 @@ npm run spike:template
 Do not expose daemon RPC on a LAN or public interface. The development overlay binds it to
 `127.0.0.1` only and should not be used on a host where loopback forwarding is not trusted.
 
-## Proven on devnet (2026-09-26, daemon 1.21.3)
+## Proven on devnet (2026-09-26, daemon 1.21.3 and 1.25.0)
 
 See [DEVNET.md](DEVNET.md) for the procedure.
 

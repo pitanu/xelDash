@@ -1,17 +1,24 @@
 # Devnet verification
 
 How to run the stack on a private devnet and check that Stratum produces blocks the daemon
-accepts. Last verified 2026-09-26 with daemon 1.21.3.
+accepts. Last verified 2026-09-26 with daemon 1.25.0 (and earlier with 1.21.3).
 
 ## 1. Start the stack
 
 Copy `.env.example` to `.env` and set `POSTGRES_PASSWORD`, then run `docker compose up -d --build`.
 Devnet has no seed peers, so the daemon creates its own genesis block and chain.
 
+A devnet chain made by one daemon release may not load in a release with different devnet
+fork heights (1.22.0 added V6 at height 30). To start over, run `docker compose down -v`.
+This also deletes the database.
+
 ## 2. Mine past the V3 fork
 
 Devnet uses `xel/v1` below height 5 and `xel/v2` below height 15. Stratum only serves
-`xel/v3`, so mine the first blocks with the official miner over the daemon's getwork server:
+`xel/v3`, so mine the first blocks with the official miner over the daemon's getwork server.
+Use the 1.21.3 miner image: images from 1.22.0 onward fail to start (see
+[docker/daemon/README.md](../docker/daemon/README.md)), and 1.21.3 mines fine against a 1.25.0
+daemon.
 
 ```sh
 docker run --rm --name xeldash-bootstrap-miner --network xeldash_backend xelis/miner:1.21.3 \
@@ -38,6 +45,9 @@ It prints `OK block <hash> height <n>` per verified block and exits non-zero on 
 mismatch. Afterwards, `blocks` and `service_events` should have one row per block.
 
 ## Results so far
+
+- Daemon 1.25.0: 5 of 5 Stratum blocks verified at block version 6 (heights 33 to 37), all
+  finalized as `main-chain` with rewards.
 
 - Native V3 hash, the 112-byte MinerWork layout, `submit_block`, and the BLAKE3 block hash
   match the daemon: 3 of 3 blocks accepted and found by hash (heights 17 to 19).
