@@ -114,7 +114,7 @@ export default function Health() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title={node && s && s.nodes.length > 1 ? `Node ${node.label}` : "Node"}
-          action={<a href="#/node-data" className="text-xs text-ink-2 hover:text-ink hover:underline">Snapshots and chain data</a>}>
+          action={<a href="#/node-data" className="text-xs text-ink-2 hover:text-ink hover:underline">Settings and snapshots</a>}>
           {node ? (
             <dl className="divide-y divide-line text-sm">
               {rows.map(([label, value]) => (

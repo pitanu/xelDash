@@ -37,6 +37,8 @@ the phase that depends on it.
 | 2026-09    | Snapshots from the official daily mainnet zip or a dashboard upload; automatic download is opt-in | Starting from a snapshot means trusting its publisher, and costs about 9 GB, so it is an explicit choice |
 | 2026-09    | Snapshot actions need `XELDASH_ADMIN_TOKEN` | The dashboard has no login, and replacing a node's database is the most destructive action in xelDash |
 | 2026-09    | The node container swaps snapshots in itself (busybox supervisor), coordinated through files on the data volume | No service needs the Docker socket; the swap happens only while the daemon is stopped |
+| 2026-09    | Dashboard daemon settings are extra command-line flags, listed from the daemon's `--help` | A daemon config file would discard Compose's flags; the help output keeps the list exact for each daemon version |
+| 2026-09    | Settings are checked with the daemon's parser before a restart and rolled back if it exits within 30 s | A bad setting must never leave the node down |
 | 2026-09    | Calculate V3 share difficulty and pool estimates using XELIS U256 targets | Hash bytes are interpreted big-endian; valid target is `floor((2^256 - 1) / difficulty)`. Accepted assigned share difficulty divided by elapsed completed-window seconds estimates H/s; expected TTB is network difficulty divided by H/s. |
 
 ## Open

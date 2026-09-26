@@ -1,7 +1,7 @@
 name: Release images
 
 # Push a tag like v0.1.0 to publish multi-arch images to GitHub Container Registry:
-#   ghcr.io/<owner>/xeldash/{api,stratum,web,snapshot,daemon}:<version> and :latest
+#   ghcr.io/<owner>/xeldash/{api,stratum,web,node-admin,daemon}:<version> and :latest
 on:
   push:
     tags: ["v*.*.*"]
@@ -27,9 +27,9 @@ jobs:
           - image: web
             context: .
             dockerfile: web/Dockerfile
-          - image: snapshot
+          - image: node-admin
             context: .
-            dockerfile: services/snapshot/Dockerfile
+            dockerfile: services/node-admin/Dockerfile
           - image: daemon
             context: docker/daemon
             dockerfile: docker/daemon/Dockerfile

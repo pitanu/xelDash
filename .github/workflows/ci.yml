@@ -52,9 +52,9 @@ jobs:
           - image: web
             context: .
             dockerfile: web/Dockerfile
-          - image: snapshot
+          - image: node-admin
             context: .
-            dockerfile: services/snapshot/Dockerfile
+            dockerfile: services/node-admin/Dockerfile
           - image: daemon
             context: docker/daemon
             dockerfile: docker/daemon/Dockerfile

@@ -42,6 +42,9 @@ First public version, planned as 0.1.0.
 
 - Docker Compose stack; the daemon runs XELIS 1.25.0, which mainnet requires (1.24.0 or
   newer).
+- Daemon settings from the dashboard: every option of the installed XELIS daemon, checked by
+  the daemon's own parser before a restart and rolled back if the node does not stay up.
+  Needs `XELDASH_ADMIN_TOKEN`.
 - Snapshots: start or replace a node's chain data from the official daily mainnet snapshot
   (downloaded, resumable, checksum-verified) or a zip dropped onto the dashboard. Optional
   automatic download on a first start. Needs `XELDASH_ADMIN_TOKEN`.

@@ -53,7 +53,7 @@ async function dirSize(dir) {
 /**
  * Downloads, receives, verifies and unpacks node snapshots onto the node's data volume. The
  * node container's entrypoint swaps a staged snapshot in when it restarts (docker/daemon/
- * entrypoint.sh); the two only share marker files under `<data>/.snapshot`.
+ * entrypoint.sh); the two only share marker files under `<data>/.xeldash`.
  */
 export class SnapshotManager {
   /**
@@ -66,7 +66,7 @@ export class SnapshotManager {
     this.snapshotUrl = snapshotUrl;
     this.checksumUrl = checksumUrl;
     this.logger = logger;
-    this.control = join(dataDir, ".snapshot");
+    this.control = join(dataDir, ".xeldash");
     this.work = join(this.control, "work");
     this.staged = join(this.control, "staged");
     this.db = join(dataDir, network);

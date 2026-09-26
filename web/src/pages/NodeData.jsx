@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import DaemonSettings from "../components/DaemonSettings.jsx";
 import { Card, HealthBadge } from "../components/ui.jsx";
 import { formatAgo, formatTime } from "../format.js";
 
@@ -31,7 +32,7 @@ function useSnapshotStatus() {
   const [error, setError] = useState(/** @type {string | null} */ (null));
   const load = useCallback(async () => {
     try {
-      const response = await fetch("/api/v1/snapshot/status");
+      const response = await fetch("/api/v1/node/snapshot/status");
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       setStatus(await response.json());
       setError(null);
@@ -101,7 +102,7 @@ export default function NodeData() {
   /** @param {string} path */
   async function action(path) {
     setActionError(null);
-    const response = await fetch(`/api/v1/snapshot/${path}`, { method: "POST", headers: { authorization: `Bearer ${token}` } });
+    const response = await fetch(`/api/v1/node/snapshot/${path}`, { method: "POST", headers: { authorization: `Bearer ${token}` } });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       if (response.status === 401) forgetToken();
@@ -147,7 +148,7 @@ export default function NodeData() {
     setUpload({ bytes: 0, total: file.size });
     const request = new XMLHttpRequest();
     xhr.current = request;
-    request.open("PUT", "/api/v1/snapshot/upload");
+    request.open("PUT", "/api/v1/node/snapshot/upload");
     request.setRequestHeader("authorization", `Bearer ${token}`);
     request.setRequestHeader("content-type", "application/zip");
     request.upload.onprogress = (event) => setUpload({ bytes: event.loaded, total: event.total || file.size });
@@ -185,12 +186,33 @@ export default function NodeData() {
     <div className="space-y-6">
       <div>
         <a href="#/health" className="text-xs text-ink-2 hover:text-ink hover:underline">← Health</a>
-        <h1 className="mt-1 text-lg font-semibold text-ink">Node data</h1>
+        <h1 className="mt-1 text-lg font-semibold text-ink">Node</h1>
         <p className="text-sm text-ink-2">
-          Start or replace the node's chain data from a snapshot instead of syncing from the network.
+          Change the XELIS daemon's settings, or start its chain data from a snapshot instead of syncing from the network.
         </p>
       </div>
 
+      {!s.actionsEnabled ? (
+        <Card title="Changes are off">
+          <p className="text-sm text-ink-2">
+            Changing the node needs an admin token. Set <code className="rounded bg-wash px-1">XELDASH_ADMIN_TOKEN</code> in
+            {" "}<code className="rounded bg-wash px-1">.env</code> and restart xelDash, then enter it here. Until then this page is read-only.
+          </p>
+        </Card>
+      ) : !token && (
+        <Card title="Unlock changes" subtitle="Enter the admin token from .env (XELDASH_ADMIN_TOKEN). It is kept for this browser session only.">
+          <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); saveToken(); }}>
+            <input type="password" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} autoComplete="off"
+              aria-label="Admin token" className="min-w-0 flex-1 rounded-md border border-line bg-page px-3 py-1.5 text-sm text-ink" />
+            <button type="submit" disabled={!tokenInput}
+              className="rounded-md bg-series-1 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40">Unlock</button>
+          </form>
+        </Card>
+      )}
+
+      <DaemonSettings token={s.actionsEnabled ? token : ""} onUnauthorized={forgetToken} />
+
+      <h2 className="pt-2 text-base font-semibold text-ink">Snapshots</h2>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="min-w-0 rounded-lg border border-line bg-surface p-3 sm:p-4">
           <div className="text-xs text-ink-2">Chain data</div>
@@ -253,23 +275,7 @@ export default function NodeData() {
         </Card>
       )}
 
-      {!s.actionsEnabled ? (
-        <Card title="Snapshot actions are off">
-          <p className="text-sm text-ink-2">
-            Replacing chain data needs an admin token. Set <code className="rounded bg-wash px-1">XELDASH_ADMIN_TOKEN</code> in
-            {" "}<code className="rounded bg-wash px-1">.env</code> and restart xelDash, then enter it here.
-          </p>
-        </Card>
-      ) : !token ? (
-        <Card title="Unlock snapshot actions" subtitle="Enter the admin token from .env (XELDASH_ADMIN_TOKEN). It is kept for this browser session only.">
-          <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); saveToken(); }}>
-            <input type="password" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} autoComplete="off"
-              aria-label="Admin token" className="min-w-0 flex-1 rounded-md border border-line bg-page px-3 py-1.5 text-sm text-ink" />
-            <button type="submit" disabled={!tokenInput}
-              className="rounded-md bg-series-1 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40">Unlock</button>
-          </form>
-        </Card>
-      ) : (
+      {!locked && (
         <div className="grid gap-6 lg:grid-cols-2">
           <Card title="Upload a snapshot" subtitle="A zip of a node's database, such as mainnet.zip from the XELIS team or a backup of another node.">
             <div

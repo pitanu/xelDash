@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { DaemonSettings } from "./settings.js";
 import { SnapshotManager, message, tokensMatch } from "./snapshot.js";
 
 const port = Number.parseInt(process.env.SNAPSHOT_PORT ?? "8095", 10);
@@ -12,9 +13,25 @@ const checksumUrl = process.env.XELIS_SNAPSHOT_CHECKSUM_URL?.trim()
   || (official && !process.env.XELIS_SNAPSHOT_URL ? "https://node.xelis.io/files/mainnet_checksum.txt" : null);
 const MAX_UPLOAD_BYTES = 200e9;
 
-const manager = new SnapshotManager({ dataDir: process.env.DATA_DIR ?? "/data", network, snapshotUrl, checksumUrl });
+const dataDir = process.env.DATA_DIR ?? "/data";
+const manager = new SnapshotManager({ dataDir, network, snapshotUrl, checksumUrl });
+const settings = new DaemonSettings({ dataDir });
 await manager.init();
 let ready = false;
+
+/** Read a small JSON body (settings), refusing anything large. @param {import("node:http").IncomingMessage} request */
+async function readJson(request) {
+  let text = "";
+  for await (const chunk of request) {
+    text += chunk;
+    if (text.length > 100_000) throw new Error("Request body too large");
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
 
 /** @param {import("node:http").ServerResponse} response @param {number} status @param {unknown} body */
 function send(response, status, body) {
@@ -35,14 +52,18 @@ function authorized(request) {
 }
 
 const server = createServer(async (request, response) => {
-  const path = new URL(request.url ?? "/", "http://localhost").pathname.replace(/^\/api\/v1\/snapshot/, "") || "/";
+  const path = new URL(request.url ?? "/", "http://localhost").pathname.replace(/^\/api\/v1\/node/, "") || "/";
   try {
     if (request.method === "GET" && path === "/healthz") {
       send(response, ready ? 200 : 503, { ready });
       return;
     }
-    if (request.method === "GET" && path === "/status") {
+    if (request.method === "GET" && path === "/snapshot/status") {
       send(response, 200, { ...(await manager.status()), actionsEnabled: Boolean(adminToken), auto });
+      return;
+    }
+    if (request.method === "GET" && path === "/settings") {
+      send(response, 200, { ...(await settings.status()), actionsEnabled: Boolean(adminToken) });
       return;
     }
     if (!adminToken) {
@@ -54,7 +75,7 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    if (request.method === "PUT" && path === "/upload") {
+    if (request.method === "PUT" && path === "/snapshot/upload") {
       const size = Number(request.headers["content-length"]);
       if (!Number.isSafeInteger(size) || size <= 0 || size > MAX_UPLOAD_BYTES) {
         send(response, 411, { error: "The upload needs a Content-Length" });
@@ -67,7 +88,7 @@ const server = createServer(async (request, response) => {
       );
       return;
     }
-    if (request.method === "POST" && path === "/download") {
+    if (request.method === "POST" && path === "/snapshot/download") {
       if (!snapshotUrl) {
         send(response, 409, { error: `No official snapshot is published for ${network}; upload one instead.` });
         return;
@@ -80,22 +101,42 @@ const server = createServer(async (request, response) => {
       send(response, 202, { ok: true });
       return;
     }
-    if (request.method === "POST" && path === "/cancel") {
+    if (request.method === "POST" && path === "/snapshot/cancel") {
       send(response, 200, { cancelled: manager.cancel() });
       return;
     }
-    if (request.method === "POST" && path === "/restart") {
+    if (request.method === "POST" && path === "/snapshot/restart") {
       await manager.requestRestart();
       send(response, 202, { ok: true });
       return;
     }
-    if (request.method === "POST" && path === "/discard-staged") {
+    if (request.method === "POST" && path === "/snapshot/discard-staged") {
       await manager.discardStaged();
       send(response, 200, { ok: true });
       return;
     }
-    if (request.method === "POST" && path === "/discard-previous") {
+    if (request.method === "POST" && path === "/snapshot/discard-previous") {
       await manager.discardPrevious();
+      send(response, 200, { ok: true });
+      return;
+    }
+    if (request.method === "PUT" && path === "/settings") {
+      const body = await readJson(request);
+      if (!body || typeof body.values !== "object" || body.values === null || Array.isArray(body.values)) {
+        send(response, 400, { error: "Send { \"values\": { \"flag\": value } }" });
+        return;
+      }
+      send(response, 200, await settings.save(body.values));
+      return;
+    }
+    if (request.method === "POST" && path === "/settings/apply") {
+      // The node checks and applies the saved settings as it restarts.
+      await settings.requestRestart();
+      send(response, 202, { ok: true });
+      return;
+    }
+    if (request.method === "POST" && path === "/settings/discard") {
+      await settings.discardPending();
       send(response, 200, { ok: true });
       return;
     }
@@ -108,7 +149,7 @@ const server = createServer(async (request, response) => {
 server.requestTimeout = 0;
 
 server.listen(port, "0.0.0.0", async () => {
-  console.info(`xelDash snapshot service on :${port} (network ${network}, snapshot source: ${snapshotUrl ?? "none published for this network"})`);
+  console.info(`xelDash node-admin on :${port} (network ${network}, snapshot source: ${snapshotUrl ?? "none published for this network"})`);
   if (!adminToken) console.info("Snapshot actions are off; set XELDASH_ADMIN_TOKEN to enable uploads and downloads.");
   if (auto && snapshotUrl) {
     if (await manager.bootstrap()) console.info("No chain data yet: downloading the snapshot before the node starts.");

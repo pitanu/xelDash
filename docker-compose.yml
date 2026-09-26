@@ -21,9 +21,9 @@ services:
     volumes:
       - xelis-data:/root/.xelis
     depends_on:
-      # On a first start with XELIS_SNAPSHOT_AUTO, the snapshot service holds the node back
-      # until the official snapshot is downloaded and unpacked.
-      snapshot:
+      # On a first start with XELIS_SNAPSHOT_AUTO, node-admin holds the node back until the
+      # official snapshot is downloaded and unpacked.
+      node-admin:
         condition: service_healthy
     ports:
       - "${XELIS_P2P_BIND_IP:-127.0.0.1}:${XELIS_P2P_PORT:-2125}:2125"
@@ -38,13 +38,14 @@ services:
     networks:
       - backend
 
-  # Downloads, receives and unpacks node snapshots onto the node's data volume; the node swaps
-  # them in on restart. Actions need XELDASH_ADMIN_TOKEN. See docs/OPERATIONS.md#snapshots.
-  snapshot:
-    image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/snapshot:${XELDASH_VERSION:-local}
+  # Node administration for the dashboard: daemon settings and snapshots, written to the node's
+  # data volume and applied when the node restarts. Actions need XELDASH_ADMIN_TOKEN.
+  # See docs/OPERATIONS.md#daemon-settings and #snapshots.
+  node-admin:
+    image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/node-admin:${XELDASH_VERSION:-local}
     build:
       context: .
-      dockerfile: services/snapshot/Dockerfile
+      dockerfile: services/node-admin/Dockerfile
     restart: unless-stopped
     environment:
       XELIS_NETWORK: ${XELIS_NETWORK:-devnet}
@@ -247,8 +248,8 @@ services:
     depends_on:
       api:
         condition: service_healthy
-      # nginx resolves the snapshot service's name at startup.
-      snapshot:
+      # nginx resolves the node-admin service's name at startup.
+      node-admin:
         condition: service_started
     ports:
       - "${XELDASH_WEB_BIND_IP:-127.0.0.1}:${XELDASH_WEB_PORT:-8088}:8080"

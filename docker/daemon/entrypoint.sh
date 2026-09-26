@@ -1,20 +1,27 @@
 #!/bin/sh
-# Runs the XELIS daemon and swaps in a prepared snapshot when asked. The snapshot service
-# (services/snapshot) talks to this script only through files on the shared data volume:
+# Runs the XELIS daemon, applies settings saved from the dashboard, and swaps in prepared
+# snapshots. node-admin (services/node-admin) talks to this script only through files on the
+# shared data volume, under .xeldash/:
 #
-#   .snapshot/BOOTSTRAPPING   the first snapshot is still downloading; wait before starting
-#   .snapshot/staged/         a verified, unpacked database ready to replace the current one
-#   .snapshot/staged/READY    marks it complete
-#   .snapshot/RESTART         restart the daemon now (it swaps in the staged database first)
+#   daemon-help.txt      the daemon's --help, written on each start (the dashboard's settings list)
+#   daemon-args          dashboard settings in use: extra daemon flags, one per line
+#   daemon-args.pending  saved settings waiting for the next restart
+#   settings-result      outcome of the last settings change (applied, rejected, reverted)
+#   BOOTSTRAPPING        the first snapshot is still downloading; wait before starting
+#   staged/, staged/READY  a verified, unpacked database ready to replace the current one
+#   RESTART              restart the daemon now
 #
-# The current database is kept as <network>.previous for rollback until the next swap.
+# Settings are checked with the daemon's own parser before they are applied, and put back if
+# the daemon exits within SETTLE_SECONDS of starting with them. On a snapshot swap the current
+# database is kept as <network>.previous for rollback until the next swap.
 set -eu
 
 DATA=/root/.xelis
 NETWORK="${XELIS_NETWORK:-devnet}"
 DB="$DATA/$NETWORK"
-CONTROL="$DATA/.snapshot"
+CONTROL="$DATA/.xeldash"
 BIN=/var/run/xelis/xelis
+SETTLE_SECONDS=30
 child=""
 
 log() { echo "[xeldash] $*"; }
@@ -30,6 +37,8 @@ stop_child() {
 # docker stop sends SIGTERM to PID 1 (this script); pass it on so the daemon shuts down cleanly.
 trap 'stop_child; exit 0' TERM INT
 
+result() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" > "$CONTROL/settings-result"; }
+
 swap_in_staged() {
   [ -f "$CONTROL/staged/READY" ] || return 0
   rm -f "$CONTROL/staged/READY"
@@ -43,6 +52,42 @@ swap_in_staged() {
 }
 
 mkdir -p "$CONTROL"
+# Compose's flags (network, RPC address, data path) always come first; dashboard settings are
+# added after them from daemon-args.
+printf '%s\n' "$@" > "$CONTROL/base-args"
+"$BIN" --help > "$CONTROL/daemon-help.txt" 2>&1 || true
+
+# Check a settings file with the daemon's parser: generating a config template parses every
+# flag and exits without starting the node. Prints the parser's error on failure.
+check_settings() {
+  settings="$1"
+  rm -f /tmp/xeldash-check.json
+  set --
+  while IFS= read -r line; do [ -n "$line" ] && set -- "$@" "$line"; done < "$CONTROL/base-args"
+  while IFS= read -r line; do [ -n "$line" ] && set -- "$@" "$line"; done < "$settings"
+  "$BIN" "$@" --config-file /tmp/xeldash-check.json --generate-config-template > /tmp/xeldash-check.out 2>&1
+}
+
+apply_pending() {
+  [ -f "$CONTROL/daemon-args.pending" ] || return 1
+  if check_settings "$CONTROL/daemon-args.pending"; then
+    if [ -f "$CONTROL/daemon-args" ]; then mv "$CONTROL/daemon-args" "$CONTROL/daemon-args.previous"; else rm -f "$CONTROL/daemon-args.previous"; fi
+    mv "$CONTROL/daemon-args.pending" "$CONTROL/daemon-args"
+    result "applied"
+    log "Applied the daemon settings saved from the dashboard"
+    return 0
+  fi
+  reason="$(tr '\n' ' ' < /tmp/xeldash-check.out | cut -c1-500)"
+  rm -f "$CONTROL/daemon-args.pending"
+  result "rejected $reason"
+  log "Rejected the saved daemon settings: $reason"
+  return 1
+}
+
+revert_settings() {
+  if [ -f "$CONTROL/daemon-args.previous" ]; then mv "$CONTROL/daemon-args.previous" "$CONTROL/daemon-args"; else rm -f "$CONTROL/daemon-args"; fi
+}
+
 while [ -f "$CONTROL/BOOTSTRAPPING" ]; do
   log "Waiting for the snapshot download to finish before starting (see the dashboard)"
   sleep 30
@@ -51,21 +96,38 @@ done
 while true; do
   rm -f "$CONTROL/RESTART"
   swap_in_staged
+  just_applied=0
+  if apply_pending; then just_applied=1; fi
+
+  set --
+  while IFS= read -r line; do [ -n "$line" ] && set -- "$@" "$line"; done < "$CONTROL/base-args"
+  if [ -f "$CONTROL/daemon-args" ]; then
+    while IFS= read -r line; do [ -n "$line" ] && set -- "$@" "$line"; done < "$CONTROL/daemon-args"
+  fi
+  started=$(date +%s)
   "$BIN" "$@" &
   child=$!
   # Wait for the daemon to exit, or for a restart request.
   while kill -0 "$child" 2>/dev/null; do
     if [ -f "$CONTROL/RESTART" ]; then
-      log "Restart requested by the snapshot service"
+      log "Restart requested from the dashboard"
       stop_child
       break
     fi
     sleep 2
   done
   if [ -n "$child" ]; then
-    # The daemon exited on its own: exit with its status so Docker's restart policy applies.
     status=0
     wait "$child" || status=$?
+    child=""
+    if [ "$just_applied" = 1 ] && [ $(( $(date +%s) - started )) -lt "$SETTLE_SECONDS" ]; then
+      # The new settings passed the parser but the daemon did not stay up with them.
+      revert_settings
+      result "reverted the node exited with code $status within ${SETTLE_SECONDS}s of starting with the new settings; the previous settings are back"
+      log "The daemon exited ($status) right after new settings were applied; restoring the previous settings"
+      continue
+    fi
+    # The daemon exited on its own: exit with its status so Docker's restart policy applies.
     exit "$status"
   fi
 done

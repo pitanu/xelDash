@@ -88,6 +88,27 @@ docker compose exec -T postgres pg_restore -U xeldash -d restore_test /tmp/resto
 docker compose exec -T postgres dropdb -U xeldash restore_test
 ```
 
+## Daemon settings
+
+Every option of the XELIS daemon can be changed from the dashboard: open **Health →
+Settings and snapshots** and enter the admin token (`XELDASH_ADMIN_TOKEN`, see below). The
+list comes from the installed daemon's own `--help`, so it always matches its version, with
+each option's description, default and allowed values. Options that change how the node
+stores or checks the chain are marked **Use with care**.
+
+**Save and restart node** restarts the node with the new settings. Before they take effect,
+the daemon's own parser checks them; a mistake is rejected with the daemon's error message
+and the node keeps its previous settings. If the node exits within 30 seconds of starting
+with new settings, the previous ones are put back automatically. The result of the last
+change is shown on the page. Some mistakes do not stop the daemon (for example, an invalid
+P2P bind address leaves the node running without P2P), so check the Health page after a
+change.
+
+xelDash sets `--network`, `--rpc-bind-address` and `--dir-path` itself (from `.env`), and
+depends on RPC being on, so those cannot be changed here. Settings are saved on the node's
+data volume (`.xeldash/daemon-args`) and survive restarts and upgrades. With two nodes, the
+dashboard changes `daemon` only.
+
 ## Snapshots
 
 A snapshot is a zip of a node's database. Starting from one takes minutes instead of syncing
@@ -95,13 +116,14 @@ the chain from the network. The XELIS team publishes a mainnet snapshot every da
 `https://node.xelis.io/files/mainnet.zip` (about 9 GB) with a SHA-256 checksum next to it.
 Using a snapshot means trusting whoever made it instead of verifying the chain yourself.
 
-Snapshot actions replace the node's data, so they need an admin token. Set a long random
+Snapshot actions replace the node's data and settings change how it runs, so both need an
+admin token. Set a long random
 `XELDASH_ADMIN_TOKEN` in `.env` (for example the output of `openssl rand -hex 24`) and restart
 xelDash. Without it, the dashboard only shows status.
 
 ### From the dashboard
 
-Open **Health → Snapshots and chain data** and enter the admin token. Then either:
+Open **Health → Settings and snapshots** and enter the admin token. Then either:
 
 - drop a snapshot `.zip` onto the page: the official `mainnet.zip` downloaded elsewhere, or a
   zip of another node's `<network>` data directory; or
