@@ -2,7 +2,10 @@ name: xeldash
 
 services:
   daemon:
-    image: ${XELIS_DAEMON_IMAGE:-xelis/daemon:latest}
+    build:
+      context: docker/daemon
+      args:
+        XELIS_DAEMON_IMAGE: ${XELIS_DAEMON_IMAGE:-xelis/daemon:1.21.3}
     command:
       - --network=${XELIS_NETWORK:-devnet}
       - --rpc-bind-address=0.0.0.0:8080
@@ -14,6 +17,12 @@ services:
       - "${XELIS_P2P_BIND_IP:-127.0.0.1}:${XELIS_P2P_PORT:-2125}:2125"
     expose:
       - "8080"
+    healthcheck:
+      test: ["CMD", "busybox", "wget", "-q", "-O", "-", "--header", "Content-Type: application/json", "--post-data", "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"get_version\"}", "http://127.0.0.1:8080/json_rpc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - backend
 
@@ -71,7 +80,7 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     depends_on:
       daemon:
-        condition: service_started
+        condition: service_healthy
       postgres:
         condition: service_healthy
       migrate:
@@ -109,7 +118,7 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     depends_on:
       daemon:
-        condition: service_started
+        condition: service_healthy
       postgres:
         condition: service_healthy
       migrate:

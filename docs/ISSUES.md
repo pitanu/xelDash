@@ -3,12 +3,8 @@
 Open:
 
 - Select and add a project license before any public release.
-- Pin `XELIS_DAEMON_IMAGE` to a tested release tag and define the upgrade process alongside
-  the native hash implementation.
-- Add a daemon healthcheck to Compose (the API and Stratum already have one).
-- Verify the native share hash, the BLAKE3 block hash, and block submission against a real
-  miner and devnet daemon before relying on persisted share data. Compare a recorded
-  `blocks.hash` against `get_block_by_hash` after the first devnet block.
+- Test a third-party Stratum miner (SRBMiner, lolMiner or similar) against the devnet stack.
+- Recheck newer daemon images when upstream fixes the glibc mismatch in 1.22.0 and later.
 - Track block lifecycle after submission: poll or listen for the daemon's final block type
   and update `blocks.status` beyond `submitted` / `rejected`.
 - Add per-IP connection and invalid-share rate limits; per-connection request queues are
@@ -23,6 +19,10 @@ Open:
   retention, dashboard authentication, and block lifecycle status names.
 
 Resolved:
+
+- Native hash, MinerWork layout, block submission and BLAKE3 block hash verified on devnet
+  (see `docs/DEVNET.md`).
+- Daemon pinned to 1.21.3 with a Compose healthcheck and a documented upgrade check.
 
 - Submitted block candidates are recorded in `blocks` and `service_events`.
 - Stratum pushes new work on daemon `new_block` events; polling is only a fallback, and

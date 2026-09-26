@@ -28,13 +28,19 @@ npm run spike:template
 Do not expose daemon RPC on a LAN or public interface. The development overlay binds it to
 `127.0.0.1` only and should not be used on a host where loopback forwarding is not trusted.
 
+## Proven on devnet (2026-09-26, daemon 1.21.3)
+
+See [DEVNET.md](DEVNET.md) for the procedure.
+
+- The official daemon runs on devnet in Docker and serves address-specific templates and
+  miner work.
+- The daemon accepts Stratum-built MinerWork. Our V3 hash and BLAKE3 block hash match its
+  own.
+
 ## Still to prove
 
-- Start and sync the official daemon on devnet in Docker.
-- Confirm an address-specific template and miner-work response from that daemon build.
-- Verify the generated MinerWork bytes and hash against known-good miner vectors.
-- Confirm daemon acceptance of block submissions from the Stratum MinerWork representation.
-- Find a devnet block and confirm its status through daemon events.
+- A third-party Stratum miner works against the server.
+- Block status after submission is tracked through daemon events.
 
 The [Stratum protocol](https://docs.xelis.io/developers-api/stratum) lists `xel/v3` as the
 current algorithm identifier and defines aliases `xel/2` for V3 and `xel/1` for V2. The
