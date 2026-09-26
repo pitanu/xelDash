@@ -157,8 +157,10 @@ const server = createServer(async (request, response) => {
       return;
     }
     if (pathname === "/health") {
+      // The API is healthy when it can serve: that needs the database, not the node. A node
+      // that is down or still loading a snapshot is reported here and on the status page.
       await pool.query("SELECT 1");
-      const height = await daemonCall("get_height");
+      const height = await daemonCall("get_height", 2_000).catch(() => null);
       sendJson(response, 200, { status: "ok", nodeHeight: height });
       return;
     }

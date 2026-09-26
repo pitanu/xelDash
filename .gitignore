@@ -6,3 +6,5 @@ target/
 *.log
 docker/stratum-tls/*.pem
 backups/
+.env.*
+!.env.example
