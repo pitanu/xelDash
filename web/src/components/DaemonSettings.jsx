@@ -169,6 +169,7 @@ export default function DaemonSettings({ token, onUnauthorized }) {
                         {s.caution && <span className="text-xs text-serious" title="Changes how the node stores or checks the chain">⚠ Use with care</span>}
                       </div>
                       <p className="mt-0.5 text-xs text-ink-2">{firstLine}</p>
+                      {s.note && <p className="mt-0.5 text-xs text-serious">{s.note}</p>}
                       {rest.length > 0 && (
                         <button type="button" onClick={() => setExpanded(open ? null : s.flag)} className="text-xs text-muted underline decoration-line underline-offset-2">
                           {open ? "Less" : "More"}

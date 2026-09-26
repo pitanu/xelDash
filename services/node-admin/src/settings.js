@@ -13,6 +13,16 @@ export const UNCHANGED_SECRET = "__unchanged__";
 // Options that change how the node stores or checks the chain; the dashboard warns before use.
 const CAUTION = /^(use-db-backend|simulator|genesis-block-hex|skip-pow-verification|skip-block-template-txs-verification|disable-p2p-server|recovery-mode|auto-prune-keep-n-blocks|allow-fast-sync)$/;
 
+// Options the daemon refuses to start with together; checked before saving.
+const CONFLICTS = [
+  ["allow-fast-sync", "allow-boost-sync", "Fast sync and boost sync cannot be on together; the daemon will not start. Pick one: boost sync to catch up faster, fast sync only when far behind."],
+];
+// Extra notes shown next to an option on the dashboard.
+const NOTES = Object.fromEntries(CONFLICTS.flatMap(([a, b]) => [
+  [a, `Cannot be on together with --${b}.`],
+  [b, `Cannot be on together with --${a}.`],
+]));
+
 /** @type {[string, RegExp][]} */
 const GROUPS = [
   ["P2P", /^p2p-|^(tag|max-peers|priority-nodes|exclusive-nodes|allow-fast-sync|allow-boost-sync|allow-priority-blocks|max-chain-response-size|disable-ip-sharing|disable-fast-sync-support|enable-p2p-compression|disable-p2p-server)$/],
@@ -23,7 +33,7 @@ const GROUPS = [
   ["Logging", /log|datetime-format|disable-ascii-art/],
 ];
 
-/** @typedef {{ flag: string, valueName: string | null, description: string, default: string | null, choices: string[], group: string, secret: boolean, caution: boolean }} Setting */
+/** @typedef {{ flag: string, valueName: string | null, description: string, default: string | null, choices: string[], group: string, secret: boolean, caution: boolean, note: string | null }} Setting */
 
 /**
  * Settings from the daemon's own --help (clap long help), so the list always matches the
@@ -56,6 +66,7 @@ export function parseHelp(text) {
       group: GROUPS.find(([, re]) => re.test(current?.flag ?? ""))?.[0] ?? "Core",
       secret: SECRET.test(current.flag),
       caution: CAUTION.test(current.flag),
+      note: NOTES[current.flag] ?? null,
     });
   };
   let inOptions = false;
@@ -170,6 +181,9 @@ export class DaemonSettings {
         throw new Error(`--${flag} must be a whole number`);
       }
       lines.push(`--${flag}=${value}`);
+    }
+    for (const [a, b, why] of CONFLICTS) {
+      if (a in values && b in values) throw new Error(why);
     }
     const text = lines.length ? `${lines.join("\n")}\n` : "";
     const same = ((await readFile(this.path("daemon-args"), "utf8").catch(() => "")) === text);
