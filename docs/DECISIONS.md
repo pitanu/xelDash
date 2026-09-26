@@ -31,16 +31,19 @@ the phase that depends on it.
 | 2026-09    | Dashboard: React + Vite + Tailwind, built into an nginx container that proxies `/api` | Matches the planned stack; no Node runtime needed to serve it |
 | 2026-09    | No dashboard auth in v1 | LAN-only and read-only, like the API; bound to loopback unless configured |
 | 2026-09    | Stratum abuse limits: 64 connections per IP, 20 msg/s (burst 40), 15-min ban at 50+ invalid submissions over 50% in 5 min | Lenient enough for LAN rigs behind one IP; stale shares excluded because every miner sends some after a new block |
+| 2026-09    | Offer a getwork proxy alongside Stratum in v1 | The official xelis_miner only speaks getwork; proxying it gives those users per-address stats too |
+| 2026-09    | Optional built-in TLS Stratum port in v1 | Cert and key supplied through `.env`; plain Stratum stays the default |
+| 2026-09    | Retention: raw shares 7 days, minute stats 90 days, hourly rollups, blocks and events kept | Bounded storage (~15 MB of raw shares per worker) with long-range charts from hourly rows; no partitioning needed at this size |
 | 2026-09    | Calculate V3 share difficulty and pool estimates using XELIS U256 targets | Hash bytes are interpreted big-endian; valid target is `floor((2^256 - 1) / difficulty)`. Accepted assigned share difficulty divided by elapsed completed-window seconds estimates H/s; expected TTB is network difficulty divided by H/s. |
 
 ## Open
 
 - [ ] Project name (working name: **xelDash**; alternative: xelsolo)
-- [ ] Getwork endpoint in v1, or stratum only?
-- [ ] TLS stratum in v1?
+- [x] Getwork endpoint in v1, or stratum only? Getwork proxy in v1
+- [x] TLS stratum in v1? Optional built-in TLS port
 - [x] Migrations / query tool — plain SQL migrations
-- [ ] Share partitioning and retention policy — defer until usage and retention limits are set
-- [ ] Retention defaults for shares and stats
+- [x] Share partitioning and retention policy: time-based deletes, no partitioning for now
+- [x] Retention defaults for shares and stats: 7 days raw, 90 days per-minute, hourly kept
 - [x] Vardiff parameters and retarget interval: 10 s per share, 60 s / 20-share window
 - [x] Dashboard auth model: none in v1; LAN-only
 - [ ] License

@@ -222,3 +222,5 @@ export const LIVE_CHANNEL = "xeldash_live";
 export async function notifyLive(pool, message) {
   await pool.query("SELECT pg_notify($1, $2)", [LIVE_CHANNEL, JSON.stringify(message)]);
 }
+
+export { DEFAULT_RETENTION, retentionConfigFromEnv, rollUpHourlyStats, runRetention } from "./retention.js";

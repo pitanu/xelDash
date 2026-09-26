@@ -9,7 +9,7 @@ Open:
   docker/daemon/Dockerfile.
 - Make the data model in `docs/PLAN.md` reference the migration instead of duplicating DDL
   with mismatched identity/count types.
-- Reconcile remaining planning details: getwork support, TLS, and retention.
+- Build the getwork proxy and the optional TLS Stratum port (decided for v1).
 
 Resolved:
 
@@ -21,6 +21,8 @@ Resolved:
   invalid submissions, stored in `bans` and reloaded on restart.
 - Dashboard with Overview, Miner, Worker, Blocks and Health pages, served by the `web`
   service, with live updates over `/api/v1/live` (Postgres LISTEN/NOTIFY).
+- Retention: 7 days raw shares, 90 days minute stats, hourly rollups kept; 30-day and
+  1-year chart ranges.
 - Vardiff per connection, with configurable defaults (see `docs/PLAN.md` section 6).
 - Block lifecycle: submitted blocks move to `main-chain`, `side` or `orphaned` at stable
   height, with topoheight and miner reward.

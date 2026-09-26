@@ -4,10 +4,14 @@
 /** @typedef {import("pg").Pool} PgPool */
 
 export const ADDRESS_PATTERN = /^xe[lt]:[a-z0-9]{10,120}$/;
+// Minute stats are kept 90 days; longer ranges read the hourly rollups. The table name is
+// taken from this fixed list, never from the request.
 const HISTORY_RANGES = Object.freeze({
-  "6h": { hours: 6, bucketMinutes: 5 },
-  "24h": { hours: 24, bucketMinutes: 15 },
-  "7d": { hours: 168, bucketMinutes: 60 },
+  "6h": { hours: 6, bucketMinutes: 5, table: "worker_stats_1m" },
+  "24h": { hours: 24, bucketMinutes: 15, table: "worker_stats_1m" },
+  "7d": { hours: 168, bucketMinutes: 60, table: "worker_stats_1m" },
+  "30d": { hours: 720, bucketMinutes: 360, table: "worker_stats_1m" },
+  "1y": { hours: 8760, bucketMinutes: 1440, table: "worker_stats_1h" },
 });
 
 /** @param {string | null} value @param {number} fallback @param {number} max */
@@ -36,7 +40,7 @@ export async function getHashrateHistory(pool, { address, worker = null, range }
               SUM(s.sum_difficulty) AS difficulty,
               SUM(s.accepted) AS accepted,
               SUM(s.rejected) AS rejected
-       FROM worker_stats_1m s
+       FROM ${settings.table} s
        JOIN workers w ON w.id = s.worker_id
        JOIN miners m ON m.id = w.miner_id
        WHERE s.bucket >= date_trunc('minute', now()) - $1::interval - $2::interval

@@ -152,10 +152,10 @@ Open items:
 
 - Migration/query choice is plain SQL; a versioned migration runner applies migrations.
   The initial shares table is unpartitioned.
-- Partitioning and raw-share retention defaults remain open; the initial migration does not
-  drop historical share records.
-- Retention defaults: raw shares (for example, 7 days) and 1-minute stats (for example,
-  90 days, possibly with hourly rollups beyond that).
+- Retention (decided): raw shares 7 days, per-minute stats 90 days, hourly rollups
+  (`worker_stats_1h`, migration 003) kept indefinitely along with blocks and events.
+  Stratum runs the rollup and deletes hourly, in batches. `RETENTION_*` settings override
+  the periods. No partitioning at this size; revisit if raw-share volume grows a lot.
 
 ## 6. Difficulty and stats (Decided)
 

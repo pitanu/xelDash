@@ -70,3 +70,12 @@ export function formatTime(iso) {
 export function shorten(value, keep = 8) {
   return value.length <= keep * 2 + 1 ? value : `${value.slice(0, keep)}…${value.slice(-keep)}`;
 }
+
+export const RANGES = ["6h", "24h", "7d", "30d", "1y"];
+
+/** Bucket size for chart subtitles: "5-minute", "1-hour", "1-day". @param {number} seconds */
+export function formatBucket(seconds) {
+  if (seconds % 86400 === 0) return `${seconds / 86400}-day`;
+  if (seconds % 3600 === 0) return `${seconds / 3600}-hour`;
+  return `${seconds / 60}-minute`;
+}

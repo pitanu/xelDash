@@ -1,5 +1,7 @@
 import { createServer } from "node:net";
-import { createPool, listActiveBans, notifyLive, recordBan, recordServiceEvent } from "@xeldash/db";
+import {
+  createPool, listActiveBans, notifyLive, recordBan, recordServiceEvent, retentionConfigFromEnv, runRetention,
+} from "@xeldash/db";
 import { createWorkerAuthorizer } from "./authorize-worker.js";
 import { BlockTracker } from "./block-tracker.js";
 import { ChainWatcher } from "./chain-watcher.js";
@@ -18,6 +20,7 @@ const maxQueuedRequests = Number.parseInt(process.env.STRATUM_MAX_QUEUED_REQUEST
 const jobRefreshIntervalMs = Number.parseInt(process.env.STRATUM_JOB_REFRESH_MS ?? "5000", 10);
 const vardiff = vardiffConfigFromEnv(process.env);
 const ipGuardConfig = ipGuardConfigFromEnv(process.env);
+const retention = retentionConfigFromEnv(process.env);
 if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
   throw new Error("STRATUM_PORT must be an integer from 1 to 65535");
 }
@@ -49,6 +52,24 @@ listActiveBans(pool)
   .then((bans) => ipGuard.loadBans(bans))
   .catch((error) => console.warn("Failed to load bans:", error instanceof Error ? error.message : String(error)));
 setInterval(() => ipGuard.prune(), 60_000).unref();
+
+// Hourly: roll minute stats into hourly rows, then delete raw shares and minute stats past
+// retention. Stratum owns this because it is the service that writes those tables.
+let retentionRunning = false;
+async function retentionPass() {
+  if (retentionRunning) return;
+  retentionRunning = true;
+  try {
+    const result = await runRetention(pool, retention);
+    if (result.shares > 0 || result.minuteStats > 0) console.info("Retention pass", result);
+  } catch (error) {
+    console.warn("Retention pass failed:", error instanceof Error ? error.message : String(error));
+  } finally {
+    retentionRunning = false;
+  }
+}
+setTimeout(retentionPass, 60_000).unref();
+setInterval(retentionPass, 3_600_000).unref();
 const blockTracker = new BlockTracker({ daemon, pool });
 blockTracker.start();
 

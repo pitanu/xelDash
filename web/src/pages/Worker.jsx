@@ -2,7 +2,7 @@ import { useState } from "react";
 import { usePolled } from "../api.js";
 import HashrateChart from "../components/HashrateChart.jsx";
 import { BlocksTable, Card, Segmented, StatTile } from "../components/ui.jsx";
-import { formatAgo, formatHashrate, formatInteger, shorten } from "../format.js";
+import { formatAgo, formatHashrate, formatInteger, shorten, RANGES, formatBucket } from "../format.js";
 
 const REJECT_LABELS = {
   low_difficulty: "Below share target",
@@ -54,9 +54,9 @@ export default function Worker({ address, name }) {
 
       <div className="flex items-center gap-3">
         <span className="text-xs text-ink-2">Chart range</span>
-        <Segmented label="Chart range" value={range} options={["6h", "24h", "7d"]} onChange={setRange} />
+        <Segmented label="Chart range" value={range} options={RANGES} onChange={setRange} />
       </div>
-      <Card title="Hashrate" subtitle={history.data ? `${history.data.bucketSeconds / 60}-minute buckets` : undefined}>
+      <Card title="Hashrate" subtitle={history.data ? `${formatBucket(history.data.bucketSeconds)} buckets` : undefined}>
         {history.data ? <HashrateChart points={history.data.points} dimmed={history.loading} /> : <div className="h-[220px]" />}
       </Card>
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { usePolled } from "../api.js";
 import HashrateChart from "../components/HashrateChart.jsx";
 import { BlocksTable, Card, EventsList, MinersTable, Segmented, StatTile } from "../components/ui.jsx";
-import { formatCompact, formatDuration, formatHashrate, formatInteger } from "../format.js";
+import { formatCompact, formatDuration, formatHashrate, formatInteger, RANGES, formatBucket } from "../format.js";
 
 /** @param {{ status: string, count: string }[]} rows @param {string} status */
 function countOf(rows, status) {
@@ -45,9 +45,9 @@ export default function Overview() {
 
       <div className="flex items-center gap-3">
         <span className="text-xs text-ink-2">Chart range</span>
-        <Segmented label="Chart range" value={range} options={["6h", "24h", "7d"]} onChange={setRange} />
+        <Segmented label="Chart range" value={range} options={RANGES} onChange={setRange} />
       </div>
-      <Card title="Hashrate" subtitle={history.data ? `Accepted share difficulty per second, ${history.data.bucketSeconds / 60}-minute buckets` : undefined}>
+      <Card title="Hashrate" subtitle={history.data ? `Accepted share difficulty per second, ${formatBucket(history.data.bucketSeconds)} buckets` : undefined}>
         {history.data ? <HashrateChart points={history.data.points} dimmed={history.loading} /> : <div className="h-[220px]" />}
       </Card>
 
