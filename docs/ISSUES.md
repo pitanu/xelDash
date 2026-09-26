@@ -10,6 +10,7 @@ Open:
 
 Resolved:
 
+- Changelog, contributing guide, code of conduct, issue and pull request templates.
 - CI workflow and multi-arch (amd64, arm64) release images on GHCR.
 - Miner-reported hashrate is stored and shown next to the share-based estimate.
 - Alerts (Discord, Telegram, JSON webhook) for blocks, mining pauses and offline workers.

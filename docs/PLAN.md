@@ -203,8 +203,9 @@ REST endpoints (all `GET`; `address` must be a valid `xel:`/`xet:` address; `wor
 - License: MIT, Apache-2.0, or GPL-3.0.
 - CI with GitHub Actions (implemented): typecheck, dashboard build, Compose validation and
   amd64 image builds on every push and pull request. Tests come later.
-- Versioning with SemVer and a changelog.
-- CONTRIBUTING.md, issue templates and a code of conduct.
+- Versioning with SemVer and a changelog (implemented: `CHANGELOG.md`).
+- CONTRIBUTING.md, issue templates (bug, feature, miner compatibility), a pull request
+  template and a code of conduct (implemented).
 - JavaScript with JSDoc and TypeScript `checkJs` for service code; Rust for the native hash addon.
 - Package manager and monorepo tooling: npm, pnpm or yarn workspaces.
 
