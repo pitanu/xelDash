@@ -181,7 +181,9 @@ REST endpoints (all `GET`; `address` must be a valid `xel:`/`xet:` address; `wor
 
 - One `docker-compose.yml` and a `.env.example` (default miner address, network, ports,
   difficulty, retention, Postgres password, dashboard exposure).
-- Images published to GHCR, built for both amd64 and arm64.
+- Images published to GHCR for amd64 and arm64 (implemented): `.github/workflows/release.yml`
+  runs on `v*.*.*` tags. The Stratum image cross-compiles its Rust addon rather than
+  building it under emulation.
 - Healthchecks and `restart: unless-stopped` on every service.
 - Postgres backups (implemented): an optional `backup` Compose profile with daily, rotated
   `pg_dump`s, plus manual backup and restore steps in [OPERATIONS.md](OPERATIONS.md).
@@ -199,7 +201,8 @@ REST endpoints (all `GET`; `address` must be a valid `xel:`/`xet:` address; `wor
 ## 11. Open-source project setup (Open)
 
 - License: MIT, Apache-2.0, or GPL-3.0.
-- CI with GitHub Actions: lint, tests, and image builds on tags.
+- CI with GitHub Actions (implemented): typecheck, dashboard build, Compose validation and
+  amd64 image builds on every push and pull request. Tests come later.
 - Versioning with SemVer and a changelog.
 - CONTRIBUTING.md, issue templates and a code of conduct.
 - JavaScript with JSDoc and TypeScript `checkJs` for service code; Rust for the native hash addon.

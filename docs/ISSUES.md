@@ -10,6 +10,7 @@ Open:
 
 Resolved:
 
+- CI workflow and multi-arch (amd64, arm64) release images on GHCR.
 - Miner-reported hashrate is stored and shown next to the share-based estimate.
 - Alerts (Discord, Telegram, JSON webhook) for blocks, mining pauses and offline workers.
 - Backups (optional `backup` profile, restore steps) and an upgrade guide in

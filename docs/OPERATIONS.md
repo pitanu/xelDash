@@ -92,7 +92,11 @@ docker compose exec -T postgres dropdb -U xeldash restore_test
 
 1. Back up the database.
 2. Pull the new version and read the changelog for anything marked as breaking.
-3. Rebuild and restart: `docker compose up -d --build`.
+3. Rebuild and restart: `docker compose up -d --build`. To run a published release instead of
+   building, set `XELDASH_VERSION` (for example `0.1.0`) in `.env`, then run
+   `docker compose pull && docker compose up -d`. Images are at
+   `ghcr.io/pitanu/xeldash/{api,stratum,web,daemon}` (`XELDASH_IMAGE_REGISTRY` overrides the
+   prefix), for amd64 and arm64.
 
 The one-shot `migrate` service applies new migrations before the API and Stratum start.
 Migrations only move forward. To go back to an older version, restore the backup you took in

@@ -1,0 +1,61 @@
+name: Release images
+
+# Push a tag like v0.1.0 to publish multi-arch images to GitHub Container Registry:
+#   ghcr.io/<owner>/xeldash/{api,stratum,web,daemon}:<version> and :latest
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  images:
+    name: Publish ${{ matrix.image }} image
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            context: .
+            dockerfile: services/api/Dockerfile
+          - image: stratum
+            context: .
+            dockerfile: services/stratum/Dockerfile
+          - image: web
+            context: .
+            dockerfile: web/Dockerfile
+          - image: daemon
+            context: docker/daemon
+            dockerfile: docker/daemon/Dockerfile
+    steps:
+      - uses: actions/checkout@v7
+      # arm64 stages run under emulation; the Rust addon cross-compiles natively instead.
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          # Registry paths must be lowercase.
+          images: ghcr.io/${{ github.repository_owner }}/xeldash/${{ matrix.image }}
+          flavor: latest=auto
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=release-${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.image }}

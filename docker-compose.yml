@@ -1,7 +1,11 @@
 name: xeldash
 
+# Images are built locally by default (tag `local`). To run a release instead, set
+# XELDASH_VERSION (for example 0.1.0) and run `docker compose pull && docker compose up -d`.
+
 services:
   daemon:
+    image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/daemon:${XELDASH_VERSION:-local}
     build:
       context: docker/daemon
       args:
@@ -47,6 +51,7 @@ services:
   # One-shot schema migration. api and stratum wait for it to complete successfully, so
   # neither service's startup depends on the other's health.
   migrate:
+    image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/api:${XELDASH_VERSION:-local}
     build:
       context: .
       dockerfile: services/api/Dockerfile
@@ -65,6 +70,7 @@ services:
       - backend
 
   api:
+    image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/api:${XELDASH_VERSION:-local}
     build:
       context: .
       dockerfile: services/api/Dockerfile
@@ -106,6 +112,7 @@ services:
       - backend
 
   stratum:
+    image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/stratum:${XELDASH_VERSION:-local}
     build:
       context: .
       dockerfile: services/stratum/Dockerfile
@@ -169,6 +176,7 @@ services:
       - backend
 
   web:
+    image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/web:${XELDASH_VERSION:-local}
     build:
       context: .
       dockerfile: web/Dockerfile
