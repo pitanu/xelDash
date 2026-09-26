@@ -1,6 +1,6 @@
 import { blake3 } from "@noble/hashes/blake3.js";
 import { recordBlock, recordServiceEvent, recordShare } from "@xeldash/db";
-import { hashMinerWork } from "@xeldash/xelis-hash";
+import { hashMinerWorkAsync } from "@xeldash/xelis-hash";
 import { STRATUM_ERRORS } from "./protocol.js";
 
 const MAX_U256 = (1n << 256n) - 1n;
@@ -83,7 +83,7 @@ export function createShareSubmitter({ daemon, pool, logger = console }) {
     }
 
     const minerWork = job.buildMinerWork(nonce);
-    const hash = asU256(hashMinerWork(minerWork));
+    const hash = asU256(await hashMinerWorkAsync(minerWork));
     const shareDifficulty = BigInt(job.shareDifficulty);
     const networkDifficulty = BigInt(job.networkDifficulty);
     const meetsShareTarget = hash <= MAX_U256 / shareDifficulty;

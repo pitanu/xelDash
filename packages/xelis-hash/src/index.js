@@ -1,26 +1,45 @@
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-/** @type {{ hashMinerWork: (minerWork: Buffer) => Buffer } | undefined} */
+/** @typedef {{ hashMinerWork: (minerWork: Buffer) => Buffer, hashMinerWorkAsync: (minerWork: Buffer) => Promise<Buffer> }} Binding */
+/** @type {Binding | undefined} */
 let binding;
 
 /** @param {Buffer | Uint8Array} minerWork */
-export function hashMinerWork(minerWork) {
+function checkMinerWork(minerWork) {
   if (!(minerWork instanceof Uint8Array) || minerWork.byteLength !== 112) {
     throw new TypeError("MinerWork must be a 112-byte Buffer or Uint8Array");
   }
-  let nativeBinding = binding;
-  if (!nativeBinding) {
-    try {
-      nativeBinding = require("../index.node");
-      binding = nativeBinding;
-    } catch (cause) {
-      throw new Error(
-        "The XELIS Hash V3 native addon is not built for this platform; run `npm run build --workspace @xeldash/xelis-hash`",
-        { cause },
-      );
-    }
+}
+
+/** @returns {Binding} */
+function loadBinding() {
+  if (binding) return binding;
+  try {
+    binding = /** @type {Binding} */ (require("../index.node"));
+  } catch (cause) {
+    throw new Error(
+      "The XELIS Hash V3 native addon is not built for this platform; run `npm run build --workspace @xeldash/xelis-hash`",
+      { cause },
+    );
   }
-  if (!nativeBinding) throw new Error("XELIS Hash V3 native binding could not be loaded");
-  return nativeBinding.hashMinerWork(Buffer.from(minerWork));
+  return binding;
+}
+
+/**
+ * Hash on the calling thread. Blocks the event loop for the length of one V3 hash.
+ * @param {Buffer | Uint8Array} minerWork
+ */
+export function hashMinerWork(minerWork) {
+  checkMinerWork(minerWork);
+  return loadBinding().hashMinerWork(Buffer.from(minerWork));
+}
+
+/**
+ * Hash on the libuv thread pool, so share validation does not block other connections.
+ * @param {Buffer | Uint8Array} minerWork @returns {Promise<Buffer>}
+ */
+export async function hashMinerWorkAsync(minerWork) {
+  checkMinerWork(minerWork);
+  return loadBinding().hashMinerWorkAsync(Buffer.from(minerWork));
 }

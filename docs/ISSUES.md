@@ -7,8 +7,6 @@ Open:
 - Recheck newer daemon images when upstream fixes the glibc mismatch in 1.22.0 and later.
 - Add per-IP connection and invalid-share rate limits; per-connection request queues are
   capped and unauthenticated handshakes time out.
-- Hash shares off the event loop (napi `AsyncTask` or a worker thread) and reuse the V3
-  scratchpad instead of allocating one per share.
 - Make the data model in `docs/PLAN.md` reference the migration instead of duplicating DDL
   with mismatched identity/count types.
 - Reconcile remaining planning details: getwork support, TLS, retention, and dashboard
@@ -18,6 +16,8 @@ Resolved:
 
 - Native hash, MinerWork layout, block submission and BLAKE3 block hash verified on devnet
   (see `docs/DEVNET.md`).
+- Shares are hashed on the libuv thread pool (`hashMinerWorkAsync`), reusing one V3
+  scratchpad per thread.
 - Vardiff per connection, with configurable defaults (see `docs/PLAN.md` section 6).
 - Block lifecycle: submitted blocks move to `main-chain`, `side` or `orphaned` at stable
   height, with topoheight and miner reward.
