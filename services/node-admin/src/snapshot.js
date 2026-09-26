@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { createReadStream, createWriteStream, existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rename, rm, stat, statfs, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, rename, rm, stat, statfs, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 
@@ -32,6 +32,20 @@ function run(cmd, args, signal) {
     child.on("error", reject);
     child.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(`${cmd} exited with ${code}: ${err.trim().slice(0, 300)}`))));
   });
+}
+
+/**
+ * Throw if anything under a directory is not a plain file or directory. A symlink in a
+ * snapshot could point the node's database at files elsewhere in its container.
+ * @param {string} dir
+ */
+async function requireRegularFiles(dir) {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    const info = await lstat(path);
+    if (info.isDirectory()) await requireRegularFiles(path);
+    else if (!info.isFile()) throw new Error(`The archive contains a link or special file (${entry.name}); only regular files are accepted`);
+  }
 }
 
 /** Total size of the files under a directory. @param {string} dir @returns {Promise<number>} */
@@ -299,6 +313,11 @@ export class SnapshotManager {
     if (names.some((name) => name.startsWith("/") || name.split("/").includes(".."))) {
       throw new Error("The archive contains unsafe paths");
     }
+    // zipinfo lists each entry's type first: "-" for files, "d" for directories, "l" for links.
+    const types = (await run("unzip", ["-Z", zip], signal)).split("\n").filter((line) => /^[a-z-][rwxsStT-]{9}\s/.test(line));
+    if (types.some((line) => !["-", "d"].includes(line[0]))) {
+      throw new Error("The archive contains links or special files; only regular files are accepted");
+    }
     const current = names.filter((name) => name === "CURRENT" || name.endsWith("/CURRENT"));
     if (current.length !== 1) throw new Error("The archive does not contain exactly one RocksDB database (CURRENT file)");
     const prefix = current[0].slice(0, -"CURRENT".length);
@@ -323,6 +342,8 @@ export class SnapshotManager {
     } finally {
       clearInterval(progress);
     }
+    // A second check on what was actually written, in case the listing missed something.
+    await requireRegularFiles(target);
     await rm(this.staged, { recursive: true, force: true });
     await rename(join(target, prefix), this.staged);
     await rm(join(this.staged, "LOCK"), { force: true });

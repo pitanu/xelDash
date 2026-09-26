@@ -3,6 +3,8 @@
 # /backups and keeps the newest BACKUP_KEEP. A dump is written to a .partial file first and
 # only renamed when pg_dump succeeds, so a failed run never replaces a good backup.
 set -eu
+# Dumps hold miner addresses and IPs: owner-only files.
+umask 077
 
 interval_hours="${BACKUP_INTERVAL_HOURS:-24}"
 keep="${BACKUP_KEEP:-7}"

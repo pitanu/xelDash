@@ -4,7 +4,13 @@ import { SnapshotManager, message, tokensMatch } from "./snapshot.js";
 
 const port = Number.parseInt(process.env.SNAPSHOT_PORT ?? "8095", 10);
 const network = (process.env.XELIS_NETWORK ?? "devnet").toLowerCase();
-const adminToken = process.env.XELDASH_ADMIN_TOKEN?.trim() || null;
+const MIN_TOKEN_LENGTH = 20;
+const configuredToken = process.env.XELDASH_ADMIN_TOKEN?.trim() || null;
+// A short token could be guessed over the LAN; such a token leaves actions off.
+const adminToken = configuredToken && configuredToken.length >= MIN_TOKEN_LENGTH ? configuredToken : null;
+if (configuredToken && !adminToken) {
+  console.warn(`XELDASH_ADMIN_TOKEN is shorter than ${MIN_TOKEN_LENGTH} characters, so node changes stay off. Use e.g. openssl rand -hex 24.`);
+}
 const auto = (process.env.XELIS_SNAPSHOT_AUTO ?? "false").toLowerCase() === "true";
 // The XELIS team publishes a daily snapshot for mainnet only.
 const official = network === "mainnet";
@@ -52,7 +58,14 @@ function authorized(request) {
 }
 
 const server = createServer(async (request, response) => {
-  const path = new URL(request.url ?? "/", "http://localhost").pathname.replace(/^\/api\/v1\/node/, "") || "/";
+  /** @type {string} */
+  let path;
+  try {
+    path = new URL(request.url ?? "/", "http://localhost").pathname.replace(/^\/api\/v1\/node/, "") || "/";
+  } catch {
+    send(response, 400, { error: "bad_request" });
+    return;
+  }
   try {
     if (request.method === "GET" && path === "/healthz") {
       send(response, ready ? 200 : 503, { ready });

@@ -46,4 +46,6 @@ COPY services/stratum/src services/stratum/src
 COPY --from=hash-build /tmp/index.node packages/xelis-hash/index.node
 
 ENV NODE_ENV=production
+# The optional TLS key in docker/stratum-tls must be readable by this user (uid 1000).
+USER node
 CMD ["npm", "run", "start", "--workspace", "@xeldash/stratum"]

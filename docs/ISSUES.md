@@ -2,6 +2,7 @@
 
 Open:
 
+- Dashboard HTTPS and viewing login are left to a reverse proxy; document a worked example.
 - Select and add a project license before any public release.
 - Test a third-party Stratum miner (SRBMiner, lolMiner or similar) against the devnet stack.
 - Upstream glibc mismatch (built on Debian 13, shipped on cc-debian12; commit 99599508) is
@@ -10,6 +11,9 @@ Open:
 
 Resolved:
 
+- Security review (2026-09-27): three request-crash bugs, login flooding, worker limits,
+  dashboard headers, snapshot links and more fixed; model and remaining risks in
+  `docs/SECURITY.md`.
 - Daemon settings editable from the dashboard (primary node only), with parser checks and rollback.
 - Snapshots: official mainnet download (opt-in automatic on first start) and dashboard upload, behind an admin token.
 - Multiple nodes with automatic failover and failback (`XELIS_RPC_URLS`, optional `daemon2`).

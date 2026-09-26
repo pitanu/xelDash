@@ -6,6 +6,31 @@ const MAX_CLIENTS = 100;
 const HEARTBEAT_MS = 30_000;
 const RELISTEN_MS = 5_000;
 
+/** Request path, or null when the client sent something `new URL` cannot parse. @param {string | undefined} url */
+function safePathname(url) {
+  try {
+    return new URL(url ?? "/", "http://localhost").pathname;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Browsers send Origin with WebSocket requests. Only the dashboard's own origin may connect,
+ * so another website cannot open the live feed through a visitor's browser.
+ * @param {import("node:http").IncomingMessage} request
+ */
+function sameOrigin(request) {
+  const origin = request.headers.origin;
+  if (!origin) return true;
+  try {
+    // Hostnames only: a proxy in front (nginx here) may forward Host without the port.
+    return new URL(origin).hostname === new URL(`http://${request.headers.host ?? ""}`).hostname;
+  } catch {
+    return false;
+  }
+}
+
 /** @param {unknown} error */
 function message(error) {
   return error instanceof Error ? error.message : String(error);
@@ -27,9 +52,10 @@ export function startLiveUpdates({ server, pool, onNotification = () => {}, logg
   let stopped = false;
 
   server.on("upgrade", (request, socket, head) => {
-    const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
-    if (pathname !== PATH || wss.clients.size >= MAX_CLIENTS) {
-      socket.write(`HTTP/1.1 ${pathname !== PATH ? "404 Not Found" : "503 Service Unavailable"}\r\n\r\n`);
+    const pathname = safePathname(request.url);
+    if (pathname !== PATH || wss.clients.size >= MAX_CLIENTS || !sameOrigin(request)) {
+      const status = pathname !== PATH ? "404 Not Found" : wss.clients.size >= MAX_CLIENTS ? "503 Service Unavailable" : "403 Forbidden";
+      socket.write(`HTTP/1.1 ${status}\r\n\r\n`);
       socket.destroy();
       return;
     }

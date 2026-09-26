@@ -8,6 +8,28 @@ const HEARTBEAT_MS = 30_000;
 
 /** @typedef {import("./session.js").StratumSession} StratumSession */
 
+// Control characters (terminal escapes, bells, newlines) could spoof log lines and alerts.
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/;
+
+/**
+ * Address and worker from /getwork/<address>/<worker>, or null when the path is malformed.
+ * Request paths come straight from the client: `new URL` and `decodeURIComponent` both throw
+ * on some inputs, and an exception here would take the whole Stratum process down.
+ * @param {string | undefined} url
+ */
+export function parseGetworkPath(url) {
+  try {
+    const parts = new URL(url ?? "/", "http://localhost").pathname.split("/");
+    if (parts.length !== 4 || parts[1] !== "getwork") return null;
+    const address = decodeURIComponent(parts[2] ?? "");
+    const worker = decodeURIComponent(parts[3] ?? "");
+    if (!address || !worker || worker.length > MAX_WORKER_NAME || CONTROL_CHARACTERS.test(worker)) return null;
+    return { address, worker };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Presents a getwork WebSocket to StratumSession as a socket. The session writes Stratum
  * messages; mining.notify becomes a getwork `new_job` carrying the full MinerWork and the
@@ -96,14 +118,19 @@ export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, c
 
   server.on("upgrade", (request, socket, head) => {
     const ip = normalizeIp(request.socket.remoteAddress);
-    const parts = new URL(request.url ?? "/", "http://localhost").pathname.split("/");
+    // Miners never send an Origin header; browsers always do. Refusing browsers stops other
+    // websites from opening getwork connections through a visitor's browser.
+    if (request.headers.origin) {
+      socket.end("HTTP/1.1 403 Forbidden\r\n\r\n");
+      return;
+    }
     // "" / "getwork" / address / worker, like the daemon.
-    const address = decodeURIComponent(parts[2] ?? "");
-    const worker = decodeURIComponent(parts[3] ?? "");
-    if (parts.length !== 4 || parts[1] !== "getwork" || !address || !worker || worker.length > MAX_WORKER_NAME) {
+    const target = parseGetworkPath(request.url);
+    if (!target) {
       socket.end("HTTP/1.1 400 Bad Request\r\n\r\nUse /getwork/<address>/<worker> (worker up to 32 characters)");
       return;
     }
+    const { address, worker } = target;
     const refused = ipGuard.connect(ip);
     if (refused) {
       logger.warn?.(`Refusing getwork connection from ${ip}: ${refused}`);

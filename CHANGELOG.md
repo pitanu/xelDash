@@ -38,6 +38,17 @@ First public version, planned as 0.1.0.
 - Alerts to Discord, Telegram or a JSON webhook: blocks found and final, mining paused and
   resumed, workers offline.
 
+### Security
+
+- Malformed requests no longer crash Stratum, the API or node-admin.
+- Failed logins count toward Stratum bans; at most 32 workers per connection; worker names
+  may not contain control characters.
+- Dashboard security headers on every response (Content-Security-Policy, no framing);
+  browsers are refused on getwork and cross-site origins on the live WebSocket.
+- Snapshot archives with links or special files are rejected; admin tokens must be at least
+  20 characters; Discord alerts cannot mention everyone; backups are owner-only; the API and
+  Stratum run as an unprivileged user. See `docs/SECURITY.md`.
+
 ### Operations
 
 - Docker Compose stack; the daemon runs XELIS 1.25.0, which mainnet requires (1.24.0 or

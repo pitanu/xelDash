@@ -122,7 +122,11 @@ export function startAlerts({ pool, config, logger = console }) {
   const channels = [];
   if (config.discordWebhookUrl) {
     const url = config.discordWebhookUrl;
-    channels.push(new ChannelQueue("Discord", (text) => postJson(url, { content: text.slice(0, 2000) }), logger));
+    channels.push(new ChannelQueue("Discord", (text) => postJson(url, {
+      content: text.slice(0, 2000),
+      // Worker names come from miners; never let one ping @everyone or a role.
+      allowed_mentions: { parse: [] },
+    }), logger));
   }
   if (config.telegramBotToken && config.telegramChatId) {
     const url = `https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`;

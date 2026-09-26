@@ -117,7 +117,7 @@ the chain from the network. The XELIS team publishes a mainnet snapshot every da
 Using a snapshot means trusting whoever made it instead of verifying the chain yourself.
 
 Snapshot actions replace the node's data and settings change how it runs, so both need an
-admin token. Set a long random
+admin token (see [SECURITY.md](SECURITY.md): the token is full control of the node). Set a long random
 `XELDASH_ADMIN_TOKEN` in `.env` (for example the output of `openssl rand -hex 24`) and restart
 xelDash. Without it, the dashboard only shows status.
 

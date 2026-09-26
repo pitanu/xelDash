@@ -10,6 +10,15 @@ export class DaemonUnreachableError extends Error {
   }
 }
 
+/** The daemon answered, with a JSON-RPC error: it judged the request (for example, an invalid address). */
+export class DaemonRpcError extends Error {
+  /** @param {string} message */
+  constructor(message) {
+    super(message);
+    this.name = "DaemonRpcError";
+  }
+}
+
 export class DaemonClient {
   #id = 0;
 
@@ -35,7 +44,8 @@ export class DaemonClient {
     if (!response.ok) throw new Error(`Daemon RPC returned HTTP ${response.status}`);
     const body = await response.json();
     if (body.id !== id || body.error || !Object.hasOwn(body, "result")) {
-      throw new Error(`Daemon RPC ${method} failed: ${body.error?.message ?? "malformed response"}`);
+      if (body.error) throw new DaemonRpcError(`Daemon RPC ${method} failed: ${body.error.message ?? "error"}`);
+      throw new Error(`Daemon RPC ${method} failed: malformed response`);
     }
     return /** @type {T} */ (body.result);
   }

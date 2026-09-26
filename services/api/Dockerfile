@@ -14,4 +14,5 @@ COPY packages/db/migrations packages/db/migrations
 COPY services/api/src services/api/src
 
 ENV NODE_ENV=production
+USER node
 CMD ["npm", "run", "start", "--workspace", "@xeldash/api"]

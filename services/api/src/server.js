@@ -108,6 +108,15 @@ async function getOverview() {
   };
 }
 
+/** Decoded path segment, or null for a malformed %-escape. @param {string | undefined} segment */
+function safeDecode(segment) {
+  try {
+    return decodeURIComponent(segment ?? "");
+  } catch {
+    return null;
+  }
+}
+
 /** @param {import("node:http").ServerResponse} response @param {number} statusCode @param {unknown} value */
 function sendJson(response, statusCode, value) {
   const body = JSON.stringify(value);
@@ -126,8 +135,15 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  /** @type {URL} */
+  let url;
   try {
-    const url = new URL(request.url ?? "/", "http://localhost");
+    url = new URL(request.url ?? "/", "http://localhost");
+  } catch {
+    sendJson(response, 400, { error: "bad_request" });
+    return;
+  }
+  try {
     const { pathname, searchParams } = url;
     const address = searchParams.get("address");
     if (address !== null && !ADDRESS_PATTERN.test(address)) {
@@ -174,9 +190,10 @@ const server = createServer(async (request, response) => {
 
     const workerMatch = /^\/api\/v1\/miners\/([^/]+)\/workers\/([^/]+)$/.exec(pathname);
     if (workerMatch) {
-      const minerAddress = decodeURIComponent(workerMatch[1] ?? "");
-      const workerName = decodeURIComponent(workerMatch[2] ?? "");
-      if (!ADDRESS_PATTERN.test(minerAddress) || workerName.length === 0 || workerName.length > 128) {
+      const minerAddress = safeDecode(workerMatch[1]);
+      const workerName = safeDecode(workerMatch[2]);
+      if (minerAddress === null || workerName === null || !ADDRESS_PATTERN.test(minerAddress)
+          || workerName.length === 0 || workerName.length > 128) {
         sendJson(response, 400, { error: "invalid_worker" });
         return;
       }
@@ -187,8 +204,8 @@ const server = createServer(async (request, response) => {
 
     const minerMatch = /^\/api\/v1\/miners\/([^/]+)$/.exec(pathname);
     if (minerMatch) {
-      const minerAddress = decodeURIComponent(minerMatch[1] ?? "");
-      if (!ADDRESS_PATTERN.test(minerAddress)) {
+      const minerAddress = safeDecode(minerMatch[1]);
+      if (minerAddress === null || !ADDRESS_PATTERN.test(minerAddress)) {
         sendJson(response, 400, { error: "invalid_address" });
         return;
       }

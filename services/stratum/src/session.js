@@ -7,10 +7,15 @@ import {
   parseRequest,
   response,
 } from "./protocol.js";
+import { DaemonRpcError } from "./daemon-client.js";
 import { reissueJob } from "./job-provider.js";
 import { DEFAULT_VARDIFF, Vardiff } from "./vardiff.js";
 
 const MAX_WORKER_NAME = 128;
+// Each new worker costs a daemon lookup and a database row; one rig needs only a few.
+const MAX_WORKERS_PER_CONNECTION = 32;
+// Control characters (terminal escapes, bells, newlines) could spoof log lines and alerts.
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/;
 const MAX_TRACKED_JOBS = 5;
 // Timestamp slack for getwork submissions: miners bump the work timestamp while hashing.
 const MAX_FUTURE_TIMESTAMP_MS = 30_000;
@@ -133,7 +138,8 @@ export class StratumSession {
     if ((requestedAddress !== undefined && requestedAddress !== null
           && typeof requestedAddress !== "string") || typeof workerName !== "string"
         || workerName.length === 0 || workerName.length > MAX_WORKER_NAME
-        || typeof password !== "string") {
+        || CONTROL_CHARACTERS.test(workerName) || typeof password !== "string") {
+      this.onSubmission(false);
       this.send(errorResponse(request.id, -32602, "Invalid authorize parameters"));
       return;
     }
@@ -148,7 +154,10 @@ export class StratumSession {
       ));
       return;
     }
+    // Failed logins count toward the abuse limits like invalid shares: each one costs the node
+    // an address lookup.
     if (this.miningAddress !== null && this.miningAddress !== address) {
+      this.onSubmission(false);
       this.send(errorResponse(
         request.id,
         STRATUM_ERRORS.UNAUTHORIZED,
@@ -157,9 +166,36 @@ export class StratumSession {
       return;
     }
 
-    const identity = await this.authorizeAddress({ address, workerName, password, ip: this.socket.remoteAddress });
+    // Logging in again as a known worker changes nothing.
+    if (this.authorizedWorkers.has(workerName) && this.miningAddress === address) {
+      this.send(response(request.id, true));
+      return;
+    }
+    if (this.authorizedWorkers.size >= MAX_WORKERS_PER_CONNECTION) {
+      this.onSubmission(false);
+      this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, `At most ${MAX_WORKERS_PER_CONNECTION} workers per connection`));
+      return;
+    }
+
+    /** @type {MiningIdentity | null} */
+    let identity;
+    try {
+      identity = await this.authorizeAddress({ address, workerName, password, ip: this.socket.remoteAddress });
+    } catch (error) {
+      // The node rejecting a malformed address counts like any failed login; the node being
+      // unreachable is not the miner's fault and does not.
+      if (!(error instanceof DaemonRpcError)) throw error;
+      identity = null;
+    }
     if (!identity?.workerId || !identity?.publicKey) {
+      this.onSubmission(false);
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, "Address is invalid or unauthorized"));
+      return;
+    }
+    // Further workers on a connection share its job; only the first login fetches a template.
+    if (this.miningIdentity && this.jobs.size > 0) {
+      this.authorizedWorkers.set(workerName, identity);
+      this.send(response(request.id, true));
       return;
     }
     const miningAddress = identity.address ?? address;
