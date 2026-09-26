@@ -1,9 +1,10 @@
 import { createServer } from "node:net";
-import { createPool } from "@xeldash/db";
+import { createPool, listActiveBans, recordBan, recordServiceEvent } from "@xeldash/db";
 import { createWorkerAuthorizer } from "./authorize-worker.js";
 import { BlockTracker } from "./block-tracker.js";
 import { ChainWatcher } from "./chain-watcher.js";
 import { DaemonClient } from "./daemon-client.js";
+import { IpGuard, MessageRateLimiter, ipGuardConfigFromEnv, normalizeIp } from "./ip-guard.js";
 import { MiningJobProvider } from "./job-provider.js";
 import { LineFramer } from "./line-framer.js";
 import { StratumSession } from "./session.js";
@@ -16,6 +17,7 @@ const handshakeTimeoutMs = Number.parseInt(process.env.STRATUM_HANDSHAKE_TIMEOUT
 const maxQueuedRequests = Number.parseInt(process.env.STRATUM_MAX_QUEUED_REQUESTS ?? "32", 10);
 const jobRefreshIntervalMs = Number.parseInt(process.env.STRATUM_JOB_REFRESH_MS ?? "5000", 10);
 const vardiff = vardiffConfigFromEnv(process.env);
+const ipGuardConfig = ipGuardConfigFromEnv(process.env);
 if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
   throw new Error("STRATUM_PORT must be an integer from 1 to 65535");
 }
@@ -32,6 +34,21 @@ const jobProvider = new MiningJobProvider({ daemon });
 const submitShare = createShareSubmitter({ daemon, pool });
 /** @type {Map<import("node:net").Socket, StratumSession>} */
 const sessions = new Map();
+const ipGuard = new IpGuard(ipGuardConfig, {
+  onBan: ({ ip, reason, until }) => {
+    console.warn(`Banning ${ip} until ${until.toISOString()}: ${reason}`);
+    for (const socket of sessions.keys()) {
+      if (normalizeIp(socket.remoteAddress) === ip) socket.destroy();
+    }
+    recordBan(pool, { ip, reason, until })
+      .then(() => recordServiceEvent(pool, "ip_banned", { ip, reason, until: until.toISOString() }))
+      .catch((error) => console.warn("Failed to record ban:", error instanceof Error ? error.message : String(error)));
+  },
+});
+listActiveBans(pool)
+  .then((bans) => ipGuard.loadBans(bans))
+  .catch((error) => console.warn("Failed to load bans:", error instanceof Error ? error.message : String(error)));
+setInterval(() => ipGuard.prune(), 60_000).unref();
 const blockTracker = new BlockTracker({ daemon, pool });
 blockTracker.start();
 
@@ -48,6 +65,15 @@ const chainWatcher = new ChainWatcher({
 chainWatcher.start();
 
 const server = createServer((socket) => {
+  const ip = normalizeIp(socket.remoteAddress);
+  const refused = ipGuard.connect(ip);
+  if (refused) {
+    console.warn(`Refusing Stratum connection from ${ip}: ${refused}`);
+    socket.destroy();
+    return;
+  }
+  socket.once("close", () => ipGuard.disconnect(ip));
+  const limiter = new MessageRateLimiter(ipGuardConfig);
   const framer = new LineFramer();
   const handshakeTimer = setTimeout(() => {
     console.warn(`Closing unauthenticated Stratum connection from ${socket.remoteAddress ?? "unknown"}`);
@@ -64,6 +90,7 @@ const server = createServer((socket) => {
     vardiff,
     defaultAddress: process.env.XELIS_DEFAULT_ADDRESS ?? "",
     onAuthorized: () => clearTimeout(handshakeTimer),
+    onSubmission: (valid) => ipGuard.record(ip, valid),
   });
   sessions.set(socket, session);
   socket.once("close", () => {
@@ -77,6 +104,12 @@ const server = createServer((socket) => {
   socket.on("data", (chunk) => {
     try {
       const lines = framer.push(chunk, maxQueuedRequests - queuedRequests);
+      if (!limiter.take(lines.length)) {
+        console.warn(`Closing Stratum connection from ${ip}: message rate limit exceeded`);
+        ipGuard.record(ip, false);
+        socket.destroy();
+        return;
+      }
       if (queuedRequests + lines.length > maxQueuedRequests) {
         console.warn(`Closing Stratum connection from ${socket.remoteAddress ?? "unknown"}: request queue limit exceeded`);
         socket.destroy();

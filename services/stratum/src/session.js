@@ -26,18 +26,22 @@ export class StratumSession {
    *   submitShare?: ((input: { worker: MiningIdentity, workerName: string, job: MiningJob, nonce: string, algorithm: string | null }) => Promise<ShareResult>) | null,
    *   onHashrate?: (input: { worker: MiningIdentity, workerName: string, hashrate: number }) => void,
    *   onAuthorized?: () => void,
+   *   onSubmission?: (valid: boolean) => void,
    *   jobRefreshIntervalMs?: number,
    *   vardiff?: import("./vardiff.js").VardiffConfig,
    *   defaultAddress?: string,
    *   logger?: Pick<Console, "warn"> }} options
    */
-  constructor({ socket, authorizeAddress, createJob = null, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, jobRefreshIntervalMs = 5000, vardiff = DEFAULT_VARDIFF, defaultAddress = "", logger = console }) {
+  constructor({ socket, authorizeAddress, createJob = null, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, onSubmission = () => {}, jobRefreshIntervalMs = 5000, vardiff = DEFAULT_VARDIFF, defaultAddress = "", logger = console }) {
     this.socket = socket;
     this.authorizeAddress = authorizeAddress;
     this.createJob = createJob;
     this.submitShare = submitShare;
     this.onHashrate = onHashrate;
     this.onAuthorized = onAuthorized;
+    // Reports each submission as valid or invalid for abuse limits. Stale shares and requests
+    // that fail on our side are not reported.
+    this.onSubmission = onSubmission;
     this.jobRefreshIntervalMs = jobRefreshIntervalMs;
     this.defaultAddress = defaultAddress;
     this.logger = logger;
@@ -65,6 +69,7 @@ export class StratumSession {
     try {
       request = parseRequest(JSON.parse(line));
     } catch (error) {
+      this.onSubmission(false);
       this.send(errorResponse(null, -32600, error instanceof Error ? error.message : String(error)));
       return;
     }
@@ -306,11 +311,13 @@ export class StratumSession {
     const [workerName, jobId, nonce] = request.params;
     if (typeof workerName !== "string" || typeof jobId !== "string"
         || typeof nonce !== "string" || !/^[0-9a-f]{16}$/i.test(nonce)) {
+      this.onSubmission(false);
       this.send(errorResponse(request.id, -32602, "Invalid submit parameters"));
       return;
     }
     const worker = this.authorizedWorkers.get(workerName);
     if (!worker) {
+      this.onSubmission(false);
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, "Worker is not authorized"));
       return;
     }
@@ -325,9 +332,13 @@ export class StratumSession {
     }
     const result = await this.submitShare({ worker, workerName, job, nonce: nonce.toLowerCase(), algorithm: this.algorithm });
     if (result?.error) {
+      if (result.error.code === STRATUM_ERRORS.LOW_DIFFICULTY || result.error.code === STRATUM_ERRORS.DUPLICATE_SHARE) {
+        this.onSubmission(false);
+      }
       this.send(errorResponse(request.id, result.error.code, result.error.message, result.error.data ?? null));
       return;
     }
+    if (result?.accepted === true) this.onSubmission(true);
     this.send(response(request.id, result?.accepted === true));
     if (result?.accepted === true) {
       this.applyDifficulty(this.vardiff.recordShare(job.shareDifficulty, this.maxShareDifficulty()));

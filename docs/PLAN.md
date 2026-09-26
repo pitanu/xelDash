@@ -179,8 +179,11 @@ Open items:
 
 - Miner stratum and dashboard access are restricted to the LAN by default. Daemon RPC and
   Postgres are never published to the host.
-- Per-IP connection limits and message rate limits on the LAN stratum service.
-- Automatic bans after too many invalid shares or malformed messages.
+- Per-IP connection limits and message rate limits on the LAN stratum service
+  (implemented: 64 connections per IP, 20 messages/s with a burst of 40 per connection).
+- Automatic bans after too many invalid shares or malformed messages (implemented: a
+  15-minute ban when 5 minutes hold at least 50 invalid submissions and they are over half
+  of that IP's submissions; stale shares do not count). Bans are stored and survive restarts.
 - Maximum message size and handshake timeouts.
 - Dashboard: LAN-only by default; optional password or reverse-proxy auth when exposed.
 - Optional TLS for stratum and HTTPS for the dashboard (bring your own reverse proxy vs.

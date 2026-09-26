@@ -4,10 +4,9 @@ Open:
 
 - Select and add a project license before any public release.
 - Test a third-party Stratum miner (SRBMiner, lolMiner or similar) against the devnet stack.
-- Report the glibc mismatch upstream (built on Debian 13, shipped on cc-debian12; commit
-  99599508). Once fixed, drop the Debian 13 re-base in docker/daemon/Dockerfile.
-- Add per-IP connection and invalid-share rate limits; per-connection request queues are
-  capped and unauthenticated handshakes time out.
+- Upstream glibc mismatch (built on Debian 13, shipped on cc-debian12; commit 99599508) is
+  reported and being fixed. Once a fixed release ships, drop the Debian 13 re-base in
+  docker/daemon/Dockerfile.
 - Make the data model in `docs/PLAN.md` reference the migration instead of duplicating DDL
   with mismatched identity/count types.
 - Reconcile remaining planning details: getwork support, TLS, and retention.
@@ -20,6 +19,8 @@ Resolved:
   (see `docs/DEVNET.md`).
 - Shares are hashed on the libuv thread pool (`hashMinerWorkAsync`), reusing one V3
   scratchpad per thread.
+- Per-IP connection limits, per-connection message rate limits, and timed bans for
+  invalid submissions, stored in `bans` and reloaded on restart.
 - Dashboard with Overview, Miner and Blocks pages, served by the `web` service.
 - Vardiff per connection, with configurable defaults (see `docs/PLAN.md` section 6).
 - Block lifecycle: submitted blocks move to `main-chain`, `side` or `orphaned` at stable

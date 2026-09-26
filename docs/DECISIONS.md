@@ -30,6 +30,7 @@ the phase that depends on it.
 | 2026-09    | Vardiff: start 100,000, min 1,000, 10 s per share, retarget every 60 s or 20 shares, max 2x step | About 6 shares per window keeps estimates responsive; the 50% dead band stops noise-driven retargets |
 | 2026-09    | Dashboard: React + Vite + Tailwind, built into an nginx container that proxies `/api` | Matches the planned stack; no Node runtime needed to serve it |
 | 2026-09    | No dashboard auth in v1 | LAN-only and read-only, like the API; bound to loopback unless configured |
+| 2026-09    | Stratum abuse limits: 64 connections per IP, 20 msg/s (burst 40), 15-min ban at 50+ invalid submissions over 50% in 5 min | Lenient enough for LAN rigs behind one IP; stale shares excluded because every miner sends some after a new block |
 | 2026-09    | Calculate V3 share difficulty and pool estimates using XELIS U256 targets | Hash bytes are interpreted big-endian; valid target is `floor((2^256 - 1) / difficulty)`. Accepted assigned share difficulty divided by elapsed completed-window seconds estimates H/s; expected TTB is network difficulty divided by H/s. |
 
 ## Open

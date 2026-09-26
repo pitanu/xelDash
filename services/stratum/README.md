@@ -28,6 +28,11 @@ a submitted block, it moves to `main-chain`, `side` or `orphaned` with its topoh
 miner reward, and a `block_final` event. The block hash is BLAKE3 of the 112-byte
 MinerWork, matching the daemon's block hash. Hashing, block submission and block hashes
 are verified on devnet (see [docs/DEVNET.md](../../docs/DEVNET.md)); a third-party miner
-has not been tested yet. The wire format follows the
+has not been tested yet. Abuse limits: at most 64 connections per IP and 20 messages per second per connection
+(burst 40). An IP is banned for 15 minutes when 5 minutes hold at least 50 invalid
+submissions that are over half of its submissions; stale shares do not count. Bans are
+stored in `bans` and survive restarts. All limits are `STRATUM_*` settings in `.env.example`.
+
+The wire format follows the
 [XELIS Stratum protocol](https://docs.xelis.io/developers-api/stratum). The daemon methods
 used for address checks are documented in the [Daemon API](https://docs.xelis.io/developers-api/daemon).

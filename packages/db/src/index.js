@@ -201,3 +201,16 @@ export async function finalizeBlock(pool, { hash, status, topoheight, reward }) 
   );
   return result.rowCount === 1;
 }
+
+/** @param {PgPool} pool @returns {Promise<{ ip: string, until: Date }[]>} */
+export async function listActiveBans(pool) {
+  const result = await pool.query(
+    "SELECT host(ip) AS ip, max(until) AS until FROM bans WHERE until > now() GROUP BY ip",
+  );
+  return result.rows;
+}
+
+/** @param {PgPool} pool @param {{ ip: string, reason: string, until: Date }} ban */
+export async function recordBan(pool, { ip, reason, until }) {
+  await pool.query("INSERT INTO bans (ip, reason, until) VALUES ($1, $2, $3)", [ip, reason, until]);
+}

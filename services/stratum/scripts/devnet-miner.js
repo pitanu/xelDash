@@ -71,6 +71,10 @@ socket.on("error", (error) => {
   console.error("Stratum connection failed:", error.message);
   process.exit(1);
 });
+socket.on("close", () => {
+  console.error("Stratum server closed the connection (banned or over a limit?)");
+  process.exit(1);
+});
 
 /** @param {any} message */
 function handle(message) {
@@ -157,6 +161,7 @@ async function mine() {
   }
   const seconds = (Date.now() - started) / 1000;
   console.info(`done: ${shares} shares, ${found} blocks verified, ${failures} failed, ${hashes} hashes in ${seconds.toFixed(0)}s (${(hashes / seconds).toFixed(0)} H/s)`);
+  socket.removeAllListeners("close");
   socket.end();
   process.exit(failures === 0 ? 0 : 1);
 }
