@@ -40,7 +40,7 @@ export default function Health() {
     ["Average block time", `${formatDuration(node.averageBlockTimeMs / 1000)} (target ${formatDuration(node.blockTimeTargetMs / 1000)})`],
     ["Mempool", `${formatInteger(node.mempoolSize)} transactions`],
     ["Peers", node.peers === null ? "—" : `${formatInteger(node.peers)} of ${formatInteger(node.maxPeers)}`],
-    ["Best peer topoheight", node.peers ? formatInteger(node.bestTopoheight) : "—"],
+    ["Peers' median topoheight", node.peers ? formatInteger(node.networkTopoheight) : "—"],
   ] : [];
 
   return (
@@ -51,11 +51,18 @@ export default function Health() {
           {s && <HealthBadge level={s.services.daemon.ok ? "good" : "critical"} label={s.services.daemon.ok ? "Running" : "Not responding"} />}
         </ServiceTile>
         <ServiceTile label="Network sync"
-          detail={sync.label === "No peers" ? "Found blocks cannot reach other nodes" : sync.label === "Syncing" ? `At ${formatInteger(node.topoheight)} of ${formatInteger(node.bestTopoheight)}` : undefined}>
+          detail={sync.label === "No peers" ? "Found blocks cannot reach other nodes" : sync.label === "Syncing" ? `At ${formatInteger(node.topoheight)} of ${formatInteger(node.networkTopoheight)}` : undefined}>
           {s && <HealthBadge level={sync.level} label={sync.label} />}
         </ServiceTile>
-        <ServiceTile label="Stratum" detail={s?.services.stratum.startedAt ? `Started ${formatAgo(s.services.stratum.startedAt)}` : undefined}>
-          {s && <HealthBadge level={s.services.stratum.ok ? "good" : "critical"} label={s.services.stratum.ok ? "Accepting miners" : "Not reachable"} />}
+        <ServiceTile label="Stratum"
+          detail={s?.services.stratum.paused
+            ? `Work paused: node ${s.services.stratum.paused === "syncing" ? "is syncing" : "is not responding"}`
+            : s?.services.stratum.startedAt ? `Started ${formatAgo(s.services.stratum.startedAt)}` : undefined}>
+          {s && (!s.services.stratum.ok
+            ? <HealthBadge level="critical" label="Not reachable" />
+            : s.services.stratum.paused
+              ? <HealthBadge level="warning" label="Paused" />
+              : <HealthBadge level="good" label="Accepting miners" />)}
         </ServiceTile>
         <ServiceTile label="Database" detail={s?.services.database.ok ? undefined : s?.services.database.error}>
           {s && <HealthBadge level={s.services.database.ok ? "good" : "critical"} label={s.services.database.ok ? "Connected" : "Not responding"} />}

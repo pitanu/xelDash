@@ -52,9 +52,14 @@ export class DaemonClient {
     return this.call("submit_block", { block_template: template, miner_work: minerWork });
   }
 
-  /** @returns {Promise<{ height: number, stableheight: number }>} */
+  /** @returns {Promise<{ height: number, topoheight: number, stableheight: number }>} */
   getInfo() {
     return this.call("get_info");
+  }
+
+  /** @returns {Promise<{ peer_count: number, median_topoheight: number, best_topoheight: number, our_topoheight: number }>} */
+  getP2pStatus() {
+    return this.call("p2p_status");
   }
 
   /**

@@ -45,11 +45,16 @@ export function usePolled(path) {
     };
     loadRef.current = load;
     load();
-    const timer = setInterval(load, live.status === "live" ? LIVE_POLL_MS : POLL_MS);
     return () => {
       cancelled = true;
-      clearInterval(timer);
     };
+  }, [path]);
+
+  // Only the polling rate follows the live state; changing it must not restart a fetch.
+  useEffect(() => {
+    if (!path) return undefined;
+    const timer = setInterval(() => loadRef.current(), live.status === "live" ? LIVE_POLL_MS : POLL_MS);
+    return () => clearInterval(timer);
   }, [path, live.status]);
 
   useEffect(() => {

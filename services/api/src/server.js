@@ -59,13 +59,13 @@ function estimateMining(activity, network) {
   }));
 }
 
-/** @param {string} method */
-async function daemonCall(method) {
+/** @param {string} method @param {number} [timeoutMs] */
+async function daemonCall(method, timeoutMs = 5_000) {
   const response = await fetch(daemonUrl, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: ++rpcId, method }),
-    signal: AbortSignal.timeout(5_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
   if (!response.ok) throw new Error(`Daemon RPC returned HTTP ${response.status}`);
@@ -157,7 +157,13 @@ const server = createServer(async (request, response) => {
     }
 
     if (pathname === "/api/v1/status") {
-      sendJson(response, 200, await getStatus({ pool, daemonCall, stratumHost, stratumPort }));
+      sendJson(response, 200, await getStatus({
+        pool,
+        // The status page must render quickly when the daemon is down.
+        daemonCall: (method) => daemonCall(method, 2_000),
+        stratumHost,
+        stratumPort,
+      }));
       return;
     }
 

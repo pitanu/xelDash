@@ -162,6 +162,9 @@ const EVENT_LABELS = {
   block_final: "Block final",
   ip_banned: "IP banned",
   stratum_started: "Stratum started",
+  node_syncing: "Node syncing, work paused",
+  node_unreachable: "Node not responding, work paused",
+  node_ready: "Node ready, work resumed",
 };
 
 const LEVELS = {

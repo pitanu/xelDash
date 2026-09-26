@@ -33,6 +33,11 @@ has not been tested yet. Abuse limits: at most 64 connections per IP and 20 mess
 submissions that are over half of its submissions; stale shares do not count. Bans are
 stored in `bans` and survive restarts. All limits are `STRATUM_*` settings in `.env.example`.
 
+Sync gating: work is only issued while the node is caught up. If the peers' median
+topoheight gets more than 16 ahead, or the daemon stops responding, Stratum disconnects every
+miner (so it retries or fails over to a backup pool), refuses new logins with the reason, and
+resumes on its own. The dashboard's Health page shows "Paused" meanwhile.
+
 Getwork: miners that only speak the daemon getwork protocol, like the official
 `xelis_miner`, connect to `ws://<host>:8090/getwork/<address>/<worker>` (for example
 `xelis_miner --daemon-address ws://<host>:8090`). Each connection is a normal mining session

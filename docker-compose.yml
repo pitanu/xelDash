@@ -72,6 +72,8 @@ services:
     environment:
       API_HOST: 0.0.0.0
       API_PORT: 8081
+      # DNS lookups share libuv's thread pool; a stopped container's name takes seconds to fail.
+      UV_THREADPOOL_SIZE: 16
       XELIS_RPC_URL: http://daemon:8080/json_rpc
       PGHOST: postgres
       PGPORT: 5432
@@ -105,6 +107,9 @@ services:
       NODE_ENV: production
       STRATUM_HOST: 0.0.0.0
       STRATUM_PORT: 3333
+      # Share hashing and DNS lookups share libuv's thread pool; this is also the number of
+      # shares hashed in parallel.
+      UV_THREADPOOL_SIZE: ${STRATUM_HASH_THREADS:-8}
       STRATUM_HANDSHAKE_TIMEOUT_MS: ${STRATUM_HANDSHAKE_TIMEOUT_MS:-10000}
       STRATUM_MAX_QUEUED_REQUESTS: ${STRATUM_MAX_QUEUED_REQUESTS:-32}
       STRATUM_JOB_REFRESH_MS: ${STRATUM_JOB_REFRESH_MS:-5000}

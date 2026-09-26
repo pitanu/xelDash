@@ -71,7 +71,10 @@ To confirm against the daemon's RPC documentation and a test run:
 - Submitting a solved block (template plus miner work).
 - Detecting new jobs: subscribe to daemon events over WebSocket, or poll? Also how often to
   refresh the template when no new block arrives.
-- Checking node health and sync state (pool refuses or pauses work while syncing).
+- Node sync state (implemented): Stratum pauses work while the peers' median topoheight is
+  more than 16 ahead of the node's, or while the daemon does not respond (two consecutive
+  10-second checks). It disconnects miners, refuses logins with the reason, and resumes on
+  its own. No peers counts as ready (normal on devnet); the Health page warns about it.
 - Final block status (decided): a block is final once its height is at or below the
   daemon's `stableheight`. The daemon's block type then maps Normal and Sync to
   `main-chain`, Side to `side`, and Orphaned (or unknown) to `orphaned`.

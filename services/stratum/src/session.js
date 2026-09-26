@@ -29,12 +29,13 @@ export class StratumSession {
    *   onHashrate?: (input: { worker: MiningIdentity, workerName: string, hashrate: number }) => void,
    *   onAuthorized?: () => void,
    *   onSubmission?: (valid: boolean) => void,
+   *   canMine?: () => string | null,
    *   jobRefreshIntervalMs?: number,
    *   vardiff?: import("./vardiff.js").VardiffConfig,
    *   defaultAddress?: string,
    *   logger?: Pick<Console, "warn"> }} options
    */
-  constructor({ socket, authorizeAddress, createJob = null, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, onSubmission = () => {}, jobRefreshIntervalMs = 5000, vardiff = DEFAULT_VARDIFF, defaultAddress = "", logger = console }) {
+  constructor({ socket, authorizeAddress, createJob = null, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, onSubmission = () => {}, canMine = () => null, jobRefreshIntervalMs = 5000, vardiff = DEFAULT_VARDIFF, defaultAddress = "", logger = console }) {
     this.socket = socket;
     this.authorizeAddress = authorizeAddress;
     this.createJob = createJob;
@@ -44,6 +45,8 @@ export class StratumSession {
     // Reports each submission as valid or invalid for abuse limits. Stale shares and requests
     // that fail on our side are not reported.
     this.onSubmission = onSubmission;
+    // Returns why work cannot be issued right now (node syncing or down), or null.
+    this.canMine = canMine;
     this.jobRefreshIntervalMs = jobRefreshIntervalMs;
     this.defaultAddress = defaultAddress;
     this.logger = logger;
@@ -118,6 +121,11 @@ export class StratumSession {
   async authorize(request) {
     if (!this.subscribed) {
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, "Subscribe before authorizing"));
+      return;
+    }
+    const paused = this.canMine();
+    if (paused) {
+      this.send(errorResponse(request.id, STRATUM_ERRORS.UNKNOWN, paused));
       return;
     }
     const [requestedAddress, workerName = "default", password = ""] = request.params;
@@ -226,6 +234,7 @@ export class StratumSession {
 
   async refreshJobOnce() {
     if (!this.miningIdentity || !this.miningAddress || !this.algorithm || !this.createJob) return;
+    if (this.canMine()) return;
     try {
       let job = await this.createJob({
         address: this.miningAddress,

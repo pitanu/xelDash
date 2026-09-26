@@ -12,6 +12,7 @@ import { IpGuard, MessageRateLimiter, ipGuardConfigFromEnv, normalizeIp } from "
 import { MiningJobProvider } from "./job-provider.js";
 import { LineFramer } from "./line-framer.js";
 import { StratumSession } from "./session.js";
+import { SyncMonitor } from "./sync-monitor.js";
 import { tlsConfigFromEnv } from "./tls-config.js";
 import { createShareSubmitter } from "./share-submitter.js";
 import { vardiffConfigFromEnv } from "./vardiff.js";
@@ -107,6 +108,7 @@ function newSession(socket, ip, onAuthorized = () => {}) {
     defaultAddress: process.env.XELIS_DEFAULT_ADDRESS ?? "",
     onAuthorized,
     onSubmission: (valid) => ipGuard.record(ip, valid),
+    canMine: () => (syncMonitor.ready ? null : syncMonitor.reason),
   });
 }
 
@@ -175,6 +177,23 @@ function handleConnection(socket) {
   socket.on("error", (error) => console.warn("Stratum socket error:", error.message));
 }
 
+// Work is only issued while the node is caught up. When it falls behind or stops responding,
+// every miner is disconnected so it retries (or fails over to a backup pool) instead of
+// hashing on an old chain; logins are refused until the node is ready again.
+const syncMonitor = new SyncMonitor({
+  daemon,
+  onChange: (state, detail) => {
+    if (state !== "ready") {
+      for (const socket of sessions.keys()) socket.destroy();
+    }
+    if (state === "ready" && detail.previous === "unknown") return;
+    const type = state === "ready" ? "node_ready" : state === "syncing" ? "node_syncing" : "node_unreachable";
+    recordServiceEvent(pool, type, detail)
+      .catch((error) => console.warn("Failed to record node state:", error instanceof Error ? error.message : String(error)));
+  },
+});
+await syncMonitor.start();
+
 const server = createServer(handleConnection);
 const tlsServer = tls
   ? createTlsServer({ cert: tls.cert, key: tls.key, minVersion: "TLSv1.2" }, handleConnection)
@@ -213,6 +232,7 @@ async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
   chainWatcher.stop();
+  syncMonitor.stop();
   const closed = Promise.all([
     new Promise((resolve) => server.close(resolve)),
     tlsServer ? new Promise((resolve) => tlsServer.close(resolve)) : null,

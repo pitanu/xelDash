@@ -84,7 +84,7 @@ socket.on("error", (error) => {
   process.exit(1);
 });
 socket.on("close", () => {
-  console.error("Stratum server closed the connection (banned or over a limit?)");
+  console.error("Stratum server closed the connection (node paused, banned, or over a limit)");
   process.exit(1);
 });
 
