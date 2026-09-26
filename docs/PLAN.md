@@ -180,8 +180,10 @@ REST endpoints (all `GET`; `address` must be a valid `xel:`/`xet:` address; `wor
   difficulty, retention, Postgres password, dashboard exposure).
 - Images published to GHCR, built for both amd64 and arm64.
 - Healthchecks and `restart: unless-stopped` on every service.
-- Postgres backups: a documented `pg_dump` procedure (possibly an optional backup service).
-- Upgrade guide for XELIS node updates, algorithm forks and database migrations.
+- Postgres backups (implemented): an optional `backup` Compose profile with daily, rotated
+  `pg_dump`s, plus manual backup and restore steps in [OPERATIONS.md](OPERATIONS.md).
+- Upgrade guide (implemented) for xelDash, XELIS daemon releases, hard forks and algorithm
+  changes, in [OPERATIONS.md](OPERATIONS.md).
 
 ## 10. Testing (Draft)
 

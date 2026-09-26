@@ -180,6 +180,30 @@ services:
     networks:
       - backend
 
+  # Optional: `docker compose --profile backup up -d`. Dumps the database to ./backups every
+  # BACKUP_INTERVAL_HOURS and keeps the newest BACKUP_KEEP. See docs/OPERATIONS.md.
+  backup:
+    image: postgres:17-alpine
+    profiles: ["backup"]
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/usr/local/bin/xeldash-backup.sh"]
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-xeldash}
+      PGUSER: ${POSTGRES_USER:-xeldash}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_KEEP: ${BACKUP_KEEP:-7}
+    volumes:
+      - ./docker/backup/backup.sh:/usr/local/bin/xeldash-backup.sh:ro
+      - ${XELDASH_BACKUP_DIR:-./backups}:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
 volumes:
   xelis-data:
   postgres-data:

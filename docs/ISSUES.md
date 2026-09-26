@@ -10,6 +10,8 @@ Open:
 
 Resolved:
 
+- Backups (optional `backup` profile, restore steps) and an upgrade guide in
+  `docs/OPERATIONS.md`.
 - Stratum pauses work while the node is syncing or not responding, and resumes on its own.
 - `docs/PLAN.md` section 5 summarizes the tables and points to the migrations instead of
   duplicating DDL.
