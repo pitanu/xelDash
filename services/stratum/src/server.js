@@ -246,7 +246,13 @@ server.listen(port, host, () => {
   console.info(`xelDash Stratum server listening on ${host}:${port}`);
   console.info(`Vardiff: start ${vardiff.startDifficulty}, min ${vardiff.minDifficulty}, one share per ${vardiff.targetShareSeconds}s`);
   // The dashboard reads the latest start event as Stratum's uptime.
-  recordServiceEvent(pool, "stratum_started", { port, tlsPort: tls?.port ?? null, node: nodes.active?.label ?? null })
+  recordServiceEvent(pool, "stratum_started", {
+    port,
+    tlsPort: tls?.port ?? null,
+    node: nodes.active?.label ?? null,
+    // Starting while no node is ready (syncing, or loading a snapshot) is a paused start.
+    paused: nodes.ready ? null : nodes.nodes.some((n) => n.monitor.state === "syncing") ? "syncing" : "unreachable",
+  })
     .catch((error) => console.warn("Failed to record start event:", error instanceof Error ? error.message : String(error)));
 });
 if (tlsServer && tls) {

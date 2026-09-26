@@ -87,7 +87,7 @@ export async function getStatus({ pool, nodeUrls, stratumHost, stratumPort }) {
   const workState = started.status === "fulfilled" ? started.value.rows[0]?.work_state : null;
   const paused = workState && ["node_syncing", "node_unreachable"].includes(workState.type)
     ? workState.type.replace("node_", "")
-    : null;
+    : workState?.type === "stratum_started" ? workState.payload?.paused ?? null : null;
   const activeLabel = paused ? null : workState?.payload?.to ?? workState?.payload?.node ?? null;
   const withActive = nodes.map((n) => ({ ...n, active: n.label === activeLabel }));
   // The top-level node is the one Stratum mines through, or else the first that answered.
