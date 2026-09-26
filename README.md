@@ -1,4 +1,4 @@
-# xelDash *(working name)*
+# xelDash
 
 > Self-hosted XELIS solo mining with pool-style statistics, in Docker, for your LAN.
 
@@ -9,7 +9,7 @@ to your own node, and each block pays the miner's own address directly: xelDash 
 funds and has no balances, payouts or wallet.
 
 **Status:** feature-complete for a first release and verified end to end on a private devnet.
-Before 0.1.0: a license, a mainnet trial, and tests with third-party GPU miners (see
+Before 0.1.0: a mainnet trial and tests with third-party GPU miners (see
 [docs/ISSUES.md](docs/ISSUES.md)).
 
 ## What you get
@@ -77,4 +77,5 @@ publishes the daemon's RPC on `127.0.0.1:8080`.
 
 ## License
 
-Not chosen yet (see [docs/DECISIONS.md](docs/DECISIONS.md)).
+[MIT](LICENSE). The XELIS Hash V3 code built into the Stratum image comes from
+[xelis-project/xelis-hash](https://github.com/xelis-project/xelis-hash), also MIT.

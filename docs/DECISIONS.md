@@ -39,11 +39,13 @@ the phase that depends on it.
 | 2026-09    | The node container swaps snapshots in itself (busybox supervisor), coordinated through files on the data volume | No service needs the Docker socket; the swap happens only while the daemon is stopped |
 | 2026-09    | Dashboard daemon settings are extra command-line flags, listed from the daemon's `--help` | A daemon config file would discard Compose's flags; the help output keeps the list exact for each daemon version |
 | 2026-09    | Settings are checked with the daemon's parser before a restart and rolled back if it exits within 30 s | A bad setting must never leave the node down |
+| 2026-09    | License: MIT | Simple and permissive; matches the XELIS hash crate xelDash builds on |
+| 2026-09    | Name: xelDash | Already used for the repository, images and docs |
 | 2026-09    | Calculate V3 share difficulty and pool estimates using XELIS U256 targets | Hash bytes are interpreted big-endian; valid target is `floor((2^256 - 1) / difficulty)`. Accepted assigned share difficulty divided by elapsed completed-window seconds estimates H/s; expected TTB is network difficulty divided by H/s. |
 
 ## Open
 
-- [ ] Project name (working name: **xelDash**; alternative: xelsolo)
+- [x] Project name: **xelDash**
 - [x] Getwork endpoint in v1, or stratum only? Getwork proxy in v1
 - [x] TLS stratum in v1? Optional built-in TLS port
 - [x] Migrations / query tool — plain SQL migrations
@@ -51,6 +53,6 @@ the phase that depends on it.
 - [x] Retention defaults for shares and stats: 7 days raw, 90 days per-minute, hourly kept
 - [x] Vardiff parameters and retarget interval: 10 s per share, 60 s / 20-share window
 - [x] Dashboard auth model: none in v1; LAN-only
-- [ ] License
+- [x] License: MIT
 - [x] Package manager / monorepo tooling — npm workspaces, JavaScript with JSDoc and `checkJs`
 - [x] Stratum wire protocol — official XELIS Stratum documentation and documented algorithm aliases

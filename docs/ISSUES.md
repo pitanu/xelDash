@@ -2,7 +2,6 @@
 
 Open:
 
-- Select and add a project license before any public release.
 - Test a third-party Stratum miner (SRBMiner, lolMiner or similar) against the devnet stack.
 - Upstream glibc mismatch (built on Debian 13, shipped on cc-debian12; commit 99599508) is
   reported and being fixed. Once a fixed release ships, drop the Debian 13 re-base in
@@ -10,6 +9,7 @@ Open:
 
 Resolved:
 
+- License (MIT) and name (xelDash) decided.
 - Optional `proxy` profile (Caddy): HTTPS, a login for the dashboard, and a host-name check.
   The admin token moved to its own `X-Admin-Token` header so it works behind the login.
 - Cleanup: PLAN.md and README.md describe the current project; the phase-1 spike client and

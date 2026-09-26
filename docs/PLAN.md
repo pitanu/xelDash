@@ -1,8 +1,7 @@
 # xelDash: Project Plan
 
-*Working name. Last updated: 2026-09-27. Status: Phases 1 to 5 done and verified on a private
-devnet; Phase 6 (release) waits on a license choice, a mainnet trial and third-party miner
-tests.*
+*Last updated: 2026-09-27. Status: Phases 1 to 5 done and verified on a private devnet;
+Phase 6 (release) waits on a mainnet trial and third-party miner tests.*
 
 Each section is marked **Decided**, **Draft** (a proposal to confirm), or **Open** (not
 discussed yet). Decisions are recorded in [DECISIONS.md](DECISIONS.md); open work is in
@@ -155,9 +154,9 @@ HTTPS, a login and a host-name check.
 - Planned later: unit tests for Stratum parsing, vardiff and hashrate math; hash test vectors;
   integration tests against the Compose stack; a load test with many simulated miners.
 
-## 11. Open-source project setup (Decided except the license)
+## 11. Open-source project setup (Decided)
 
-- License: **open** (MIT, Apache-2.0 or GPL-3.0). Blocks the first release.
+- License: MIT (`LICENSE`).
 - CI (typecheck, dashboard build, Compose validation, image builds) and multi-arch release
   images on `v*.*.*` tags.
 - SemVer and `CHANGELOG.md`; `CONTRIBUTING.md`, code of conduct, issue and PR templates.
@@ -194,7 +193,7 @@ docs/             PLAN, DECISIONS, ISSUES, OPERATIONS, SECURITY, DEVNET
 | 3 | Multi-miner | Vardiff, per-address work, shares and blocks stored, reconnects | Done |
 | 4 | Dashboard | API and React UI with live stats | Done |
 | 5 | Hardening | Limits, bans, optional TLS, node failover, security review | Done |
-| 6 | Release | License, mainnet trial, third-party miners, v0.1.0 tag | Current |
+| 6 | Release | Mainnet trial, third-party miners, v0.1.0 tag | Current |
 
 ## Known technical risks
 

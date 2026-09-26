@@ -1,6 +1,7 @@
 {
   "name": "xeldash",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "workspaces": [
     "services/*",
