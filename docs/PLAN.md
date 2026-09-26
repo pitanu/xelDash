@@ -1,6 +1,7 @@
 # xelDash: Project Plan
 
-*Working name. Last updated: 2026-09-24. Status: Phase 1 spike in progress.*
+*Working name. Last updated: 2026-09-26. Status: Phases 1 to 3 working on devnet; Phase 4
+dashboard started.*
 
 Each section is marked **Decided**, **Draft** (a proposal to confirm), or **Open** (not
 discussed yet). When something is settled, record it in [DECISIONS.md](DECISIONS.md).
@@ -185,7 +186,7 @@ Open items:
 - Optional TLS for stratum and HTTPS for the dashboard (bring your own reverse proxy vs.
   built-in).
 
-## 8. API and dashboard (Open)
+## 8. API and dashboard (Draft)
 
 Candidate views:
 
@@ -196,8 +197,17 @@ Candidate views:
 - **Blocks:** list with status (submitted / main-chain / side / orphaned / rejected).
 - **Health:** node status, stratum uptime, recent events.
 
-API: REST for queries plus WebSocket for live updates. The endpoint list is still to be
-written.
+Implemented: the Overview, Miner and Blocks pages. The dashboard (React, Vite, Tailwind,
+served by nginx) polls every 15 seconds; WebSocket live updates can come later. No auth: it
+is LAN-only like the API.
+
+REST endpoints (all `GET`; `address` must be a valid `xel:`/`xet:` address):
+
+- `/api/v1/overview`: node, network, share totals, estimates, block status counts.
+- `/api/v1/hashrate?range=6h|24h|7d[&address=]`: hashrate per completed bucket.
+- `/api/v1/miners` and `/api/v1/miners/{address}`: per-miner and per-worker stats.
+- `/api/v1/blocks?limit=&address=`: recent blocks with status and reward.
+- `/api/v1/events?limit=`: recent service events.
 
 ## 9. Deployment and ops (Draft)
 
@@ -252,10 +262,10 @@ xeldash/
 | # | Phase | Goal / done when |
 |---|-------|------------------|
 | 0 | **Planning** | Planning completed enough to begin the technical spike; some protocol and operations decisions remain open |
-| 1 | **Spike** (current) | Daemon syncs in Docker; a Node script fetches a template and submits a block on devnet; the hash addon matches real miner hashes |
+| 1 | **Spike** | Daemon syncs in Docker; a Node script fetches a template and submits a block on devnet; the hash addon matches real miner hashes |
 | 2 | **Minimal stratum** | One real miner connects at fixed difficulty; shares are validated; found blocks reach the chain |
 | 3 | **Multi-miner** | Vardiff, per-address work, shares/blocks stored in Postgres, reconnect handling |
-| 4 | **Dashboard** | API + React UI with live stats |
+| 4 | **Dashboard** (current) | API + React UI with live stats |
 | 5 | **Open-ports hardening** | Limits, bans, optional TLS, dashboard auth |
 | 6 | **Release** | Multi-arch images, docs, license, upgrade guide, v0.1.0 tag |
 

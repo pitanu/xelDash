@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { createPool } from "@xeldash/db";
+import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, listBlocks, listEvents, listMiners } from "./queries.js";
 
 const port = Number.parseInt(process.env.API_PORT ?? "8081", 10);
 const host = process.env.API_HOST ?? "0.0.0.0";
@@ -130,7 +131,13 @@ const server = createServer(async (request, response) => {
   }
 
   try {
-    const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
+    const url = new URL(request.url ?? "/", "http://localhost");
+    const { pathname, searchParams } = url;
+    const address = searchParams.get("address");
+    if (address !== null && !ADDRESS_PATTERN.test(address)) {
+      sendJson(response, 400, { error: "invalid_address" });
+      return;
+    }
     if (pathname === "/health") {
       await pool.query("SELECT 1");
       const height = await daemonCall("get_height");
@@ -140,6 +147,38 @@ const server = createServer(async (request, response) => {
 
     if (pathname === "/api/v1/overview") {
       sendJson(response, 200, await getOverview());
+      return;
+    }
+
+    if (pathname === "/api/v1/hashrate") {
+      sendJson(response, 200, await getHashrateHistory(pool, { address, range: searchParams.get("range") ?? "24h" }));
+      return;
+    }
+
+    if (pathname === "/api/v1/miners") {
+      sendJson(response, 200, { miners: await listMiners(pool) });
+      return;
+    }
+
+    const minerMatch = /^\/api\/v1\/miners\/([^/]+)$/.exec(pathname);
+    if (minerMatch) {
+      const minerAddress = decodeURIComponent(minerMatch[1] ?? "");
+      if (!ADDRESS_PATTERN.test(minerAddress)) {
+        sendJson(response, 400, { error: "invalid_address" });
+        return;
+      }
+      const miner = await getMiner(pool, minerAddress);
+      sendJson(response, miner ? 200 : 404, miner ?? { error: "not_found" });
+      return;
+    }
+
+    if (pathname === "/api/v1/blocks") {
+      sendJson(response, 200, { blocks: await listBlocks(pool, { address, limit: clampLimit(searchParams.get("limit"), 50, 500) }) });
+      return;
+    }
+
+    if (pathname === "/api/v1/events") {
+      sendJson(response, 200, { events: await listEvents(pool, clampLimit(searchParams.get("limit"), 20, 200)) });
       return;
     }
 

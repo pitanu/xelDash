@@ -13,7 +13,8 @@ address; xelDash has no shared-reward accounting, balances, payout service, or h
 
 Copy `.env.example` to `.env`, set a strong `POSTGRES_PASSWORD`, then start the stack with
 `docker compose up -d`. A one-shot `migrate` service applies PostgreSQL migrations; the API
-and Stratum services start once it completes. The API is available at `http://localhost:8081`; `/health` reports dependency
+and Stratum services start once it completes. The dashboard is at `http://localhost:8088`
+(set `XELDASH_WEB_BIND_IP` to open it to your LAN). The API is available at `http://localhost:8081`; `/health` reports dependency
 health and `/api/v1/overview` returns node difficulty, share totals, block statuses, and
 estimated hashrates and expected time-to-block from completed share windows. Estimates are
 `null` until their window contains accepted shares, then stabilize as the window fills.
@@ -44,7 +45,7 @@ docker/daemon/       daemon deployment notes
 services/daemon-spike/ JSON-RPC spike client
 services/stratum/    initial Stratum framing, session, and worker authorization layer
 services/api/        LAN-bound REST API
-web/                 dashboard (planned)
+web/                 React dashboard, served by nginx
 packages/db/         database migrations
 packages/db/src/     migration runner and transactional share persistence
 packages/xelis-hash/ native XELIS Hash V3 addon (initial implementation)

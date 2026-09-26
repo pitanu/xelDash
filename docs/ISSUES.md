@@ -9,8 +9,9 @@ Open:
   capped and unauthenticated handshakes time out.
 - Make the data model in `docs/PLAN.md` reference the migration instead of duplicating DDL
   with mismatched identity/count types.
-- Reconcile remaining planning details: getwork support, TLS, retention, and dashboard
-  authentication.
+- Reconcile remaining planning details: getwork support, TLS, and retention.
+- Dashboard: WebSocket live updates (it polls every 15 s), a worker detail page, and a node
+  health view.
 
 Resolved:
 
@@ -18,6 +19,7 @@ Resolved:
   (see `docs/DEVNET.md`).
 - Shares are hashed on the libuv thread pool (`hashMinerWorkAsync`), reusing one V3
   scratchpad per thread.
+- Dashboard with Overview, Miner and Blocks pages, served by the `web` service.
 - Vardiff per connection, with configurable defaults (see `docs/PLAN.md` section 6).
 - Block lifecycle: submitted blocks move to `main-chain`, `side` or `orphaned` at stable
   height, with topoheight and miner reward.
