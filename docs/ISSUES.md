@@ -4,8 +4,9 @@ Open:
 
 - Test a third-party Stratum miner (SRBMiner, lolMiner or similar) against the devnet stack.
 - Upstream glibc mismatch (built on Debian 13, shipped on cc-debian12; commit 99599508) is
-  reported and being fixed. Once a fixed release ships, drop the Debian 13 re-base in
-  docker/daemon/Dockerfile.
+  fixed upstream in commit f6ea12c (2026-09-27), not yet released: `1.25.0` and `latest`
+  are still the broken build. When a fixed release ships, test it without the re-base in
+  docker/daemon/Dockerfile and bump XELIS_DAEMON_IMAGE; the busybox wrapper stays.
 
 Resolved:
 

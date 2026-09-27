@@ -8,9 +8,11 @@ healthcheck. The healthcheck calls `get_version` over JSON-RPC.
 `cargo-chef:…-slim-trixie` (Debian 13, glibc 2.41) but still ships on
 `distroless/cc-debian12` (glibc 2.36). The binary needs `GLIBC_2.38` and `GLIBC_2.39`, so
 the official images from 1.22.0 onward, including `latest`, exit on start. The change came
-from upstream commit `99599508` (2026-05-17) and is still present on `master` and `dev`.
-The official `xelis/miner` and `xelis/wallet` images have the same problem. Once upstream
-ships on `cc-debian13`, the wrapper can go back to using the image directly.
+from upstream commit `99599508` (2026-05-17). The official `xelis/miner` and
+`xelis/wallet` images have the same problem. Upstream fixed it in commit `f6ea12c`
+(2026-09-27), which ships on `cc-debian13`; the first release after it will run as
+published. The re-base stays harmless with fixed images, and the wrapper is still needed for
+busybox and the supervisor in `entrypoint.sh`.
 
 **Mainnet needs 1.24.0 or newer.** Mainnet activated block version 6 at height 6,199,855 and
 the V7 emergency hard fork at 6,909,122, which requires 1.24.0 or newer. Older daemons
