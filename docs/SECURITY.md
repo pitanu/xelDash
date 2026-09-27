@@ -55,5 +55,9 @@ check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
 - **Some bad daemon settings do not stop the node** (for example, an invalid P2P bind address
   leaves it running without P2P), so they are not rolled back automatically. Check the Health
   page after a change.
+- **The official node fallback trusts node.xelis.io while it is in use.** It is off by
+  default. When on and none of your nodes can issue work, that server provides block
+  templates. The key rewards are paid to comes from your own node whenever it answers, but
+  if none of your nodes is reachable at all, the public node looks it up too.
 - **node-admin and the daemon run as root** inside their containers, because they own the
   node's data volume.

@@ -24,7 +24,7 @@ export function nodeLabel(url) {
   return port && port !== "8080" ? `${hostname}:${port}` : hostname;
 }
 
-/** @typedef {{ id: number, url: string, label: string, client: DaemonClient, monitor: SyncMonitor }} PoolNode */
+/** @typedef {{ id: number, url: string, label: string, fallback: boolean, client: DaemonClient, monitor: SyncMonitor }} PoolNode */
 
 /**
  * The XELIS nodes Stratum can mine through. Work comes from the active node: the first node,
@@ -33,6 +33,9 @@ export function nodeLabel(url) {
  * Each node's state needs two consecutive checks to change, so a single slow reply does not
  * cause a switch. Found blocks go to the node that issued the job, then to the others if it
  * cannot be reached.
+ *
+ * A fallback node (the official public node, switched on from the dashboard) is only used
+ * while none of our own nodes can issue work.
  */
 export class NodePool {
   /**
@@ -45,27 +48,50 @@ export class NodePool {
     this.tolerance = tolerance;
     this.onActiveChange = onActiveChange;
     this.logger = logger;
+    this.intervalMs = intervalMs;
+    this.nextId = 0;
     /** @type {PoolNode | null} */
     this.active = null;
     /** @type {PoolNode[]} */
-    this.nodes = urls.map((url, id) => {
-      const client = new DaemonClient(url);
-      const label = nodeLabel(url);
-      return {
-        id,
-        url,
-        label,
-        client,
-        monitor: new SyncMonitor({
-          daemon: client,
-          label: `Node ${label}`,
-          intervalMs,
-          tolerance,
-          logger,
-          onChange: () => this.select(),
-        }),
-      };
-    });
+    this.nodes = urls.map((url) => this.createNode(url, false));
+  }
+
+  /** @param {string} url @param {boolean} fallback @returns {PoolNode} */
+  createNode(url, fallback) {
+    const client = new DaemonClient(url);
+    const label = nodeLabel(url);
+    return {
+      id: this.nextId++,
+      url,
+      label,
+      fallback,
+      client,
+      monitor: new SyncMonitor({
+        daemon: client,
+        label: `Node ${label}`,
+        intervalMs: this.intervalMs,
+        tolerance: this.tolerance,
+        logger: this.logger,
+        onChange: () => this.select(),
+      }),
+    };
+  }
+
+  /** Add a fallback node at the end of the list and start checking it. @param {string} url */
+  async addFallback(url) {
+    if (this.nodes.some((node) => node.url === url)) return null;
+    const node = this.createNode(url, true);
+    this.nodes.push(node);
+    await node.monitor.start();
+    this.select();
+    return node;
+  }
+
+  /** @param {PoolNode} node */
+  remove(node) {
+    node.monitor.stop();
+    this.nodes = this.nodes.filter((n) => n !== node);
+    this.select();
   }
 
   async start() {
@@ -82,9 +108,18 @@ export class NodePool {
     void node.monitor.check().then(() => this.select());
   }
 
-  /** Nodes that can issue work: ready, and not far behind the most advanced ready node. */
+  /**
+   * Nodes that can issue work: ready, and not far behind the most advanced ready node. Our
+   * own nodes come first; fallback nodes only count when none of ours qualifies.
+   */
   eligible() {
-    const ready = this.nodes.filter((node) => node.monitor.ready);
+    const own = this.qualified(this.nodes.filter((node) => !node.fallback));
+    return own.length > 0 ? own : this.qualified(this.nodes.filter((node) => node.fallback));
+  }
+
+  /** @param {PoolNode[]} nodes */
+  qualified(nodes) {
+    const ready = nodes.filter((node) => node.monitor.ready);
     const best = Math.max(...ready.map((node) => Number(node.monitor.detail.topoheight ?? 0)));
     return ready.filter((node) => best - Number(node.monitor.detail.topoheight ?? 0) <= this.tolerance);
   }
@@ -119,8 +154,20 @@ export class NodePool {
 
   // The DaemonClient methods other modules use, routed to the active node.
 
-  /** @param {string} address */
-  getMiningIdentity(address) {
+  /**
+   * The key block rewards are paid to. Asked of our own nodes, in order, even one that is
+   * still syncing, so a third-party fallback node never decides where rewards go while one
+   * of ours answers.
+   * @param {string} address
+   */
+  async getMiningIdentity(address) {
+    for (const node of this.nodes.filter((n) => !n.fallback)) {
+      try {
+        return await node.client.getMiningIdentity(address);
+      } catch (error) {
+        if (!(error instanceof DaemonUnreachableError)) throw error;
+      }
+    }
     return this.client().getMiningIdentity(address);
   }
 

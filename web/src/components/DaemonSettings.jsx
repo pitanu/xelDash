@@ -11,6 +11,84 @@ function sameValues(a, b) {
   return [...keys].every((k) => a[k] === b[k]);
 }
 
+const PEER_FLAGS = /** @type {const} */ ({ priority: "priority-nodes", exclusive: "exclusive-nodes" });
+// Same rule as node-admin: IPv4:port or [IPv6]:port.
+const PEER = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}|\[[0-9A-Fa-f:.]+\]):([1-9]\d{0,4})$/;
+
+/** @param {string} text */
+function splitPeers(text) {
+  return text.split(/[\s,]+/).filter(Boolean);
+}
+
+/**
+ * Trusted peers: a friendlier editor for --priority-nodes and --exclusive-nodes, working on
+ * the same draft as the full option list below.
+ * @param {{ draft: Record<string, string | true>, set: (flag: string, value: string | true | null) => void, locked: boolean }} props
+ */
+function TrustedPeers({ draft, set, locked }) {
+  const both = typeof draft[PEER_FLAGS.priority] === "string" && typeof draft[PEER_FLAGS.exclusive] === "string";
+  const mode = typeof draft[PEER_FLAGS.exclusive] === "string" ? "exclusive" : "priority";
+  const saved = /** @type {string | undefined} */ (draft[PEER_FLAGS[mode]]) ?? "";
+  const [text, setText] = useState(splitPeers(saved).join("\n"));
+  // Follow the draft when it changes elsewhere (discard, reset, the list below).
+  useEffect(() => {
+    setText((t) => (splitPeers(t).join(",") === splitPeers(saved).join(",") ? t : splitPeers(saved).join("\n")));
+  }, [saved]);
+
+  const peers = splitPeers(text);
+  const invalid = peers.filter((p) => {
+    const port = Number(PEER.exec(p)?.[1] ?? 0);
+    return port < 1 || port > 65535;
+  });
+
+  /** @param {string} next */
+  function edit(next) {
+    setText(next);
+    set(PEER_FLAGS[mode], splitPeers(next).join(",") || null);
+  }
+
+  /** @param {"priority" | "exclusive"} next */
+  function switchMode(next) {
+    if (next === mode) return;
+    set(PEER_FLAGS[next], peers.join(",") || null);
+    set(PEER_FLAGS[mode], null);
+  }
+
+  return (
+    <section className="space-y-2 rounded-md border border-line p-3">
+      <div>
+        <h3 className="text-sm font-semibold text-ink">Trusted peers</h3>
+        <p className="text-xs text-ink-2">Nodes you trust, such as your other XELIS nodes or a friend's. One IP:port per line, for example 203.0.113.5:2125.</p>
+      </div>
+      {both ? (
+        <p className="text-xs text-serious">Both --priority-nodes and --exclusive-nodes are set. Edit them in the P2P options below.</p>
+      ) : (
+        <>
+          <textarea value={text} disabled={locked} rows={Math.min(8, Math.max(3, peers.length + 1))} spellCheck={false}
+            onChange={(e) => edit(e.target.value)} aria-label="Trusted peers" placeholder={"203.0.113.5:2125\n198.51.100.7:2125"}
+            className="w-full rounded-md border border-line bg-page px-3 py-2 font-mono text-sm text-ink" />
+          {invalid.length > 0 && (
+            <p className="text-xs text-critical">Not an IP:port: {invalid.join(", ")}. Host names are not accepted by the daemon.</p>
+          )}
+          <fieldset className="grid gap-2 sm:grid-cols-2" disabled={locked}>
+            <legend className="sr-only">How the node uses these peers</legend>
+            <label className="flex gap-2 rounded-md border border-line p-2 text-sm">
+              <input type="radio" name="peer-mode" checked={mode === "priority"} onChange={() => switchMode("priority")} />
+              <span><span className="font-medium text-ink">Priority</span>
+                <span className="block text-xs text-ink-2">Connect to these first, and still find other peers as usual.</span></span>
+            </label>
+            <label className="flex gap-2 rounded-md border border-line p-2 text-sm">
+              <input type="radio" name="peer-mode" checked={mode === "exclusive"} onChange={() => switchMode("exclusive")} />
+              <span><span className="font-medium text-ink">Exclusive</span>
+                <span className="block text-xs text-ink-2">Only ever talk to these peers. If they all go down, the node stops syncing.</span></span>
+            </label>
+          </fieldset>
+        </>
+      )}
+    </section>
+  );
+}
+
 /**
  * The daemon's own options, read from its --help by node-admin, edited here and applied on
  * a node restart. Changes are checked by the daemon's parser before they take effect, and put
@@ -138,6 +216,8 @@ export default function DaemonSettings({ token, onUnauthorized }) {
         {data.pending && !waiting && (
           <p className="text-sm text-ink-2">Saved changes are waiting for the next node restart.</p>
         )}
+
+        <TrustedPeers draft={draft} set={set} locked={locked} />
 
         <div className="flex flex-wrap items-center gap-3">
           <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search options"

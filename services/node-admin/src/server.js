@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { MiningFallback } from "./fallback.js";
 import { DaemonSettings } from "./settings.js";
 import { SnapshotManager, message, tokensMatch } from "./snapshot.js";
 
@@ -22,7 +23,9 @@ const MAX_UPLOAD_BYTES = 200e9;
 const dataDir = process.env.DATA_DIR ?? "/data";
 const manager = new SnapshotManager({ dataDir, network, snapshotUrl, checksumUrl });
 const settings = new DaemonSettings({ dataDir });
+const fallback = new MiningFallback({ configDir: process.env.CONFIG_DIR ?? "/config", network, env: process.env });
 await manager.init();
+await fallback.init();
 let ready = false;
 
 /** Read a small JSON body (settings), refusing anything large. @param {import("node:http").IncomingMessage} request */
@@ -80,6 +83,10 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "GET" && path === "/settings") {
       send(response, 200, { ...(await settings.status()), actionsEnabled: Boolean(adminToken) });
+      return;
+    }
+    if (request.method === "GET" && path === "/fallback") {
+      send(response, 200, { ...(await fallback.status()), actionsEnabled: Boolean(adminToken) });
       return;
     }
     if (!adminToken) {
@@ -154,6 +161,15 @@ const server = createServer(async (request, response) => {
       // The node checks and applies the saved settings as it restarts.
       await settings.requestRestart();
       send(response, 202, { ok: true });
+      return;
+    }
+    if (request.method === "PUT" && path === "/fallback") {
+      const body = await readJson(request);
+      if (typeof body?.enabled !== "boolean") {
+        send(response, 400, { error: "Send { \"enabled\": true | false }" });
+        return;
+      }
+      send(response, 200, await fallback.write(body.enabled));
       return;
     }
     if (request.method === "POST" && path === "/settings/discard") {

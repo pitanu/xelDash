@@ -3,7 +3,7 @@ import { createPool } from "@xeldash/db";
 import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, listBlocks, listEvents, listMiners } from "./queries.js";
 import { alertConfigFromEnv, startAlerts } from "./alerts.js";
 import { startLiveUpdates } from "./live.js";
-import { callAnyNode, rpcUrlsFromEnv } from "./nodes.js";
+import { callAnyNode, fallbackUrl, rpcUrlsFromEnv } from "./nodes.js";
 import { getStatus } from "./status.js";
 
 const port = Number.parseInt(process.env.API_PORT ?? "8081", 10);
@@ -60,9 +60,15 @@ function estimateMining(activity, network) {
   }));
 }
 
+/** Our nodes in priority order, then the official node if it is on as the mining fallback. */
+async function allNodeUrls() {
+  const fallback = await fallbackUrl();
+  return fallback && !nodeUrls.includes(fallback) ? [...nodeUrls, fallback] : nodeUrls;
+}
+
 /** @param {string} method @param {number} [timeoutMs] */
-function daemonCall(method, timeoutMs = 5_000) {
-  return callAnyNode(nodeUrls, method, timeoutMs);
+async function daemonCall(method, timeoutMs = 5_000) {
+  return callAnyNode(await allNodeUrls(), method, timeoutMs);
 }
 
 async function getOverview() {
@@ -169,6 +175,7 @@ const server = createServer(async (request, response) => {
       sendJson(response, 200, await getStatus({
         pool,
         nodeUrls,
+        fallbackUrl: await fallbackUrl(),
         stratumHost,
         stratumPort,
       }));

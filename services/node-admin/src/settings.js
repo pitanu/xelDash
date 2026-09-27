@@ -17,11 +17,32 @@ const CAUTION = /^(use-db-backend|simulator|genesis-block-hex|skip-pow-verificat
 const CONFLICTS = [
   ["allow-fast-sync", "allow-boost-sync", "Fast sync and boost sync cannot be on together; the daemon will not start. Pick one: boost sync to catch up faster, fast sync only when far behind."],
 ];
+// Peer lists: the daemon takes one flag per peer. The dashboard sends them comma-separated.
+export const PEER_LISTS = new Set(["priority-nodes", "exclusive-nodes"]);
+const MAX_PEERS = 64;
+// The daemon reads peers as socket addresses and skips a host name, so ask for IP:port.
+const PEER = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}|\[[0-9A-Fa-f:.]+\]):(\d{1,5})$/;
 // Extra notes shown next to an option on the dashboard.
-const NOTES = Object.fromEntries(CONFLICTS.flatMap(([a, b]) => [
-  [a, `Cannot be on together with --${b}.`],
-  [b, `Cannot be on together with --${a}.`],
-]));
+const NOTES = Object.fromEntries([
+  ...CONFLICTS.flatMap(([a, b]) => [
+    [a, `Cannot be on together with --${b}.`],
+    [b, `Cannot be on together with --${a}.`],
+  ]),
+  ["priority-nodes", "IP:port, separated by commas. Easiest to edit under Trusted peers."],
+  ["exclusive-nodes", "IP:port, separated by commas. Easiest to edit under Trusted peers."],
+]);
+
+/** Split, check and de-duplicate a peer list. @param {string} flag @param {string} value */
+export function parsePeers(flag, value) {
+  const peers = [...new Set(value.split(/[\s,]+/).filter(Boolean))];
+  if (peers.length === 0) throw new Error(`--${flag} needs at least one peer`);
+  if (peers.length > MAX_PEERS) throw new Error(`--${flag} takes at most ${MAX_PEERS} peers`);
+  for (const peer of peers) {
+    const port = Number(PEER.exec(peer)?.[1] ?? 0);
+    if (port < 1 || port > 65535) throw new Error(`${peer} is not a peer address; use IP:port, such as 203.0.113.5:2125`);
+  }
+  return peers;
+}
 
 /** @type {[string, RegExp][]} */
 const GROUPS = [
@@ -115,7 +136,11 @@ export class DaemonSettings {
     const values = {};
     for (const line of text.split("\n").map((l) => l.trim()).filter(Boolean)) {
       const match = /^--([a-z0-9-]+)(?:=([\s\S]*))?$/.exec(line);
-      if (match) values[match[1]] = match[2] === undefined ? true : match[2];
+      if (!match) continue;
+      const [, flag, value] = match;
+      // Repeated peer flags come back as one comma-separated list.
+      if (PEER_LISTS.has(flag) && typeof values[flag] === "string" && value !== undefined) values[flag] += `,${value}`;
+      else values[flag] = value === undefined ? true : value;
     }
     return values;
   }
@@ -176,6 +201,10 @@ export class DaemonSettings {
       }
       if (setting.choices.length > 0 && !setting.choices.includes(value)) {
         throw new Error(`--${flag} must be one of: ${setting.choices.join(", ")}`);
+      }
+      if (PEER_LISTS.has(flag)) {
+        for (const peer of parsePeers(flag, value)) lines.push(`--${flag}=${peer}`);
+        continue;
       }
       if (setting.default !== null && /^\d+$/.test(setting.default) && !/^\d+$/.test(value)) {
         throw new Error(`--${flag} must be a whole number`);

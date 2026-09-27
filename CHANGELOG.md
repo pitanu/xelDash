@@ -58,6 +58,10 @@ First public version, planned as 0.1.0.
 - Daemon settings from the dashboard: every option of the installed XELIS daemon, checked by
   the daemon's own parser before a restart and rolled back if the node does not stay up.
   Options the daemon refuses together, such as fast sync with boost sync, are refused on save.
+- Trusted peers on the dashboard: a list of `IP:port` peers the node connects to first
+  (priority) or exclusively.
+- Official node fallback: an optional switch to keep mining through the XELIS team's public
+  node while none of your own nodes can issue work. Off by default.
   Needs `XELDASH_ADMIN_TOKEN`.
 - Snapshots: start or replace a node's chain data from the official daily mainnet snapshot
   (downloaded, resumable, checksum-verified) or a zip dropped onto the dashboard. Optional

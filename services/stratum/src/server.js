@@ -7,6 +7,7 @@ import {
 import { createWorkerAuthorizer } from "./authorize-worker.js";
 import { BlockTracker } from "./block-tracker.js";
 import { ChainWatcher } from "./chain-watcher.js";
+import { watchFallbackConfig } from "./fallback-config.js";
 import { startGetworkServer } from "./getwork.js";
 import { IpGuard, MessageRateLimiter, ipGuardConfigFromEnv, normalizeIp } from "./ip-guard.js";
 import { MiningJobProvider } from "./job-provider.js";
@@ -95,13 +96,26 @@ function handleNewBlock(block) {
   if (announcedBlocks.size > 256) announcedBlocks.delete(/** @type {string} */ (announcedBlocks.values().next().value));
   notifyLive(pool, { type: "block", height: block.height ?? null, hash: block.hash }).catch(() => {});
 }
-const chainWatchers = nodes.nodes.map((node) => new ChainWatcher({
-  rpcUrl: node.url,
-  onNewBlock: handleNewBlock,
-  // A dropped event connection is the quickest sign a node went away; check it right away.
-  onDisconnect: () => nodes.checkNow(node),
-}));
-for (const watcher of chainWatchers) watcher.start();
+/** @type {Map<import("./node-pool.js").PoolNode, ChainWatcher>} */
+const chainWatchers = new Map();
+/** @type {{ stop: () => void } | null} */
+let fallbackConfig = null;
+/** @param {import("./node-pool.js").PoolNode} node */
+function watchNode(node) {
+  const watcher = new ChainWatcher({
+    rpcUrl: node.url,
+    // A fallback node's blocks only matter while we mine through it; otherwise they would
+    // refresh jobs before our own node has the block.
+    onNewBlock: (block) => {
+      if (!node.fallback || nodes.active === node) handleNewBlock(block);
+    },
+    // A dropped event connection is the quickest sign a node went away; check it right away.
+    onDisconnect: () => nodes.checkNow(node),
+  });
+  chainWatchers.set(node, watcher);
+  watcher.start();
+}
+for (const node of nodes.nodes) watchNode(node);
 
 // Miners may report hashrate every few seconds; store at most one value per worker per 30 s.
 const HASHRATE_WRITE_INTERVAL_MS = 30_000;
@@ -230,6 +244,28 @@ function handleActiveChange(active, previous) {
   for (const session of sessions.values()) void session.refreshJob(true);
 }
 await nodes.start();
+// The official public node, when switched on from the dashboard: mined through only while
+// none of our own nodes can issue work.
+const fallbackWatch = watchFallbackConfig({
+  file: process.env.XELDASH_MINING_NODES_FILE ?? "/config/mining-nodes.json",
+  onChange: async (url) => {
+    for (const node of nodes.nodes.filter((n) => n.fallback && n.url !== url)) {
+      chainWatchers.get(node)?.stop();
+      chainWatchers.delete(node);
+      nodes.remove(node);
+      console.info(`Mining fallback off: ${node.label}`);
+    }
+    if (url) {
+      const node = await nodes.addFallback(url);
+      if (node) {
+        watchNode(node);
+        console.info(`Mining fallback on: ${node.label}, used only while none of our nodes can issue work`);
+      }
+    }
+  },
+});
+fallbackConfig = fallbackWatch;
+await fallbackWatch.ready;
 nodesStarted = true;
 
 const server = createServer(handleConnection);
@@ -275,7 +311,8 @@ let shuttingDown = false;
 async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
-  for (const watcher of chainWatchers) watcher.stop();
+  fallbackConfig?.stop();
+  for (const watcher of chainWatchers.values()) watcher.stop();
   nodes.stop();
   const closed = Promise.all([
     new Promise((resolve) => server.close(resolve)),

@@ -31,15 +31,20 @@ function probeTcp(host, port, timeoutMs = 2_000) {
   });
 }
 
-/** One node: its chain view and peers, or why it did not answer. @param {string} url */
-async function nodeStatus(url) {
+/**
+ * One node: its chain view and peers, or why it did not answer. A fallback node is the
+ * official public node, mined through only while none of ours can issue work.
+ * @param {string} url @param {boolean} fallback
+ */
+async function nodeStatus(url, fallback) {
   const label = nodeLabel(url);
   const [info, p2p] = await Promise.allSettled([callNode(url, "get_info", 2_000), callNode(url, "p2p_status", 2_000)]);
-  if (info.status !== "fulfilled") return { label, ok: false, error: daemonError(info.reason) };
+  if (info.status !== "fulfilled") return { label, fallback, ok: false, error: daemonError(info.reason) };
   const i = info.value;
   const peers = p2p.status === "fulfilled" ? p2p.value : null;
   return {
     label,
+    fallback,
     ok: true,
     version: i.version,
     network: i.network,
@@ -62,9 +67,9 @@ async function nodeStatus(url) {
 /**
  * Health of the nodes and the xelDash services. Each part is checked on its own, so one
  * failing dependency shows as down instead of failing the whole response.
- * @param {{ pool: import("pg").Pool, nodeUrls: string[], stratumHost: string, stratumPort: number }} deps
+ * @param {{ pool: import("pg").Pool, nodeUrls: string[], fallbackUrl: string | null, stratumHost: string, stratumPort: number }} deps
  */
-export async function getStatus({ pool, nodeUrls, stratumHost, stratumPort }) {
+export async function getStatus({ pool, nodeUrls, fallbackUrl, stratumHost, stratumPort }) {
   const [database, stratumUp, started, bans] = await Promise.allSettled([
     pool.query("SELECT 1"),
     probeTcp(stratumHost, stratumPort),
@@ -80,7 +85,11 @@ export async function getStatus({ pool, nodeUrls, stratumHost, stratumPort }) {
        WHERE until > now() ORDER BY until DESC LIMIT 50`,
     ),
   ]);
-  const nodes = await Promise.all(nodeUrls.map(nodeStatus));
+  const nodes = await Promise.all([
+    ...nodeUrls.map((url) => nodeStatus(url, false)),
+    ...(fallbackUrl && !nodeUrls.includes(fallbackUrl) ? [nodeStatus(fallbackUrl, true)] : []),
+  ]);
+  const own = nodes.filter((n) => !n.fallback);
 
   // Stratum records which node it mines through when it starts, resumes or switches, and
   // node_syncing / node_unreachable when no node can issue work.
@@ -90,16 +99,18 @@ export async function getStatus({ pool, nodeUrls, stratumHost, stratumPort }) {
     : workState?.type === "stratum_started" ? workState.payload?.paused ?? null : null;
   const activeLabel = paused ? null : workState?.payload?.to ?? workState?.payload?.node ?? null;
   const withActive = nodes.map((n) => ({ ...n, active: n.label === activeLabel }));
-  // The top-level node is the one Stratum mines through, or else the first that answered.
-  const primary = withActive.find((n) => n.active && n.ok) ?? withActive.find((n) => n.ok) ?? null;
+  // The top-level node is the one Stratum mines through, or else the first of ours that answered.
+  const primary = withActive.find((n) => n.active && n.ok) ?? withActive.find((n) => n.ok && !n.fallback)
+    ?? withActive.find((n) => n.ok) ?? null;
 
   return {
     node: primary,
     nodes: withActive,
     services: {
-      daemon: nodes.some((n) => n.ok)
+      // Our own nodes; the official fallback node does not make them healthy.
+      daemon: own.some((n) => n.ok)
         ? { ok: true }
-        : { ok: false, error: nodes.length === 1 ? nodes[0].error : "No node is responding" },
+        : { ok: false, error: own.length === 1 ? own[0].error : "No node is responding" },
       database: database.status === "fulfilled" ? { ok: true } : { ok: false, error: message(database.reason) },
       stratum: {
         ok: stratumUp.status === "fulfilled" && stratumUp.value,

@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 // The XELIS nodes the API reads from, in the same priority order Stratum uses
 // (XELIS_RPC_URLS, comma-separated; XELIS_RPC_URL for a single node).
 
@@ -5,6 +7,22 @@
 export function rpcUrlsFromEnv(env) {
   const raw = env.XELIS_RPC_URLS?.trim() || env.XELIS_RPC_URL?.trim() || "http://daemon:8080/json_rpc";
   return raw.split(",").map((url) => url.trim()).filter(Boolean);
+}
+
+const MINING_NODES_FILE = process.env.XELDASH_MINING_NODES_FILE ?? "/config/mining-nodes.json";
+
+/**
+ * The official node, when switched on as Stratum's mining fallback from the dashboard.
+ * @returns {Promise<string | null>}
+ */
+export async function fallbackUrl() {
+  try {
+    const config = JSON.parse(await readFile(MINING_NODES_FILE, "utf8"));
+    const url = config?.fallback?.enabled === true ? config.fallback.url : null;
+    return typeof url === "string" && /^https?:\/\//.test(url) ? url : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Same naming as Stratum's node pool: the host, plus the port if it is not 8080. @param {string} url */

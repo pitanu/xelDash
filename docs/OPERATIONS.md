@@ -142,6 +142,20 @@ depends on RPC being on, so those cannot be changed here. Settings are saved on 
 data volume (`.xeldash/daemon-args`) and survive restarts and upgrades. With two nodes, the
 dashboard changes `daemon` only.
 
+### Trusted peers
+
+**Trusted peers**, at the top of the daemon settings, lists nodes you trust: your other XELIS
+nodes, or a friend's. Enter one `IP:port` per line (for example `203.0.113.5:2125`); the
+daemon does not accept host names. Choose how the node uses them:
+
+- **Priority** (`--priority-nodes`): connect to these first, and still find other peers as
+  usual. The safe choice.
+- **Exclusive** (`--exclusive-nodes`): only ever talk to these peers; seed nodes and other
+  peers are refused. If they all go down, the node stops syncing, and mining pauses unless
+  another node can take over.
+
+Like every daemon setting, the list applies on **Save and restart node**.
+
 ## Snapshots
 
 A snapshot is a zip of a node's database. Starting from one takes minutes instead of syncing
@@ -262,6 +276,24 @@ Switches are recorded as events and, with alerts on, reported as `mining_paused`
 activation height (for example, the V7 fork at height 6,909,122 required 1.24.0). Upgrade
 before the activation height. A daemon that is too old stops following the network, and
 blocks found on it are worthless.
+
+### Official node fallback
+
+On mainnet and testnet, Stratum can also mine through the XELIS team's public node
+(`https://node.xelis.io/json_rpc` on mainnet) while none of your own nodes can issue work:
+during the first sync, an upgrade, or an outage. Switch it on under **Official node fallback**
+on the Node page (admin token needed), or set `XELIS_OFFICIAL_FALLBACK=true` in `.env` for
+the first start; after that, the dashboard switch wins. The change takes effect within a few
+seconds, without a restart.
+
+Your own nodes always come first: the public node is only used while none of them qualifies,
+and mining moves back as soon as one is in sync. It shows on the Health page as
+**Official fallback**, and switches are recorded like any other node switch.
+
+Trade-offs while it is in use: block templates come from a server you do not run, over the
+internet, so a few more shares may arrive after a new block. Block rewards still go to each
+miner's address; the key they are paid to is looked up on your own node whenever it answers,
+even while it syncs. `XELIS_OFFICIAL_NODE_URL` points the fallback at another public node.
 
 ## Algorithm changes
 

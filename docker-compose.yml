@@ -55,8 +55,12 @@ services:
       XELIS_SNAPSHOT_AUTO: ${XELIS_SNAPSHOT_AUTO:-false}
       XELIS_SNAPSHOT_URL: ${XELIS_SNAPSHOT_URL:-}
       XELIS_SNAPSHOT_CHECKSUM_URL: ${XELIS_SNAPSHOT_CHECKSUM_URL:-}
+      # Mining fallback through the official public node; the dashboard switch overrides it.
+      XELIS_OFFICIAL_FALLBACK: ${XELIS_OFFICIAL_FALLBACK:-false}
+      XELIS_OFFICIAL_NODE_URL: ${XELIS_OFFICIAL_NODE_URL:-}
     volumes:
       - xelis-data:/data
+      - xeldash-config:/config
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8095/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 5s
@@ -158,6 +162,9 @@ services:
       PGDATABASE: ${POSTGRES_DB:-xeldash}
       PGUSER: ${POSTGRES_USER:-xeldash}
       PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      # The mining fallback switch, written by node-admin.
+      - xeldash-config:/config:ro
     depends_on:
       daemon:
         condition: service_healthy
@@ -221,6 +228,8 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - ${XELDASH_STRATUM_TLS_DIR:-./docker/stratum-tls}:/tls:ro
+      # The mining fallback switch, written by node-admin.
+      - xeldash-config:/config:ro
     depends_on:
       daemon:
         condition: service_healthy
@@ -322,6 +331,7 @@ services:
 volumes:
   xelis-data:
   xelis-data-2:
+  xeldash-config:
   postgres-data:
   proxy-data:
 

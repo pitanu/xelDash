@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import DaemonSettings from "../components/DaemonSettings.jsx";
+import MiningFallback from "../components/MiningFallback.jsx";
 import { Card, HealthBadge } from "../components/ui.jsx";
 import { formatAgo, formatTime } from "../format.js";
 
@@ -225,6 +226,7 @@ export default function NodeData() {
         </Card>
       )}
 
+      <MiningFallback token={s.actionsEnabled ? token : ""} onUnauthorized={forgetToken} />
       <DaemonSettings token={s.actionsEnabled ? token : ""} onUnauthorized={forgetToken} />
 
       <h2 className="pt-2 text-base font-semibold text-ink">Snapshots</h2>
