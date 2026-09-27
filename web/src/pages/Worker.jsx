@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { usePolled } from "../api.js";
 import HashrateChart from "../components/HashrateChart.jsx";
-import { BlocksTable, Card, Segmented, StatTile } from "../components/ui.jsx";
-import { formatAgo, formatHashrate, formatInteger, shorten, RANGES, formatBucket } from "../format.js";
+import { BlocksTable, Card, StatTile } from "../components/ui.jsx";
+import { formatAgo, formatHashrate, formatInteger, shorten, formatBucket } from "../format.js";
 
 const REJECT_LABELS = {
   low_difficulty: "Below share target",
@@ -43,22 +43,18 @@ export default function Worker({ address, name }) {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="col-span-2">
-          <StatTile hero label="Hashrate, last hour" value={formatHashrate(w?.hashrate["1h"])}
+          <StatTile hero icon="hashrate" label="Hashrate, last hour" value={formatHashrate(w?.hashrate["1h"])}
             detail={w ? `Last 5 min: ${formatHashrate(w.hashrate["5m"])} · 24 h: ${formatHashrate(w.hashrate["24h"])}`
               + (w.reportedHashrate !== null ? ` · miner reports ${formatHashrate(w.reportedHashrate)}` : "") : undefined} />
         </div>
-        <StatTile label="Accepted shares, 24 h" value={formatInteger(w?.shares.accepted24h)}
+        <StatTile icon="shares" label="Accepted shares, 24 h" value={formatInteger(w?.shares.accepted24h)}
           detail={w ? `${formatInteger(w.shares.accepted1h)} in the last hour` : undefined} />
-        <StatTile label="Rejected shares, 24 h" value={formatInteger(w?.shares.rejected24h)}
+        <StatTile icon="rejected" label="Rejected shares, 24 h" value={formatInteger(w?.shares.rejected24h)}
           detail={rejectRate === null ? "No shares yet" : `${rejectRate.toFixed(1)}% of submissions`} />
       </div>
 
-      <div className="flex items-center gap-3">
-        <span className="text-xs text-ink-2">Chart range</span>
-        <Segmented label="Chart range" value={range} options={RANGES} onChange={setRange} />
-      </div>
       <Card title="Hashrate" subtitle={history.data ? `${formatBucket(history.data.bucketSeconds)} buckets` : undefined}>
-        {history.data ? <HashrateChart points={history.data.points} dimmed={history.loading} /> : <div className="h-[220px]" />}
+        <HashrateChart points={history.data?.points ?? null} dimmed={history.loading} range={range} onRangeChange={setRange} />
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">

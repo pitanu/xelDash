@@ -17,12 +17,39 @@ export function Card({ title, subtitle, action, children }) {
   );
 }
 
-/** @param {{ label: string, value: React.ReactNode, detail?: React.ReactNode, hero?: boolean }} props */
-export function StatTile({ label, value, detail, hero = false }) {
+/** Small line icons for stat tiles, drawn on a 16px grid. */
+export const ICONS = {
+  hashrate: "M9 2L4 9h4l-1 5 5-7H8l1-5z",
+  clock: "M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM8 5v3l2 1.5",
+  block: "M8 2l5 2.75v6.5L8 14l-5-2.75v-6.5L8 2zM3 4.75L8 7.5l5-2.75M8 7.5V14",
+  difficulty: "M2.5 12a5.5 5.5 0 0 1 11 0M8 12l2.5-3.5",
+  workers: "M5.5 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM2 13c0-2 1.6-3.5 3.5-3.5S9 11 9 13M11 7.5a1.75 1.75 0 1 0 0-3.5M11.5 9.5c1.4.3 2.5 1.6 2.5 3.5",
+  shares: "M3 8.5l3 3 7-7",
+  rejected: "M4.5 4.5l7 7M11.5 4.5l-7 7",
+  height: "M3 12.5h10M4.5 10h7M6 7.5h4M7.25 5h1.5",
+};
+
+/**
+ * A labelled figure. The hero tile (one per view) is larger and lightly tinted with the
+ * accent; `aside` sits top-right, for a status badge.
+ * @param {{ label: string, value: React.ReactNode, detail?: React.ReactNode, hero?: boolean,
+ *   icon?: keyof typeof ICONS, aside?: React.ReactNode }} props
+ */
+export function StatTile({ label, value, detail, hero = false, icon, aside }) {
   return (
-    <div className="min-w-0 rounded-lg border border-line bg-surface p-3 sm:p-4">
-      <div className="text-xs text-ink-2">{label}</div>
-      <div className={`mt-1 font-semibold text-ink ${hero ? "text-5xl leading-tight" : "text-2xl"}`}>{value}</div>
+    <div className={`min-w-0 rounded-lg border border-line p-3 sm:p-4 ${hero ? "h-full bg-linear-to-br from-series-1/10 via-surface to-surface" : "bg-surface"}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-xs text-ink-2">
+          {icon && (
+            <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0 text-muted">
+              <path d={ICONS[icon]} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+          {label}
+        </div>
+        {aside}
+      </div>
+      <div className={`mt-1 font-semibold tracking-tight text-ink ${hero ? "text-5xl leading-tight" : "text-2xl"}`}>{value}</div>
       {detail && <div className="mt-1 text-xs text-muted">{detail}</div>}
     </div>
   );
@@ -51,16 +78,23 @@ export function StatusBadge({ status }) {
   );
 }
 
-/** @param {{ value: string, options: string[], onChange: (value: string) => void, label: string }} props */
+/**
+ * A row of mutually exclusive choices. Options are values, or [value, label] pairs.
+ * @template {string} T
+ * @param {{ value: T, options: readonly (T | readonly [T, string])[], onChange: (value: T) => void, label: string }} props
+ */
 export function Segmented({ value, options, onChange, label }) {
   return (
     <div role="radiogroup" aria-label={label} className="inline-flex rounded-md border border-line p-0.5 text-xs">
-      {options.map((option) => (
-        <button key={option} type="button" role="radio" aria-checked={value === option} onClick={() => onChange(option)}
-          className={`rounded px-2.5 py-1 ${value === option ? "bg-wash font-semibold text-ink" : "text-ink-2 hover:bg-wash"}`}>
-          {option}
-        </button>
-      ))}
+      {options.map((option) => {
+        const [key, text] = typeof option === "string" ? [option, option] : option;
+        return (
+          <button key={key} type="button" role="radio" aria-checked={value === key} onClick={() => onChange(key)}
+            className={`rounded px-2.5 py-1 ${value === key ? "bg-wash font-semibold text-ink" : "text-ink-2 hover:bg-wash"}`}>
+            {text}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -184,17 +218,39 @@ const LEVELS = {
   warning: { color: "var(--warning)", icon: "M8 4v5M8 11.5v.5" },
   critical: { color: "var(--critical)", icon: "M4 4l8 8M12 4l-8 8" },
   unknown: { color: "var(--muted)", icon: "M8 5v4M8 11v.5" },
+  info: { color: "var(--muted)", icon: "M5.5 8h5" },
 };
+
+// How each event reads at a glance; the label next to the icon always says what happened.
+/** @type {Record<string, keyof typeof LEVELS>} */
+const EVENT_LEVELS = {
+  block_submitted: "info",
+  block_rejected: "critical",
+  block_final: "good",
+  ip_banned: "warning",
+  stratum_started: "info",
+  node_syncing: "warning",
+  node_unreachable: "critical",
+  node_ready: "good",
+  node_switched: "info",
+};
+
+/** @param {{ level: keyof typeof LEVELS, className?: string }} props */
+function LevelIcon({ level, className = "" }) {
+  const l = LEVELS[level];
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className={`shrink-0 ${className}`}>
+      <circle cx="8" cy="8" r="7.5" fill={l.color} fillOpacity="0.16" />
+      <path d={l.icon} fill="none" stroke={l.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 /** Health state with the reserved status colors; always paired with an icon and a label. @param {{ level: keyof typeof LEVELS, label: string }} props */
 export function HealthBadge({ level, label }) {
-  const l = LEVELS[level];
   return (
     <span className="inline-flex items-center gap-1.5 text-sm text-ink">
-      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-        <circle cx="8" cy="8" r="7.5" fill={l.color} fillOpacity="0.16" />
-        <path d={l.icon} fill="none" stroke={l.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      <LevelIcon level={level} />
       {label}
     </span>
   );
@@ -206,15 +262,18 @@ export function EventsList({ events }) {
   return (
     <ul className="divide-y divide-line text-sm">
       {events.map((e) => (
-        <li key={e.id} className="flex flex-wrap items-baseline justify-between gap-x-4 py-2">
-          <span className="text-ink">
-            {EVENT_LABELS[/** @type {keyof typeof EVENT_LABELS} */ (e.type)] ?? e.type}
-            {e.payload?.height !== undefined && <span className="text-ink-2 tabular"> · height {formatInteger(e.payload.height)}</span>}
-            {e.payload?.status && <span className="text-ink-2"> · {e.payload.status}</span>}
-            {e.payload?.ip && <span className="text-ink-2"> · {e.payload.ip}</span>}
-            {e.payload?.from && e.payload?.to && <span className="text-ink-2"> · {e.payload.from} → {e.payload.to}</span>}
+        <li key={e.id} className="flex items-start justify-between gap-x-4 py-2">
+          <span className="flex min-w-0 items-start gap-2 text-ink">
+            <LevelIcon level={EVENT_LEVELS[e.type] ?? "info"} className="mt-0.5" />
+            <span className="min-w-0">
+              {EVENT_LABELS[/** @type {keyof typeof EVENT_LABELS} */ (e.type)] ?? e.type}
+              {e.payload?.height !== undefined && <span className="text-ink-2 tabular"> · height {formatInteger(e.payload.height)}</span>}
+              {e.payload?.status && <span className="text-ink-2"> · {e.payload.status}</span>}
+              {e.payload?.ip && <span className="text-ink-2"> · {e.payload.ip}</span>}
+              {e.payload?.from && e.payload?.to && <span className="text-ink-2"> · {e.payload.from} → {e.payload.to}</span>}
+            </span>
           </span>
-          <span className="text-xs text-muted" title={formatTime(e.createdAt)}>{formatAgo(e.createdAt)}</span>
+          <span className="shrink-0 pt-0.5 text-xs text-muted" title={formatTime(e.createdAt)}>{formatAgo(e.createdAt)}</span>
         </li>
       ))}
     </ul>

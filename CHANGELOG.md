@@ -35,6 +35,8 @@ First public version, planned as 0.1.0.
   updates over WebSocket.
 - Hashrate charts from 6 hours to 1 year, estimated from accepted shares, next to the
   hashrate miners report.
+- Chart smoothing (raw, light or strong, remembered per browser) with the raw buckets kept
+  as a faint line behind the smoothed one.
 - REST API for all dashboard data.
 - Optional XEL price in the header, in one of the largest currencies, and what found blocks are
   worth (mainnet only; off by default, chosen per browser under Settings). Fetched by the API

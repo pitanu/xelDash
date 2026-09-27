@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { usePolled } from "../api.js";
 import HashrateChart from "../components/HashrateChart.jsx";
-import { BlocksTable, Card, Segmented, StatTile, WorkersTable } from "../components/ui.jsx";
-import { formatAgo, formatHashrate, formatInteger, RANGES, formatBucket } from "../format.js";
+import { BlocksTable, Card, StatTile, WorkersTable } from "../components/ui.jsx";
+import { formatAgo, formatHashrate, formatInteger, formatBucket } from "../format.js";
 
 /** @param {{ address: string }} props */
 export default function Miner({ address }) {
@@ -29,19 +29,15 @@ export default function Miner({ address }) {
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="col-span-2">
-          <StatTile hero label="Hashrate, last hour" value={formatHashrate(hashrate1h)} detail={`Last 5 min: ${formatHashrate(hashrate5m)}`} />
+          <StatTile hero icon="hashrate" label="Hashrate, last hour" value={formatHashrate(hashrate1h)} detail={`Last 5 min: ${formatHashrate(hashrate5m)}`} />
         </div>
-        <StatTile label="Workers" value={formatInteger(m?.workers.length)} />
-        <StatTile label="Blocks found" value={formatInteger(blockList.filter((b) => b.status !== "rejected").length)}
+        <StatTile icon="workers" label="Workers" value={formatInteger(m?.workers.length)} />
+        <StatTile icon="block" label="Blocks found" value={formatInteger(blockList.filter((b) => b.status !== "rejected").length)}
           detail={`${blockList.filter((b) => b.status === "main-chain").length} main chain`} />
       </div>
 
-      <div className="flex items-center gap-3">
-        <span className="text-xs text-ink-2">Chart range</span>
-        <Segmented label="Chart range" value={range} options={RANGES} onChange={setRange} />
-      </div>
       <Card title="Hashrate" subtitle={history.data ? `${formatBucket(history.data.bucketSeconds)} buckets` : undefined}>
-        {history.data ? <HashrateChart points={history.data.points} dimmed={history.loading} /> : <div className="h-[220px]" />}
+        <HashrateChart points={history.data?.points ?? null} dimmed={history.loading} range={range} onRangeChange={setRange} />
       </Card>
 
       <Card title="Workers">{m && <WorkersTable workers={m.workers} address={address} />}</Card>

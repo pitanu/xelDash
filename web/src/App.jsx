@@ -11,6 +11,17 @@ import { formatMoney, usePrice } from "./price.js";
 
 const NAV = [["/", "Overview"], ["/blocks", "Blocks"], ["/health", "Health"], ["/settings", "Settings"]];
 
+/** The xelDash mark: a pickaxe-like X on the accent color. */
+function Logo() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" className="shrink-0">
+      <rect width="22" height="22" rx="6" fill="var(--series-1)" />
+      <path d="M6.5 6.5l9 9M15.5 6.5l-9 9" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+      <circle cx="11" cy="11" r="1.6" fill="var(--series-1)" stroke="#fff" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
 function LiveIndicator() {
   const live = useLive();
   const isLive = live.status === "live";
@@ -77,23 +88,28 @@ export default function App() {
 
   const section = ["/blocks", "/health", "/settings"].includes(route) ? route : route === "/node-data" ? "/health" : "/";
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <a href="#/" className="text-base font-semibold text-ink">xelDash</a>
-          <LiveIndicator />
-          <PriceChip />
-        </div>
-        <nav className="flex gap-1 text-sm">
-          {NAV.map(([href, label]) => (
-            <a key={href} href={`#${href}`} aria-current={section === href ? "page" : undefined}
-              className={`rounded-md px-2.5 py-1 ${section === href ? "bg-wash font-semibold text-ink" : "text-ink-2 hover:bg-wash hover:text-ink"}`}>
-              {label}
+    <div>
+      <header className="sticky top-0 z-20 border-b border-line bg-page/85 backdrop-blur supports-[backdrop-filter]:bg-page/70">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <a href="#/" className="flex items-center gap-2 text-base font-semibold tracking-tight text-ink">
+              <Logo />
+              xelDash
             </a>
-          ))}
-        </nav>
+            <LiveIndicator />
+            <PriceChip />
+          </div>
+          <nav className="flex gap-1 text-sm">
+            {NAV.map(([href, label]) => (
+              <a key={href} href={`#${href}`} aria-current={section === href ? "page" : undefined}
+                className={`rounded-md px-2.5 py-1 ${section === href ? "bg-wash font-semibold text-ink" : "text-ink-2 hover:bg-wash hover:text-ink"}`}>
+                {label}
+              </a>
+            ))}
+          </nav>
+        </div>
       </header>
-      <main>{page}</main>
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">{page}</main>
     </div>
   );
 }

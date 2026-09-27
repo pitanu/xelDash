@@ -1,7 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { formatHashrate, formatInteger, formatTime } from "../format.js";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { RANGES, formatHashrate, formatInteger, formatTime } from "../format.js";
+import { SMOOTHING, monotonePath, smooth } from "./chart-math.js";
+import { Segmented } from "./ui.jsx";
 
-const HEIGHT = 220;
+const HEIGHT = 240;
+const SMOOTHING_KEY = "xeldash.chartSmoothing";
+
+/** @returns {"raw" | "light" | "strong"} */
+function readSmoothing() {
+  try {
+    const saved = localStorage.getItem(SMOOTHING_KEY);
+    return saved === "raw" || saved === "strong" ? saved : "light";
+  } catch {
+    return "light";
+  }
+}
 const PAD = { top: 16, right: 16, bottom: 28, left: 68 };
 
 /** Round tick step to 1, 2 or 5 times a power of ten. @param {number} max @param {number} count */
@@ -30,15 +43,25 @@ function useWidth(ref) {
 
 /**
  * Single-series hashrate area chart. The card title names the series, so there is no legend.
- * @param {{ points: { time: string, hashrate: string, accepted: string, rejected: string }[], dimmed?: boolean }} props
+ * The line is smoothed (a choice kept per browser); the raw buckets stay behind it as a
+ * faint line, so short spikes and gaps remain visible.
+ * `points` is null while the first load is in flight; the frame and controls show already.
+ * @param {{ points: { time: string, hashrate: string, accepted: string, rejected: string }[] | null, dimmed?: boolean,
+ *   range: string, onRangeChange: (range: string) => void }} props
  */
-export default function HashrateChart({ points, dimmed = false }) {
+export default function HashrateChart({ points: loaded, dimmed = false, range, onRangeChange }) {
+  const points = loaded ?? [];
   const frame = useRef(null);
   const width = useWidth(frame);
   const [active, setActive] = useState(/** @type {number | null} */ (null));
   const [showTable, setShowTable] = useState(false);
+  const [smoothing, setSmoothing] = useState(readSmoothing);
+  const gradientId = useId();
 
-  const values = useMemo(() => points.map((p) => Number(p.hashrate)), [points]);
+  const raw = useMemo(() => points.map((p) => Number(p.hashrate)), [points]);
+  const values = useMemo(() => smooth(raw, smoothing), [raw, smoothing]);
+  const smoothed = smoothing !== "raw";
+  // The scale fits the smoothed line; raw spikes above it are clipped at the top.
   const max = Math.max(0, ...values);
   const ticks = niceTicks(max, 4);
   const top = ticks[ticks.length - 1] || 1;
@@ -47,8 +70,22 @@ export default function HashrateChart({ points, dimmed = false }) {
   const x = (/** @type {number} */ i) => PAD.left + (points.length > 1 ? (i / (points.length - 1)) * plotW : plotW / 2);
   const y = (/** @type {number} */ v) => PAD.top + plotH - (v / top) * plotH;
 
-  const line = values.map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+  const xs = values.map((_, i) => x(i));
+  const line = smoothed
+    ? monotonePath(xs, values.map(y))
+    : values.map((v, i) => `${i === 0 ? "M" : "L"}${xs[i].toFixed(1)},${y(v).toFixed(1)}`).join("");
+  const rawLine = smoothed ? raw.map((v, i) => `${i === 0 ? "M" : "L"}${xs[i].toFixed(1)},${y(Math.min(v, top)).toFixed(1)}`).join("") : "";
   const area = values.length ? `${line}L${x(values.length - 1).toFixed(1)},${y(0)}L${x(0).toFixed(1)},${y(0)}Z` : "";
+
+  /** @param {"raw" | "light" | "strong"} level */
+  function chooseSmoothing(level) {
+    setSmoothing(level);
+    try {
+      localStorage.setItem(SMOOTHING_KEY, level);
+    } catch {
+      // Not remembered in private mode.
+    }
+  }
   const xTickCount = Math.max(2, Math.min(6, Math.floor(plotW / 110)));
   const xTicks = points.length > 1
     ? Array.from({ length: xTickCount }, (_, k) => Math.round((k / (xTickCount - 1)) * (points.length - 1)))
@@ -72,10 +109,14 @@ export default function HashrateChart({ points, dimmed = false }) {
     setActive((i) => Math.min(points.length - 1, Math.max(0, (i ?? last) + step)));
   }
 
-  const tooltipLeft = shown === null ? 0 : Math.min(Math.max(x(shown) - 80, 0), Math.max(0, width - 160));
+  const tooltipLeft = shown === null ? 0 : Math.min(Math.max(x(shown) - 88, 0), Math.max(0, width - 176));
 
   return (
     <div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <Segmented label="Chart range" value={range} options={RANGES} onChange={onRangeChange} />
+        <Segmented label="Smoothing" value={smoothing} options={SMOOTHING} onChange={chooseSmoothing} />
+      </div>
       <div ref={frame} className={`relative transition-opacity ${dimmed ? "opacity-60" : ""}`}>
         {width > 0 && (
           <svg
@@ -104,9 +145,16 @@ export default function HashrateChart({ points, dimmed = false }) {
                 {formatTime(points[i].time)}
               </text>
             ))}
+            <defs>
+              <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stopColor="var(--series-1)" stopOpacity="0.18" />
+                <stop offset="1" stopColor="var(--series-1)" stopOpacity="0.01" />
+              </linearGradient>
+            </defs>
             {!empty && (
               <>
-                <path d={area} fill="var(--series-1)" fillOpacity="0.1" />
+                <path d={area} fill={`url(#${gradientId})`} />
+                {smoothed && <path d={rawLine} fill="none" stroke="var(--series-1)" strokeOpacity="0.3" strokeWidth="1" strokeLinejoin="round" />}
                 <path d={line} fill="none" stroke="var(--series-1)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
               </>
             )}
@@ -125,7 +173,7 @@ export default function HashrateChart({ points, dimmed = false }) {
                 <circle cx={x(shown)} cy={y(values[shown])} r="4" fill="var(--series-1)" stroke="var(--surface)" strokeWidth="2" />
               </>
             )}
-            {empty && (
+            {empty && loaded && (
               <text x={PAD.left + plotW / 2} y={PAD.top + plotH / 2} textAnchor="middle" fontSize="13" fill="var(--muted)">
                 No accepted shares in this range
               </text>
@@ -135,12 +183,14 @@ export default function HashrateChart({ points, dimmed = false }) {
           </svg>
         )}
         {shown !== null && points[shown] && (
-          <div className="pointer-events-none absolute top-0 w-40 rounded-md border border-line bg-surface px-3 py-2 text-xs shadow-sm"
+          <div className="pointer-events-none absolute top-0 w-44 rounded-md border border-line bg-surface px-3 py-2 text-xs shadow-sm"
             style={{ left: tooltipLeft }}>
             <div className="flex items-center gap-2">
               <span className="h-0.5 w-3 rounded bg-series-1" />
               <span className="text-sm font-semibold text-ink tabular">{formatHashrate(values[shown])}</span>
+              {smoothed && <span className="text-muted">smoothed</span>}
             </div>
+            {smoothed && <div className="mt-0.5 text-ink-2 tabular">This bucket: {formatHashrate(raw[shown])}</div>}
             <div className="mt-1 text-ink-2">{formatTime(points[shown].time)}</div>
             <div className="text-muted tabular">
               {formatInteger(points[shown].accepted)} accepted · {formatInteger(points[shown].rejected)} rejected
