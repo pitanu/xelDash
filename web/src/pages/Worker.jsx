@@ -7,6 +7,7 @@ import { formatAgo, formatHashrate, formatInteger, shorten, formatBucket } from 
 const REJECT_LABELS = {
   low_difficulty: "Below share target",
   duplicate: "Duplicate share",
+  stale: "Stale (arrived after a new block)",
 };
 
 /** @param {{ address: string, name: string }} props */
@@ -58,7 +59,7 @@ export default function Worker({ address, name }) {
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Rejected shares by reason" subtitle="Last 24 hours; stale shares are not stored">
+        <Card title="Rejected shares by reason" subtitle="Last 24 hours">
           {w && (w.rejectReasons24h.length === 0
             ? <p className="text-sm text-muted">No rejected shares.</p>
             : (

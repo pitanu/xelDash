@@ -1,8 +1,8 @@
 import { createServer } from "node:net";
 import { createServer as createTlsServer } from "node:tls";
 import {
-  createPool, listActiveBans, notifyLive, recordBan, recordReportedHashrate, recordServiceEvent, retentionConfigFromEnv,
-  runRetention,
+  createPool, listActiveBans, notifyLive, recordBan, recordReportedHashrate, recordServiceEvent, recordShare,
+  retentionConfigFromEnv, runRetention,
 } from "@xeldash/db";
 import { createWorkerAuthorizer } from "./authorize-worker.js";
 import { BlockTracker } from "./block-tracker.js";
@@ -23,6 +23,11 @@ const port = Number.parseInt(process.env.STRATUM_PORT ?? "3333", 10);
 const handshakeTimeoutMs = Number.parseInt(process.env.STRATUM_HANDSHAKE_TIMEOUT_MS ?? "10000", 10);
 const maxQueuedRequests = Number.parseInt(process.env.STRATUM_MAX_QUEUED_REQUESTS ?? "32", 10);
 const jobRefreshIntervalMs = Number.parseInt(process.env.STRATUM_JOB_REFRESH_MS ?? "5000", 10);
+// How long shares on jobs replaced by a new block are still accepted (see session.js).
+const staleGraceMs = Number.parseInt(process.env.STRATUM_STALE_GRACE_MS ?? "1500", 10);
+if (!Number.isSafeInteger(staleGraceMs) || staleGraceMs < 0 || staleGraceMs > 30_000) {
+  throw new Error("STRATUM_STALE_GRACE_MS must be an integer from 0 to 30000");
+}
 const vardiff = vardiffConfigFromEnv(process.env);
 const ipGuardConfig = ipGuardConfigFromEnv(process.env);
 const retention = retentionConfigFromEnv(process.env);
@@ -138,6 +143,11 @@ function newSession(socket, ip, onAuthorized = () => {}) {
     defaultAddress: process.env.XELIS_DEFAULT_ADDRESS ?? "",
     onAuthorized,
     onSubmission: (valid) => ipGuard.record(ip, valid),
+    staleGraceMs,
+    onStale: ({ worker, jobId, nonce, difficulty }) => {
+      recordShare(pool, { workerId: worker.workerId, jobId, nonce, difficulty: String(difficulty), accepted: false, rejectReason: "stale" })
+        .catch((error) => console.warn("Failed to record a stale share:", error instanceof Error ? error.message : String(error)));
+    },
     onHashrate: ({ worker, hashrate }) => {
       const key = String(worker.workerId);
       const now = Date.now();

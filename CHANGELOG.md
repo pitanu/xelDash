@@ -18,6 +18,8 @@ First public version, planned as 0.1.0.
   daemon on devnet.
 - Per-connection vardiff (10 s per share by default).
 - Works with classic Stratum miners that leave out `"jsonrpc"`; tested with Rigel 1.23.0.
+- Shares on the previous job are accepted for 1.5 s after a new block (`STRATUM_STALE_GRACE_MS`),
+  so GPUs finishing a batch are not rejected; later stale shares are counted as rejected.
 - Getwork endpoint (port 8090) for the official `xelis_miner`, with the same stats and
   limits as Stratum.
 - Optional TLS Stratum port (3334).

@@ -17,6 +17,10 @@ const MAX_WORKERS_PER_CONNECTION = 32;
 // Control characters (terminal escapes, bells, newlines) could spoof log lines and alerts.
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/;
 const MAX_TRACKED_JOBS = 5;
+// After a new block, work on the previous jobs is still in flight on the miner (a GPU finishes
+// its current batch before it switches). Shares on them within this window are real work and
+// are accepted; later ones are stale.
+export const DEFAULT_STALE_GRACE_MS = 1_500;
 // Timestamp slack for getwork submissions: miners bump the work timestamp while hashing.
 const MAX_FUTURE_TIMESTAMP_MS = 30_000;
 /** A TCP socket, or the getwork WebSocket adapter. @typedef {{ remoteAddress?: string, destroyed: boolean, write: (data: string) => unknown }} StratumSocket */
@@ -34,13 +38,15 @@ export class StratumSession {
    *   onHashrate?: (input: { worker: MiningIdentity, workerName: string, hashrate: number }) => void,
    *   onAuthorized?: () => void,
    *   onSubmission?: (valid: boolean) => void,
+   *   onStale?: (input: { worker: MiningIdentity, workerName: string, jobId: string, nonce: string, difficulty: number }) => void,
+   *   staleGraceMs?: number,
    *   canMine?: () => string | null,
    *   jobRefreshIntervalMs?: number,
    *   vardiff?: import("./vardiff.js").VardiffConfig,
    *   defaultAddress?: string,
    *   logger?: Pick<Console, "warn"> }} options
    */
-  constructor({ socket, authorizeAddress, createJob = null, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, onSubmission = () => {}, canMine = () => null, jobRefreshIntervalMs = 5000, vardiff = DEFAULT_VARDIFF, defaultAddress = "", logger = console }) {
+  constructor({ socket, authorizeAddress, createJob = null, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, onSubmission = () => {}, onStale = () => {}, staleGraceMs = DEFAULT_STALE_GRACE_MS, canMine = () => null, jobRefreshIntervalMs = 5000, vardiff = DEFAULT_VARDIFF, defaultAddress = "", logger = console }) {
     this.socket = socket;
     this.authorizeAddress = authorizeAddress;
     this.createJob = createJob;
@@ -50,6 +56,11 @@ export class StratumSession {
     // Reports each submission as valid or invalid for abuse limits. Stale shares and requests
     // that fail on our side are not reported.
     this.onSubmission = onSubmission;
+    // Records a share that came too late, so the dashboard's reject count matches the miner's.
+    this.onStale = onStale;
+    this.staleGraceMs = staleGraceMs;
+    /** Jobs replaced by a new block, still accepted until `until`. @type {Map<string, { job: MiningJob, until: number }>} */
+    this.graceJobs = new Map();
     // Returns why work cannot be issued right now (node syncing or down), or null.
     this.canMine = canMine;
     this.jobRefreshIntervalMs = jobRefreshIntervalMs;
@@ -352,13 +363,43 @@ export class StratumSession {
    * @param {MiningJob} job @param {boolean} clean
    */
   trackJob(job, clean) {
-    if (clean) this.jobs.clear();
+    if (clean) {
+      const until = Date.now() + this.staleGraceMs;
+      for (const [jobId, previous] of this.jobs) this.graceJobs.set(jobId, { job: previous, until });
+      this.jobs.clear();
+      this.liveGraceJobs();
+    }
     this.jobs.set(job.jobId, job);
     while (this.jobs.size > MAX_TRACKED_JOBS) {
       const oldestJobId = this.jobs.keys().next().value;
       if (!oldestJobId) break;
       this.jobs.delete(oldestJobId);
     }
+  }
+
+  /** A current job, or one replaced by a new block within the grace window. @param {string} jobId */
+  findJob(jobId) {
+    const job = this.jobs.get(jobId);
+    if (job) return job;
+    const grace = this.graceJobs.get(jobId);
+    return grace && grace.until > Date.now() ? grace.job : undefined;
+  }
+
+  /** Jobs still in their grace window; drops expired ones. */
+  liveGraceJobs() {
+    const now = Date.now();
+    for (const [jobId, grace] of this.graceJobs) if (grace.until <= now) this.graceJobs.delete(jobId);
+    return [...this.graceJobs.values()].map((grace) => grace.job);
+  }
+
+  /**
+   * Count a late share as rejected (stale), at the difficulty the miner was working to. It is
+   * not held against the miner: late work is normal after a new block.
+   * @param {MiningIdentity} worker @param {string} workerName @param {string} jobId @param {string} nonce
+   */
+  recordStale(worker, workerName, jobId, nonce) {
+    const latestJob = [...this.jobs.values()].at(-1);
+    this.onStale({ worker, workerName, jobId, nonce, difficulty: latestJob?.shareDifficulty ?? this.vardiff.difficulty });
   }
 
   close() {
@@ -385,8 +426,9 @@ export class StratumSession {
       this.send(errorResponse(request.id, STRATUM_ERRORS.STALE_JOB, "No active mining job"));
       return;
     }
-    const job = this.jobs.get(jobId);
+    const job = this.findJob(jobId);
     if (!job) {
+      this.recordStale(worker, workerName, jobId, nonce.toLowerCase());
       this.send(errorResponse(request.id, STRATUM_ERRORS.STALE_JOB, "Stale or unknown job"));
       return;
     }
@@ -444,8 +486,11 @@ export class StratumSession {
     const work = Buffer.from(minerWorkHex, "hex");
     const headerWorkHash = work.subarray(0, 32).toString("hex");
     // A header can be reissued at a new difficulty; the latest issue is what the miner has.
-    const job = [...this.jobs.values()].reverse().find((candidate) => candidate.headerWorkHash === headerWorkHash);
-    if (!job) return { stale: true, error: { code: STRATUM_ERRORS.STALE_JOB, message: "Stale or unknown job" } };
+    const job = [...this.liveGraceJobs(), ...this.jobs.values()].reverse().find((candidate) => candidate.headerWorkHash === headerWorkHash);
+    if (!job) {
+      this.recordStale(worker, workerName, headerWorkHash, minerWorkHex.slice(64, 96).toLowerCase());
+      return { stale: true, error: { code: STRATUM_ERRORS.STALE_JOB, message: "Stale or unknown job" } };
+    }
 
     const timestamp = work.readBigUInt64BE(32);
     const issued = BigInt(`0x${job.timestampHex}`);
