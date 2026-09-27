@@ -2,13 +2,16 @@
 
 Open:
 
-- Test a third-party Stratum miner (SRBMiner, lolMiner or similar) against the devnet stack.
+- Test more third-party Stratum miners (SRBMiner, lolMiner, OneZeroMiner) against the stack.
 - Upstream glibc mismatch (built on Debian 13, shipped on cc-debian12; commit 99599508) is
   fixed upstream in commit f6ea12c (2026-09-27), not yet released: `1.25.0` and `latest`
   are still the broken build. When a fixed release ships, test it without the re-base in
   docker/daemon/Dockerfile and bump XELIS_DAEMON_IMAGE; the busybox wrapper stays.
 
 Resolved:
+
+- Rigel 1.23.0 (RTX 3060 Ti, about 8.7 KH/s) mines on mainnet through Stratum; all shares
+  accepted. It sends classic Stratum without `"jsonrpc"`, which is now accepted.
 
 - License (MIT) and name (xelDash) decided.
 - Optional `proxy` profile (Caddy): HTTPS, a login for the dashboard, and a host-name check.

@@ -77,11 +77,17 @@ export class StratumSession {
   /** @param {string} line */
   async handleLine(line) {
     let request;
+    /** @type {unknown} */
+    let parsed = null;
     try {
-      request = parseRequest(JSON.parse(line));
+      parsed = JSON.parse(line);
+      request = parseRequest(parsed);
     } catch (error) {
       this.onSubmission(false);
-      this.send(errorResponse(null, -32600, error instanceof Error ? error.message : String(error)));
+      // Answer under the request's own id when it has a usable one, so the miner can match it.
+      const rawId = parsed && typeof parsed === "object" ? /** @type {Record<string, unknown>} */ (parsed).id : null;
+      const id = typeof rawId === "string" || Number.isSafeInteger(rawId) ? /** @type {string | number} */ (rawId) : null;
+      this.send(errorResponse(id, -32600, error instanceof Error ? error.message : String(error)));
       return;
     }
 

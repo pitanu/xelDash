@@ -28,7 +28,9 @@ export function parseRequest(value) {
     throw new TypeError("Invalid JSON-RPC request");
   }
   const request = /** @type {Record<string, unknown>} */ (value);
-  if (request.jsonrpc !== "2.0" || typeof request.method !== "string"
+  // GPU miners such as Rigel speak classic Stratum and leave out "jsonrpc"; accept that, but
+  // not a different version.
+  if ((request.jsonrpc !== undefined && request.jsonrpc !== "2.0") || typeof request.method !== "string"
       || !Array.isArray(request.params ?? [])) {
     throw new TypeError("Invalid JSON-RPC request");
   }

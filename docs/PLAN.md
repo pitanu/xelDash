@@ -1,7 +1,7 @@
 # xelDash: Project Plan
 
 *Last updated: 2026-09-27. Status: Phases 1 to 5 done and verified on a private devnet;
-Phase 6 (release) waits on a mainnet trial and third-party miner tests.*
+mainnet trial done and Rigel tested; Phase 6 (release) waits on more third-party miner tests.*
 
 Each section is marked **Decided**, **Draft** (a proposal to confirm), or **Open** (not
 discussed yet). Decisions are recorded in [DECISIONS.md](DECISIONS.md); open work is in
@@ -55,8 +55,8 @@ discussed yet). Decisions are recorded in [DECISIONS.md](DECISIONS.md); open wor
 - **TLS Stratum** (port 3334) is optional: `STRATUM_TLS_ENABLED=true` and a certificate in
   `docker/stratum-tls/`.
 - **Miner compatibility (open):** verified with our devnet test miner and xelis_miner
-  1.21.3 over getwork. SRBMiner, lolMiner, OneZeroMiner, Rigel and others still need a run
-  (issue template: "Miner compatibility report").
+  1.21.3 over getwork, and with Rigel 1.23.0 over Stratum on mainnet. SRBMiner, lolMiner,
+  OneZeroMiner and others still need a run (issue template: "Miner compatibility report").
 - **Algorithm:** XELIS Hash V3 (block versions 3 to 7). A future algorithm needs a new
   addon release before its fork height; see [OPERATIONS.md](OPERATIONS.md#algorithm-changes).
 

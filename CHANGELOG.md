@@ -17,6 +17,7 @@ First public version, planned as 0.1.0.
   pool. Hashing, MinerWork layout, block hash and block submission are verified against the
   daemon on devnet.
 - Per-connection vardiff (10 s per share by default).
+- Works with classic Stratum miners that leave out `"jsonrpc"`; tested with Rigel 1.23.0.
 - Getwork endpoint (port 8090) for the official `xelis_miner`, with the same stats and
   limits as Stratum.
 - Optional TLS Stratum port (3334).

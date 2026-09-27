@@ -8,9 +8,9 @@ shares, and time-to-block estimates like a pool would show. Only solved blocks a
 to your own node, and each block pays the miner's own address directly: xelDash holds no
 funds and has no balances, payouts or wallet.
 
-**Status:** feature-complete for a first release and verified end to end on a private devnet.
-Before 0.1.0: a mainnet trial and tests with third-party GPU miners (see
-[docs/ISSUES.md](docs/ISSUES.md)).
+**Status:** feature-complete for a first release, verified end to end on a private devnet and
+in a mainnet trial, and tested with Rigel 1.23.0 on a GPU. Before 0.1.0: tests with more
+third-party miners (see [docs/ISSUES.md](docs/ISSUES.md)).
 
 ## What you get
 
@@ -47,7 +47,7 @@ Use your own XELIS address as the user name; the worker name is optional.
 
 | Miner type | Pool URL | User / worker |
 |------------|----------|---------------|
-| Stratum (SRBMiner, lolMiner, ...) | `stratum+tcp://<host>:3333` | `<your xel: address>` / `<rig name>` |
+| Stratum (Rigel, SRBMiner, lolMiner, ...) | `stratum+tcp://<host>:3333` | `<your xel: address>` / `<rig name>` |
 | Stratum over TLS (if enabled) | `stratum+ssl://<host>:3334` | same |
 | Official xelis_miner | `--daemon-address ws://<host>:8090 --miner-address <address> --worker <rig>` | |
 
