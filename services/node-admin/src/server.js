@@ -83,7 +83,7 @@ const server = createServer(async (request, response) => {
       return;
     }
     if (!adminToken) {
-      send(response, 403, { error: "Snapshot actions are off. Set XELDASH_ADMIN_TOKEN in .env to enable them." });
+      send(response, 403, { error: "Node changes are off. Set XELDASH_ADMIN_TOKEN in .env to enable them." });
       return;
     }
     if (!authorized(request)) {
@@ -91,6 +91,11 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    // Lets the dashboard check a token when it is entered, not on the first change.
+    if (request.method === "POST" && path === "/token/check") {
+      send(response, 200, { ok: true });
+      return;
+    }
     if (request.method === "PUT" && path === "/snapshot/upload") {
       const size = Number(request.headers["content-length"]);
       if (!Number.isSafeInteger(size) || size <= 0 || size > MAX_UPLOAD_BYTES) {
