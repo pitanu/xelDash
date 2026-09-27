@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatAgo, formatTime } from "../format.js";
+import { GUIDE } from "./settings-guide.js";
 import { Card, HealthBadge } from "./ui.jsx";
 
 const UNCHANGED_SECRET = "__unchanged__";
@@ -18,6 +19,42 @@ const PEER = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d))
 /** @param {string} text */
 function splitPeers(text) {
   return text.split(/[\s,]+/).filter(Boolean);
+}
+
+/**
+ * The input for one daemon option: a switch, a list of choices, or a text value.
+ * @param {{ s: any, value: string | true | undefined, locked: boolean, placeholder?: string,
+ *   set: (flag: string, value: string | true | null) => void }} props
+ */
+function Control({ s, value, locked, placeholder, set }) {
+  const changed = value !== undefined;
+  return (
+    <div className="flex items-center gap-2">
+      {s.valueName === null ? (
+        <label className="flex items-center gap-2 text-sm text-ink">
+          <input type="checkbox" disabled={locked} checked={value === true}
+            onChange={(e) => set(s.flag, e.target.checked ? true : null)} />
+          {value === true ? "On" : "Off"}
+        </label>
+      ) : s.choices.length > 0 ? (
+        <select disabled={locked} value={typeof value === "string" ? value : ""} onChange={(e) => set(s.flag, e.target.value || null)}
+          className="w-full rounded-md border border-line bg-page px-2 py-1.5 text-sm text-ink">
+          <option value="">Default{s.default ? ` (${s.default})` : ""}</option>
+          {s.choices.map((/** @type {string} */ c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      ) : (
+        <input type={s.secret ? "password" : "text"} disabled={locked} autoComplete="off"
+          value={value === UNCHANGED_SECRET ? "" : typeof value === "string" ? value : ""}
+          placeholder={value === UNCHANGED_SECRET ? "Saved (hidden)" : s.default ? `Default: ${s.default}` : placeholder ?? "Not set"}
+          onChange={(e) => set(s.flag, e.target.value || (value === UNCHANGED_SECRET ? UNCHANGED_SECRET : null))}
+          className="w-full min-w-0 rounded-md border border-line bg-page px-2 py-1.5 text-sm text-ink" />
+      )}
+      {changed && !locked && (
+        <button type="button" onClick={() => set(s.flag, null)} title="Back to the default"
+          className="text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">Reset</button>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -55,36 +92,38 @@ function TrustedPeers({ draft, set, locked }) {
   }
 
   return (
-    <section className="space-y-2 rounded-md border border-line p-3">
+    <section className="space-y-2">
       <div>
         <h3 className="text-sm font-semibold text-ink">Trusted peers</h3>
-        <p className="text-xs text-ink-2">Nodes you trust, such as your other XELIS nodes or a friend's. One IP:port per line, for example 203.0.113.5:2125.</p>
+        <p className="text-xs text-ink-2">Nodes you trust, such as your other XELIS nodes or a friend's. One IP:port per line, for example 203.0.113.5:2125. Leave empty to rely on normal peer discovery.</p>
       </div>
-      {both ? (
-        <p className="text-xs text-serious">Both --priority-nodes and --exclusive-nodes are set. Edit them in the P2P options below.</p>
-      ) : (
-        <>
-          <textarea value={text} disabled={locked} rows={Math.min(8, Math.max(3, peers.length + 1))} spellCheck={false}
-            onChange={(e) => edit(e.target.value)} aria-label="Trusted peers" placeholder={"203.0.113.5:2125\n198.51.100.7:2125"}
-            className="w-full rounded-md border border-line bg-page px-3 py-2 font-mono text-sm text-ink" />
-          {invalid.length > 0 && (
-            <p className="text-xs text-critical">Not an IP:port: {invalid.join(", ")}. Host names are not accepted by the daemon.</p>
-          )}
-          <fieldset className="grid gap-2 sm:grid-cols-2" disabled={locked}>
-            <legend className="sr-only">How the node uses these peers</legend>
-            <label className="flex gap-2 rounded-md border border-line p-2 text-sm">
-              <input type="radio" name="peer-mode" checked={mode === "priority"} onChange={() => switchMode("priority")} />
-              <span><span className="font-medium text-ink">Priority</span>
-                <span className="block text-xs text-ink-2">Connect to these first, and still find other peers as usual.</span></span>
-            </label>
-            <label className="flex gap-2 rounded-md border border-line p-2 text-sm">
-              <input type="radio" name="peer-mode" checked={mode === "exclusive"} onChange={() => switchMode("exclusive")} />
-              <span><span className="font-medium text-ink">Exclusive</span>
-                <span className="block text-xs text-ink-2">Only ever talk to these peers. If they all go down, the node stops syncing.</span></span>
-            </label>
-          </fieldset>
-        </>
-      )}
+      <div className="space-y-2 rounded-md border border-line p-3">
+        {both ? (
+          <p className="text-xs text-serious">Both --priority-nodes and --exclusive-nodes are set. Edit them under All daemon options below.</p>
+        ) : (
+          <>
+            <textarea value={text} disabled={locked} rows={Math.min(8, Math.max(3, peers.length + 1))} spellCheck={false}
+              onChange={(e) => edit(e.target.value)} aria-label="Trusted peers" placeholder={"203.0.113.5:2125\n198.51.100.7:2125"}
+              className="w-full rounded-md border border-line bg-page px-3 py-2 font-mono text-sm text-ink" />
+            {invalid.length > 0 && (
+              <p className="text-xs text-critical">Not an IP:port: {invalid.join(", ")}. Host names are not accepted by the daemon.</p>
+            )}
+            <fieldset className="grid gap-2 sm:grid-cols-2" disabled={locked}>
+              <legend className="sr-only">How the node uses these peers</legend>
+              <label className="flex gap-2 rounded-md border border-line p-2 text-sm">
+                <input type="radio" name="peer-mode" checked={mode === "priority"} onChange={() => switchMode("priority")} />
+                <span><span className="font-medium text-ink">Priority</span>
+                  <span className="block text-xs text-ink-2">Connect to these first, and still find other peers as usual.</span></span>
+              </label>
+              <label className="flex gap-2 rounded-md border border-line p-2 text-sm">
+                <input type="radio" name="peer-mode" checked={mode === "exclusive"} onChange={() => switchMode("exclusive")} />
+                <span><span className="font-medium text-ink">Exclusive</span>
+                  <span className="block text-xs text-ink-2">Only ever talk to these peers. If they all go down, the node stops syncing.</span></span>
+              </label>
+            </fieldset>
+          </>
+        )}
+      </div>
     </section>
   );
 }
@@ -193,17 +232,19 @@ export default function DaemonSettings({ token, onUnauthorized }) {
   if (!data) return null;
   if (!data.available) {
     return (
-      <Card title="Daemon settings">
+      <Card title="Node settings">
         <p className="text-sm text-ink-2">The node has not reported its settings yet. They appear once it has started.</p>
       </Card>
     );
   }
 
   const r = data.lastResult;
+  const bySchema = new Map(data.schema.map((/** @type {any} */ s) => [s.flag, s]));
+  const syncConflict = draft["allow-fast-sync"] === true && draft["allow-boost-sync"] === true;
   return (
-    <Card title="Daemon settings"
-      subtitle={`${data.schema.length} options from the installed daemon. ${changedFromDefault ? `${changedFromDefault} changed from the default.` : "All at their defaults."}`}>
-      <div className="space-y-4">
+    <Card title="Node settings"
+      subtitle="Settings of your XELIS node. Changes apply when you save and the node restarts, which takes a few seconds.">
+      <div className="space-y-5">
         {waiting && <p className="text-sm text-ink-2">Restarting the node with the new settings…</p>}
         {!waiting && r && (
           <div className="flex flex-wrap items-start gap-2 rounded-md border border-line p-3 text-sm">
@@ -219,90 +260,109 @@ export default function DaemonSettings({ token, onUnauthorized }) {
 
         <TrustedPeers draft={draft} set={set} locked={locked} />
 
-        <div className="flex flex-wrap items-center gap-3">
-          <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search options"
-            aria-label="Search options" className="min-w-0 flex-1 rounded-md border border-line bg-page px-3 py-1.5 text-sm text-ink" />
-          <label className="flex items-center gap-2 text-sm text-ink-2">
-            <input type="checkbox" checked={changedOnly} onChange={(e) => setChangedOnly(e.target.checked)} />
-            Changed only
-          </label>
-        </div>
-
-        {groups.length === 0 && <p className="text-sm text-muted">No options match.</p>}
-        {groups.map(([group, items]) => (
-          <details key={group} open={Boolean(query) || changedOnly || group === "Core"} className="rounded-md border border-line">
-            <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-ink">
-              {group} <span className="font-normal text-muted">· {items.length}{items.some((s) => s.flag in draft) ? ` · ${items.filter((s) => s.flag in draft).length} changed` : ""}</span>
-            </summary>
-            <ul className="divide-y divide-line">
-              {items.map((s) => {
-                const value = draft[s.flag];
-                const changed = s.flag in draft;
-                const [firstLine, ...rest] = s.description.split("\n\n");
-                const open = expanded === s.flag;
-                return (
-                  <li key={s.flag} className="grid gap-2 px-3 py-2.5 sm:grid-cols-[1fr_16rem] sm:items-start">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <code className="break-all text-sm text-ink">--{s.flag}</code>
-                        {changed && <span className="rounded bg-wash px-1.5 py-0.5 text-xs text-ink-2">Changed</span>}
-                        {s.caution && <span className="text-xs text-serious" title="Changes how the node stores or checks the chain">⚠ Use with care</span>}
+        {GUIDE.map((section) => {
+          const entries = section.entries.filter((e) => bySchema.has(e.flag));
+          if (entries.length === 0) return null;
+          return (
+            <section key={section.title} className="space-y-2">
+              <div>
+                <h3 className="text-sm font-semibold text-ink">{section.title}</h3>
+                <p className="text-xs text-ink-2">{section.intro}</p>
+              </div>
+              <ul className="divide-y divide-line rounded-md border border-line">
+                {entries.map((e) => {
+                  const s = bySchema.get(e.flag);
+                  const conflict = syncConflict && (e.flag === "allow-fast-sync" || e.flag === "allow-boost-sync");
+                  return (
+                    <li key={e.flag} className="grid gap-2 px-3 py-3 sm:grid-cols-[1fr_16rem] sm:items-start">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium text-ink">{e.title}</span>
+                          {e.flag in draft && <span className="rounded bg-wash px-1.5 py-0.5 text-xs text-ink-2">Changed</span>}
+                          {s.caution && <span className="text-xs text-serious" title="Changes how the node stores or checks the chain">⚠ Use with care</span>}
+                        </div>
+                        <p className="mt-0.5 text-sm text-ink-2">{e.explain}</p>
+                        {e.tip && <p className="mt-1 text-xs text-muted">{e.tip}</p>}
+                        {conflict && <p className="mt-1 text-xs text-critical">Boost sync and fast sync cannot be on together; turn one off.</p>}
+                        <p className="mt-1 text-xs text-muted"><code>--{e.flag}</code>{s.default ? ` · default ${s.default}` : ""}</p>
                       </div>
-                      <p className="mt-0.5 text-xs text-ink-2">{firstLine}</p>
-                      {s.note && <p className="mt-0.5 text-xs text-serious">{s.note}</p>}
-                      {rest.length > 0 && (
-                        <button type="button" onClick={() => setExpanded(open ? null : s.flag)} className="text-xs text-muted underline decoration-line underline-offset-2">
-                          {open ? "Less" : "More"}
-                        </button>
-                      )}
-                      {open && <p className="mt-1 whitespace-pre-line text-xs text-ink-2">{rest.join("\n\n")}</p>}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {s.valueName === null ? (
-                        <label className="flex items-center gap-2 text-sm text-ink">
-                          <input type="checkbox" disabled={locked} checked={value === true}
-                            onChange={(e) => set(s.flag, e.target.checked ? true : null)} />
-                          {value === true ? "On" : "Off"}
-                        </label>
-                      ) : s.choices.length > 0 ? (
-                        <select disabled={locked} value={typeof value === "string" ? value : ""} onChange={(e) => set(s.flag, e.target.value || null)}
-                          className="w-full rounded-md border border-line bg-page px-2 py-1.5 text-sm text-ink">
-                          <option value="">Default{s.default ? ` (${s.default})` : ""}</option>
-                          {s.choices.map((c) => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      ) : (
-                        <input type={s.secret ? "password" : "text"} disabled={locked} autoComplete="off"
-                          value={value === UNCHANGED_SECRET ? "" : typeof value === "string" ? value : ""}
-                          placeholder={value === UNCHANGED_SECRET ? "Saved (hidden)" : s.default ? `Default: ${s.default}` : "Not set"}
-                          onChange={(e) => set(s.flag, e.target.value || (value === UNCHANGED_SECRET ? UNCHANGED_SECRET : null))}
-                          className="w-full min-w-0 rounded-md border border-line bg-page px-2 py-1.5 text-sm text-ink" />
-                      )}
-                      {changed && !locked && (
-                        <button type="button" onClick={() => set(s.flag, null)} title="Back to the default"
-                          className="text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">Reset</button>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </details>
-        ))}
+                      <Control s={s} value={draft[e.flag]} locked={locked} placeholder={e.placeholder} set={set} />
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          );
+        })}
 
-        <p className="text-xs text-muted">
-          Set by xelDash and not editable here: {data.locked.map((f) => `--${f}`).join(", ")}.
-        </p>
+        <details open={Boolean(query) || changedOnly} className="rounded-md border border-line">
+          <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-ink">
+            All daemon options <span className="font-normal text-muted">· {data.schema.length} from the installed daemon{changedFromDefault ? ` · ${changedFromDefault} changed` : ""}</span>
+          </summary>
+          <div className="space-y-3 border-t border-line p-3">
+            <p className="text-xs text-ink-2">
+              Every option of the installed XELIS daemon, with the daemon's own description. Most setups never need these.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search options"
+                aria-label="Search options" className="min-w-0 flex-1 rounded-md border border-line bg-page px-3 py-1.5 text-sm text-ink" />
+              <label className="flex items-center gap-2 text-sm text-ink-2">
+                <input type="checkbox" checked={changedOnly} onChange={(e) => setChangedOnly(e.target.checked)} />
+                Changed only
+              </label>
+            </div>
+            {groups.length === 0 && <p className="text-sm text-muted">No options match.</p>}
+            {groups.map(([group, items]) => (
+              <details key={group} open={Boolean(query) || changedOnly} className="rounded-md border border-line">
+                <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-ink">
+                  {group} <span className="font-normal text-muted">· {items.length}{items.some((s) => s.flag in draft) ? ` · ${items.filter((s) => s.flag in draft).length} changed` : ""}</span>
+                </summary>
+                <ul className="divide-y divide-line">
+                  {items.map((s) => {
+                    const value = draft[s.flag];
+                    const changed = s.flag in draft;
+                    const [firstLine, ...rest] = s.description.split("\n\n");
+                    const open = expanded === s.flag;
+                    return (
+                      <li key={s.flag} className="grid gap-2 px-3 py-2.5 sm:grid-cols-[1fr_16rem] sm:items-start">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <code className="break-all text-sm text-ink">--{s.flag}</code>
+                            {changed && <span className="rounded bg-wash px-1.5 py-0.5 text-xs text-ink-2">Changed</span>}
+                            {s.caution && <span className="text-xs text-serious" title="Changes how the node stores or checks the chain">⚠ Use with care</span>}
+                          </div>
+                          <p className="mt-0.5 text-xs text-ink-2">{firstLine}</p>
+                          {s.note && <p className="mt-0.5 text-xs text-serious">{s.note}</p>}
+                          {rest.length > 0 && (
+                            <button type="button" onClick={() => setExpanded(open ? null : s.flag)} className="text-xs text-muted underline decoration-line underline-offset-2">
+                              {open ? "Less" : "More"}
+                            </button>
+                          )}
+                          {open && <p className="mt-1 whitespace-pre-line text-xs text-ink-2">{rest.join("\n\n")}</p>}
+                        </div>
+                        <Control s={s} value={value} locked={locked} set={set} />
+                      </li>
+                    );
+                  })}
+                </ul>
+              </details>
+            ))}
+            <p className="text-xs text-muted">
+              Set by xelDash and not editable here: {data.locked.map((/** @type {string} */ f) => `--${f}`).join(", ")}.
+            </p>
+          </div>
+        </details>
 
         {error && <p className="text-sm text-critical">{error}</p>}
         {!locked && (dirty || data.pending) && (
           <div className="sticky bottom-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface p-3 shadow-sm">
             <span className="text-sm text-ink-2">
-              {dirty ? "Unsaved changes." : "Saved; applies on the next restart."} The node restarts to apply them; with a second node, mining continues on it.
+              {syncConflict ? "Turn off boost sync or fast sync first." : dirty ? "Unsaved changes." : "Saved; applies on the next restart."} The node restarts to apply them; with a second node or the official node fallback, mining continues meanwhile.
             </span>
             <span className="flex gap-2">
               <button type="button" disabled={busy} onClick={() => void discard()}
                 className="rounded-md border border-line px-3 py-1.5 text-sm text-ink hover:bg-wash disabled:opacity-40">Discard</button>
-              <button type="button" disabled={busy} onClick={() => void save(true)}
+              <button type="button" disabled={busy || syncConflict} onClick={() => void save(true)}
                 className="rounded-md bg-series-1 px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40">
                 Save and restart node
               </button>

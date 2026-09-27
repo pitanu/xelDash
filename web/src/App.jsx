@@ -6,8 +6,9 @@ import Overview from "./pages/Overview.jsx";
 import Worker from "./pages/Worker.jsx";
 import Health from "./pages/Health.jsx";
 import NodeData from "./pages/NodeData.jsx";
+import Settings from "./pages/Settings.jsx";
 
-const NAV = [["/", "Overview"], ["/blocks", "Blocks"], ["/health", "Health"]];
+const NAV = [["/", "Overview"], ["/blocks", "Blocks"], ["/health", "Health"], ["/settings", "Settings"]];
 
 function LiveIndicator() {
   const live = useLive();
@@ -57,8 +58,9 @@ export default function App() {
   else if (route === "/blocks") page = <Blocks />;
   else if (route === "/health") page = <Health />;
   else if (route === "/node-data") page = <NodeData />;
+  else if (route === "/settings") page = <Settings />;
 
-  const section = route === "/blocks" || route === "/health" ? route : route === "/node-data" ? "/health" : "/";
+  const section = ["/blocks", "/health", "/settings"].includes(route) ? route : route === "/node-data" ? "/health" : "/";
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">

@@ -123,11 +123,13 @@ without a login.
 
 ## Daemon settings
 
-Every option of the XELIS daemon can be changed from the dashboard: open **Health →
-Settings and snapshots** and enter the admin token (`XELDASH_ADMIN_TOKEN`, see below). The
-list comes from the installed daemon's own `--help`, so it always matches its version, with
-each option's description, default and allowed values. Options that change how the node
-stores or checks the chain are marked **Use with care**.
+Every option of the XELIS daemon can be changed from the dashboard: open **Settings** in the
+navigation and enter the admin token (`XELDASH_ADMIN_TOKEN`, see below). The options most
+setups need come first, grouped by purpose (syncing, peers, disk and logs), each with a
+plain-language explanation. **All daemon options** below them lists every option of the
+installed daemon, from its own `--help`, so it always matches its version, with each
+option's description, default and allowed values. Options that change how the node stores or
+checks the chain are marked **Use with care**.
 
 **Save and restart node** restarts the node with the new settings. Before they take effect,
 the daemon's own parser checks them; a mistake is rejected with the daemon's error message
@@ -170,7 +172,7 @@ xelDash. Without it, the dashboard only shows status.
 
 ### From the dashboard
 
-Open **Health → Settings and snapshots** and enter the admin token. Then either:
+Open **Health → Snapshots** and enter the admin token. Then either:
 
 - drop a snapshot `.zip` onto the page: the official `mainnet.zip` downloaded elsewhere, or a
   zip of another node's `<network>` data directory; or
@@ -282,7 +284,7 @@ blocks found on it are worthless.
 On mainnet and testnet, Stratum can also mine through the XELIS team's public node
 (`https://node.xelis.io/json_rpc` on mainnet) while none of your own nodes can issue work:
 during the first sync, an upgrade, or an outage. Switch it on under **Official node fallback**
-on the Node page (admin token needed), or set `XELIS_OFFICIAL_FALLBACK=true` in `.env` for
+on the **Settings** page (admin token needed), or set `XELIS_OFFICIAL_FALLBACK=true` in `.env` for
 the first start; after that, the dashboard switch wins. The change takes effect within a few
 seconds, without a restart.
 

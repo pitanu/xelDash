@@ -41,7 +41,16 @@ export default function MiningFallback({ token, onUnauthorized }) {
     }
   }
 
-  if (!data?.available) return null;
+  if (!data) return null;
+  if (!data.available) {
+    return (
+      <Card title="Official node fallback">
+        <p className="text-sm text-ink-2">
+          The XELIS team runs public nodes for mainnet and testnet only, so there is no fallback on this network.
+        </p>
+      </Card>
+    );
+  }
   const host = new URL(data.url).host;
   const locked = !data.actionsEnabled || !token;
   return (

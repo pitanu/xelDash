@@ -37,7 +37,7 @@ docker compose up -d
 ```
 
 Open the dashboard at `http://localhost:8088`. The node syncs the chain first; on mainnet,
-set `XELIS_SNAPSHOT_AUTO=true` (or use the dashboard's Node page) to start from the official
+set `XELIS_SNAPSHOT_AUTO=true` (or use the dashboard's Snapshots page) to start from the official
 snapshot instead. Everything listens on `127.0.0.1` until you set the `*_BIND_IP` values in
 `.env` to this machine's LAN address.
 
