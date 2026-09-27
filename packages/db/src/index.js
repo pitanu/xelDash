@@ -126,6 +126,16 @@ export async function recordShare(pool, share) {
          sum_difficulty = worker_stats_1m.sum_difficulty + EXCLUDED.sum_difficulty`,
       [row.created_at, row.worker_id, row.accepted, row.difficulty],
     );
+    // Keep last_seen current while a rig stays connected; at most one write per 30 s.
+    await client.query(
+      `WITH w AS (
+         UPDATE workers SET last_seen = $2
+         WHERE id = $1 AND last_seen < $2::timestamptz - interval '30 seconds'
+         RETURNING miner_id
+       )
+       UPDATE miners SET last_seen = $2 FROM w WHERE miners.id = w.miner_id AND miners.last_seen < $2`,
+      [row.worker_id, row.created_at],
+    );
     await client.query("COMMIT");
     return { recorded: true, shareId: row.id, duplicate, accepted: row.accepted };
   } catch (error) {
