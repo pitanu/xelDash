@@ -155,6 +155,9 @@ services:
       ALERT_EVENTS: ${ALERT_EVENTS:-}
       ALERT_WORKER_OFFLINE_MINUTES: ${ALERT_WORKER_OFFLINE_MINUTES:-10}
       ALERT_DASHBOARD_URL: ${ALERT_DASHBOARD_URL:-}
+      # XEL price from CoinGecko, for viewers who switch it on; "off" disables it for everyone.
+      XELDASH_PRICE: ${XELDASH_PRICE:-on}
+      XELIS_NETWORK: ${XELIS_NETWORK:-devnet}
       # Nodes in priority order; see docs/OPERATIONS.md#redundant-nodes.
       XELIS_RPC_URLS: ${XELIS_RPC_URLS:-http://daemon:8080/json_rpc}
       PGHOST: postgres

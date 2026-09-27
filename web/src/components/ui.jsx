@@ -1,4 +1,5 @@
-import { formatAgo, formatHashrate, formatInteger, formatTime, formatXel, shorten } from "../format.js";
+import { XEL_DECIMALS, formatAgo, formatHashrate, formatInteger, formatTime, formatXel, shorten } from "../format.js";
+import { formatMoney, usePrice } from "../price.js";
 
 /** @param {{ title: string, subtitle?: string, action?: React.ReactNode, children: React.ReactNode }} props */
 export function Card({ title, subtitle, action, children }) {
@@ -78,6 +79,7 @@ const td = "whitespace-nowrap px-4 py-2 sm:px-5";
 
 /** @param {{ blocks: any[], showMiner?: boolean }} props */
 export function BlocksTable({ blocks, showMiner = true }) {
+  const { price } = usePrice();
   if (blocks.length === 0) return <p className="text-sm text-muted">No blocks found yet.</p>;
   return (
     <Table>
@@ -96,7 +98,14 @@ export function BlocksTable({ blocks, showMiner = true }) {
                 {b.worker && <span className="text-muted"> · {b.worker}</span>}
               </td>
             )}
-            <td className={`${td} text-right`}>{formatXel(b.reward)}</td>
+            <td className={`${td} text-right`}>
+              {formatXel(b.reward)}
+              {price && b.reward && (
+                <span className="block text-xs text-muted" title="At the current price">
+                  ≈ {formatMoney((Number(b.reward) / 10 ** XEL_DECIMALS) * price.price, price.currency)}
+                </span>
+              )}
+            </td>
             <td className={`${td} text-right text-ink-2`} title={formatTime(b.foundAt)}>{formatAgo(b.foundAt)}</td>
           </tr>
         ))}

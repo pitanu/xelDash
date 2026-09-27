@@ -35,6 +35,9 @@ First public version, planned as 0.1.0.
 - Hashrate charts from 6 hours to 1 year, estimated from accepted shares, next to the
   hashrate miners report.
 - REST API for all dashboard data.
+- Optional XEL price in the header, in one of the largest currencies, and what found blocks are
+  worth (mainnet only; off by default, chosen per browser under Settings). Fetched by the API
+  from CoinGecko, so browsers never contact it; `XELDASH_PRICE=off` disables it.
 - Alerts to Discord, Telegram or a JSON webhook: blocks found and final, mining paused and
   resumed, workers offline.
 

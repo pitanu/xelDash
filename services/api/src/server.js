@@ -4,6 +4,7 @@ import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, l
 import { alertConfigFromEnv, startAlerts } from "./alerts.js";
 import { startLiveUpdates } from "./live.js";
 import { callAnyNode, fallbackUrl, rpcUrlsFromEnv } from "./nodes.js";
+import { CURRENCIES, getPrice } from "./price.js";
 import { getStatus } from "./status.js";
 
 const port = Number.parseInt(process.env.API_PORT ?? "8081", 10);
@@ -12,6 +13,10 @@ const nodeUrls = rpcUrlsFromEnv(process.env);
 // Where the status page probes Stratum; the Compose service name by default.
 const stratumHost = process.env.STRATUM_PROBE_HOST ?? "stratum";
 const stratumPort = Number.parseInt(process.env.STRATUM_PROBE_PORT ?? "3333", 10);
+// The XEL price comes from CoinGecko; XELDASH_PRICE=off keeps the server from contacting it.
+// Only mainnet coins have a price, so other networks never show one.
+const network = (process.env.XELIS_NETWORK ?? "devnet").toLowerCase();
+const priceOff = (process.env.XELDASH_PRICE ?? "on").toLowerCase() === "off" ? "server" : network !== "mainnet" ? "network" : null;
 const pool = createPool();
 const HASHRATE_WINDOWS = Object.freeze([
   { key: "5m", seconds: 300, difficultyColumn: "difficulty_5m" },
@@ -179,6 +184,20 @@ const server = createServer(async (request, response) => {
         stratumHost,
         stratumPort,
       }));
+      return;
+    }
+
+    if (pathname === "/api/v1/price") {
+      const currency = (searchParams.get("currency") ?? "usd").toLowerCase();
+      if (priceOff) {
+        sendJson(response, 200, { enabled: false, reason: priceOff, network, currencies: CURRENCIES, price: null });
+        return;
+      }
+      if (!CURRENCIES.includes(currency)) {
+        sendJson(response, 400, { error: "invalid_currency" });
+        return;
+      }
+      sendJson(response, 200, { enabled: true, currencies: CURRENCIES, price: await getPrice(currency) });
       return;
     }
 

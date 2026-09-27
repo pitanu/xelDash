@@ -1,7 +1,7 @@
 const HASH_UNITS = ["H/s", "KH/s", "MH/s", "GH/s", "TH/s"];
 const COMPACT_UNITS = ["", "K", "M", "G", "T", "P"];
 // XELIS amounts are integers in atomic units, 8 decimal places.
-const XEL_DECIMALS = 8;
+export const XEL_DECIMALS = 8;
 
 /** @param {string | number | null | undefined} value */
 export function formatHashrate(value) {
