@@ -18,11 +18,24 @@ busybox and the supervisor in `entrypoint.sh`.
 the V7 emergency hard fork at 6,909,122, which requires 1.24.0 or newer. Older daemons
 cannot follow the chain.
 
-The entrypoint (`entrypoint.sh`) runs the daemon and swaps in snapshots prepared by the
-snapshot service: it waits during a first-start snapshot download, and on a restart request
-moves the current database to `<network>.previous` and the staged snapshot into place.
+The entrypoint (`entrypoint.sh`) is a small supervisor that node-admin drives through files
+under `.xeldash/` on the data volume (the full list is at the top of the script). It:
 
-The pin is `XELIS_DAEMON_IMAGE`, and the tested release is 1.25.0. To upgrade:
+- waits during a first-start snapshot download, and on restart swaps a staged snapshot (or
+  a copy from the other node) in, keeping the old database as `<network>.previous`;
+- applies dashboard settings after checking them with the daemon's parser, and puts them
+  back if the daemon exits within 30 seconds;
+- runs a downloaded release (`.xeldash/bin/<version>/xelis_daemon`) instead of the image's
+  daemon when one is selected, checking it with `--version` first and switching back if it
+  exits within 30 seconds;
+- restarts, or stays stopped until started, on request (the healthcheck passes while stopped
+  or bootstrapping, so dependents are not held up);
+- resolves host names in `--priority-nodes`/`--exclusive-nodes` to addresses, since the
+  daemon ignores names.
+
+The pin is `XELIS_DAEMON_IMAGE`, and the tested release is 1.25.0. A release chosen on the
+dashboard takes precedence over the image until **Back to the image's version**. To upgrade
+the image:
 
 1. Build the wrapper with the new tag and check that it starts (`--version`).
 2. Run the devnet check in [docs/DEVNET.md](../../docs/DEVNET.md).

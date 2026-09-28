@@ -41,6 +41,19 @@ the phase that depends on it.
 | 2026-09    | Settings are checked with the daemon's parser before a restart and rolled back if it exits within 30 s | A bad setting must never leave the node down |
 | 2026-09    | License: MIT | Simple and permissive; matches the XELIS hash crate xelDash builds on |
 | 2026-09    | Name: xelDash | Already used for the repository, images and docs |
+| 2026-09    | Official node fallback: optional, off by default, used only while none of our nodes can issue work | Keeps mining through syncs and outages; a third party then supplies templates, so it is an explicit choice. The reward key is looked up on our own node. |
+| 2026-09    | Trusted peers as `IP:port` only; Compose service names resolved at each start | The daemon silently ignores host names in peer flags |
+| 2026-09    | Accept classic Stratum without `"jsonrpc"` | Rigel and other GPU miners send it that way |
+| 2026-09    | Accept shares on the replaced job for 1.5 s after a new block; record later stale shares | With ~5 s blocks, a GPU's in-flight batch made ~10% of shares stale; they are real work. Recording them keeps the dashboard's reject count honest. |
+| 2026-09    | Fixed difficulty from the password (`d=`) | Common miner and pool convention; some GPUs prefer a fixed target |
+| 2026-09    | Effort recorded per share against the network difficulty at the time | Difficulty changes every block, so luck cannot be recomputed later from current difficulty |
+| 2026-09    | XEL price fetched by the server from CoinGecko, per-browser opt-in, mainnet only | Browsers never contact a third party and the CSP stays strict; test-network coins have no price |
+| 2026-09    | Theme and price are per-browser choices | Display preferences, not node settings; no admin token needed |
+| 2026-09    | Manage both local nodes from node-admin through files on each node's volume | Same model as settings and snapshots; still no Docker socket |
+| 2026-09    | Daemon upgrades by downloading official release binaries onto the node's volume, not by changing images | A Docker socket would make the admin token root on the host. Releases are checked against checksums.txt, GitHub's digest and the inner checksum list; PGP is not possible until the signing key is published. |
+| 2026-09    | Version switches one node at a time, the usual mining node last, each back in sync before the next; run by node-admin | Mining never stops with two nodes; closing the browser does not interrupt a switch |
+| 2026-09    | Scheduled switches at a block height; the release is prepared on every node when scheduled | Hard forks name a version and height; preparing early surfaces problems long before the fork |
+| 2026-09    | Automatic updates optional and off by default; need two local nodes; 24 h after a release; forward only; a failed version is not retried | Unattended updates are convenient but a new release carries risk; the delay and the second node limit it |
 | 2026-09    | Calculate V3 share difficulty and pool estimates using XELIS U256 targets | Hash bytes are interpreted big-endian; valid target is `floor((2^256 - 1) / difficulty)`. Accepted assigned share difficulty divided by elapsed completed-window seconds estimates H/s; expected TTB is network difficulty divided by H/s. |
 
 ## Open

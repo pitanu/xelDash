@@ -141,8 +141,8 @@ change.
 
 xelDash sets `--network`, `--rpc-bind-address` and `--dir-path` itself (from `.env`), and
 depends on RPC being on, so those cannot be changed here. Settings are saved on the node's
-data volume (`.xeldash/daemon-args`) and survive restarts and upgrades. With two nodes, the
-dashboard changes `daemon` only.
+data volume (`.xeldash/daemon-args`) and survive restarts and upgrades. With two nodes,
+pick the node at the top of the section; change one node at a time so the other keeps mining.
 
 ### Trusted peers
 
@@ -172,7 +172,7 @@ xelDash. Without it, the dashboard only shows status.
 
 ### From the dashboard
 
-Open **Health → Snapshots** and enter the admin token. Then either:
+Open **Health → Manage nodes**, pick the node, and enter the admin token. Then either:
 
 - drop a snapshot `.zip` onto the page: the official `mainnet.zip` downloaded elsewhere, or a
   zip of another node's `<network>` data directory; or
@@ -195,7 +195,9 @@ snapshot downloads and unpacks, then starts on it. If the download fails, the no
 the network as usual. The dashboard shows the progress. `XELIS_SNAPSHOT_URL` and
 `XELIS_SNAPSHOT_CHECKSUM_URL` point at another source (then used on any network).
 
-With two nodes, only `daemon` uses snapshots; `daemon2` syncs from it over the local network.
+Automatic snapshots are for `daemon` only. A second node is quickest to start with **Copy from
+daemon** (see [Redundant nodes](#redundant-nodes)), or it can take a snapshot from the same
+page.
 
 ## Upgrading xelDash
 

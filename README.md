@@ -9,19 +9,28 @@ to your own node, and each block pays the miner's own address directly: xelDash 
 funds and has no balances, payouts or wallet.
 
 **Status:** feature-complete for a first release, verified end to end on a private devnet and
-in a mainnet trial, and tested with Rigel 1.23.0 on a GPU. Before 0.1.0: tests with more
-third-party miners (see [docs/ISSUES.md](docs/ISSUES.md)).
+in a mainnet trial with two nodes, and tested with Rigel 1.23.0 on a GPU. Before 0.1.0:
+tests with more third-party miners (see [docs/ISSUES.md](docs/ISSUES.md)).
 
 ## What you get
 
 - **Mining endpoints:** Stratum (`xel/v3`) on port 3333, optional Stratum over TLS on 3334,
-  and getwork on 8090 for the official `xelis_miner`. Per-connection vardiff.
-- **Dashboard** at port 8088: overview, per-miner and per-worker pages, blocks with their final
-  status and reward, and node health, with live updates, in light and dark mode.
-- **Reliability:** optional second node with automatic failover, so node upgrades do not stop
-  mining; mining pauses by itself while no node is in sync.
-- **Node management from the dashboard:** every daemon setting, and chain snapshots (the
-  official daily mainnet snapshot, or a zip you drop onto the page).
+  and getwork on 8090 for the official `xelis_miner`. Per-connection vardiff, or a fixed
+  difficulty from the miner's password. Late shares just after a new block still count.
+- **Dashboard** at port 8088: hashrate with smoothed charts, round effort and luck, expected
+  earnings, per-miner and per-worker pages, blocks with their final status, reward and
+  effort, and node health. Live updates, light and dark themes, and an optional XEL price in
+  one of eleven currencies.
+- **Reliability:** an optional second node with automatic failover, and an optional fallback
+  to the XELIS team's public node, so node restarts and upgrades do not stop mining. Mining
+  pauses by itself while no node can issue work.
+- **Node management from the dashboard:** restart, stop and start each node; every daemon
+  setting, with plain-language explanations for the common ones and trusted peers; chain
+  snapshots (the official daily mainnet snapshot, or a zip you drop onto the page) and
+  copying one node's chain into the other.
+- **Daemon upgrades from the dashboard:** official XELIS releases, checked against their
+  checksums and switched in one node at a time. Now, at a set block height for network
+  upgrades, or automatically (optional, with two nodes).
 - **Alerts** to Discord, Telegram or a webhook; optional daily database backups; optional
   HTTPS and login in front of the dashboard.
 
@@ -37,8 +46,8 @@ docker compose up -d
 ```
 
 Open the dashboard at `http://localhost:8088`. The node syncs the chain first; on mainnet,
-set `XELIS_SNAPSHOT_AUTO=true` (or use the dashboard's Snapshots page) to start from the official
-snapshot instead. Everything listens on `127.0.0.1` until you set the `*_BIND_IP` values in
+set `XELIS_SNAPSHOT_AUTO=true` (or use **Health → Manage nodes**) to start from the official
+snapshot instead. Node changes on the dashboard need `XELDASH_ADMIN_TOKEN` in `.env`. Everything listens on `127.0.0.1` until you set the `*_BIND_IP` values in
 `.env` to this machine's LAN address.
 
 ## Connecting miners
@@ -56,8 +65,8 @@ the Stratum password (for example `-p d=50000`); it is never set below `STRATUM_
 
 ## Documentation
 
-- [Operations](docs/OPERATIONS.md): daemon settings, snapshots, redundant nodes, alerts,
-  backups, restores and upgrades
+- [Operations](docs/OPERATIONS.md): daemon settings, snapshots, redundant nodes, daemon
+  upgrades, the official node fallback, alerts, backups, restores and upgrades
 - [Security](docs/SECURITY.md): what is protected, the admin token, remaining risks
 - [Devnet checks](docs/DEVNET.md): how the mining path is verified
 - [Plan](docs/PLAN.md), [decisions](docs/DECISIONS.md), [open issues](docs/ISSUES.md)
@@ -67,7 +76,7 @@ the Stratum password (for example `-p d=50000`); it is never set below `STRATUM_
 
 | Part | Tech |
 |------|------|
-| Node | Official XELIS daemon (Docker), under a small supervisor for settings and snapshots |
+| Node | Official XELIS daemon (Docker), under a small supervisor for settings, snapshots, stop and start, and release versions |
 | Stratum, getwork | Node.js with the official XELIS Hash V3 code as a native addon (Rust, napi-rs) |
 | API, node admin | Node.js |
 | Dashboard | React, Vite, Tailwind, served by nginx |

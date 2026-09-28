@@ -1,65 +1,52 @@
 # Stratum service
 
-This directory contains the first protocol layer for the miner-facing XELIS Stratum
-endpoint:
+The miner-facing side of xelDash: Stratum (port 3333, optional TLS on 3334) and getwork
+(port 8090), share validation, vardiff, block submission, node failover, the block tracker,
+and data retention. It listens on loopback by default; set `XELDASH_STRATUM_BIND_IP` to the
+host's LAN address to accept miners from the LAN.
 
-- newline-delimited JSON-RPC framing with a 64 KiB line limit;
-- algorithm negotiation for current `xel/v3` and legacy algorithm aliases;
-- session handling for subscribe, authorize, submit, and reported hashrate;
-- daemon-backed address validation/public-key extraction and PostgreSQL worker registration;
-- address-specific daemon templates, Stratum job refresh, V3 hash validation, fixed target
-  difficulty, share persistence, and network-target block submission.
+**Protocol.** Newline-delimited JSON-RPC (64 KiB line limit) following the
+[XELIS Stratum protocol](https://docs.xelis.io/developers-api/stratum): `mining.subscribe`,
+`mining.authorize` (address, worker, password), `mining.submit` and `mining.hashrate`. Classic
+Stratum requests without `"jsonrpc"` are accepted, as GPU miners such as Rigel send them. Only
+`xel/v3` work is issued. Tested with our devnet miner, Rigel 1.23.0 on mainnet, and the
+official `xelis_miner` over getwork.
 
-The service is available in Compose on port 3333, bound to loopback by default. Set
-`XELDASH_STRATUM_BIND_IP` to the host's LAN address to accept miners from the LAN. The
-share difficulty is set per connection by vardiff (`src/vardiff.js`): it starts at
-100,000, aims for one share every 10 seconds, and is capped at the job's network difficulty. The service subscribes to the daemon's `new_block` WebSocket
-event and pushes fresh work to every miner as soon as the chain tip changes; per-session
-polling (`STRATUM_JOB_REFRESH_MS`) remains as a fallback and picks up template changes.
-A tip change sends `clean_jobs` and drops earlier jobs, so late shares on them are rejected
-as stale. New transactions at the same height update work without forcing a restart.
+**Work and shares.** Each miner gets a template for its own address from the node
+(`get_block_template`, `get_miner_work`); the reward key comes from the address, looked up on
+our own node. New work is pushed on the node's `new_block` event, with polling
+(`STRATUM_JOB_REFRESH_MS`) as the fallback. A share is hashed from the 112-byte MinerWork on a
+thread pool, compared with its share and network targets, and recorded. Work at network
+difficulty is submitted to the node before any database write and recorded in `blocks`; the
+block tracker moves it to `main-chain`, `side` or `orphaned` at the stable height. Each
+accepted share also adds its effort (share ÷ network difficulty) for the luck figures.
 
-Only `xel/v3` jobs are currently accepted. A mining submission is hashed from the official
-112-byte Stratum MinerWork layout, compared against both its share target and network
-target, then recorded in PostgreSQL. Work at network difficulty is submitted to the local
-daemon before any database write, then recorded in `blocks` (status `submitted` or
-`rejected`) with a matching `service_events` row. Once the daemon's stable height passes
-a submitted block, it moves to `main-chain`, `side` or `orphaned` with its topoheight and
-miner reward, and a `block_final` event. The block hash is BLAKE3 of the 112-byte
-MinerWork, matching the daemon's block hash. Hashing, block submission and block hashes
-are verified on devnet (see [docs/DEVNET.md](../../docs/DEVNET.md)); a third-party miner
-has not been tested yet. Abuse limits: at most 64 connections per IP and 20 messages per second per connection
-(burst 40). An IP is banned for 15 minutes when 5 minutes hold at least 50 invalid
-submissions that are over half of its submissions; stale shares do not count. Bans are
-stored in `bans` and survive restarts. All limits are `STRATUM_*` settings in `.env.example`.
+**Difficulty.** Vardiff per connection (`src/vardiff.js`): starts at 100,000, aims for one
+share every 10 seconds, capped at the network difficulty. A miner can fix it with
+`d=<difficulty>` (or `diff=`) in the password, never below `STRATUM_MIN_DIFFICULTY`.
 
-Reported hashrate: `mining.hashrate` (a number, or a decimal string) is stored per worker,
-at most every 30 seconds. The dashboard shows it next to the estimate from accepted shares
-when it is under 10 minutes old; a large gap between the two points at lost work.
+**Late shares.** A new block replaces the job, but shares on the previous one are accepted for
+`STRATUM_STALE_GRACE_MS` (1.5 s) since GPUs finish their current batch first. Later ones are
+rejected and recorded as stale; they never count toward bans.
 
-Nodes: `XELIS_RPC_URLS` lists one or more XELIS nodes in priority order (`node-pool.js`).
-Work comes from the first node that is in sync; if it goes down or falls behind, mining
-switches to the next one without disconnecting miners, and moves back when it recovers. See
-[docs/OPERATIONS.md](../../docs/OPERATIONS.md#redundant-nodes).
+**Nodes.** `XELIS_RPC_URLS` lists nodes in priority order (`src/node-pool.js`). Work comes from
+the first node in sync; if it goes down or falls behind, mining switches to the next without
+disconnecting miners, and moves back when it recovers. The official public node is added as a
+last resort while the dashboard's fallback switch is on (`src/fallback-config.js`). With no
+usable node, miners are disconnected and logins refused until one recovers.
 
-Sync gating: work is only issued while a node is caught up. If the peers' median
-topoheight gets more than 16 ahead, or the daemon stops responding, Stratum disconnects every
-miner (so it retries or fails over to a backup pool), refuses new logins with the reason, and
-resumes on its own. The dashboard's Health page shows "Paused" meanwhile.
+**Abuse limits.** Per IP: 64 connections, 20 messages per second per connection (burst 40), and
+a 15-minute ban when 5 minutes hold at least 50 invalid submissions or failed logins that are
+over half of its submissions. At most 32 workers per connection. Bans are stored in `bans`
+and survive restarts. All limits are `STRATUM_*` settings in `.env.example`.
 
-Getwork: miners that only speak the daemon getwork protocol, like the official
-`xelis_miner`, connect to `ws://<host>:8090/getwork/<address>/<worker>` (for example
-`xelis_miner --daemon-address ws://<host>:8090`). Each connection is a normal mining session
-with vardiff, share stats and the same abuse limits. Jobs carry the share difficulty, so the
-miner submits shares; xelDash submits the ones that meet network difficulty. The miner only
-hears `block_accepted` for real blocks, but its own log says "block found" for every share.
-Set `GETWORK_ENABLED=false` to turn the listener off.
+**Getwork.** Miners that only speak getwork, like the official `xelis_miner`, connect to
+`ws://<host>:8090/getwork/<address>/<worker>`. Each connection is a normal session with vardiff,
+stats and the same limits; jobs carry the share difficulty, so the miner's log says "block
+found" for every share. `GETWORK_ENABLED=false` turns it off.
 
-Optional TLS: set `STRATUM_TLS_ENABLED=true` and put `cert.pem` and `key.pem` in
-`docker/stratum-tls/` (see its README). A second listener on port 3334 then serves
-`stratum+ssl` with the same limits and sessions as the plain port. A missing certificate
-stops Stratum from starting.
+**TLS.** `STRATUM_TLS_ENABLED=true` with `cert.pem` and `key.pem` in `docker/stratum-tls/` adds
+`stratum+ssl` on port 3334. A missing certificate stops Stratum from starting.
 
-The wire format follows the
-[XELIS Stratum protocol](https://docs.xelis.io/developers-api/stratum). The daemon methods
-used for address checks are documented in the [Daemon API](https://docs.xelis.io/developers-api/daemon).
+**Retention.** Raw shares are kept 7 days and per-minute stats 90 days; hourly rollups are
+kept (`RETENTION_*`).
