@@ -29,7 +29,14 @@ export async function nodeView(nodeId) {
   try {
     const [version, info, p2p] = await Promise.all([rpc(nodeId, "get_version"), rpc(nodeId, "get_info"), rpc(nodeId, "p2p_status")]);
     const synced = p2p.peer_count > 0 && p2p.median_topoheight <= info.topoheight + SYNC_TOLERANCE;
-    return { version: String(version), topoheight: info.topoheight, peers: p2p.peer_count, synced };
+    return {
+      version: String(version),
+      height: info.height,
+      topoheight: info.topoheight,
+      averageBlockTimeMs: info.average_block_time,
+      peers: p2p.peer_count,
+      synced,
+    };
   } catch {
     return null;
   }
@@ -40,7 +47,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * @typedef {{ node: string, status: "waiting" | "downloading" | "restarting" | "syncing" | "done" | "skipped" | "failed", note: string | null }} Step
- * @typedef {{ phase: "idle" | "running" | "done" | "failed", target: string | null, trigger: "dashboard" | "automatic" | null, steps: Step[], startedAt: string | null, finishedAt: string | null, error: string | null }} UpgradeState
+ * @typedef {{ phase: "idle" | "running" | "done" | "failed", target: string | null, trigger: "dashboard" | "automatic" | "scheduled" | null, steps: Step[], startedAt: string | null, finishedAt: string | null, error: string | null }} UpgradeState
  */
 
 export class RollingUpgrade {
@@ -60,7 +67,7 @@ export class RollingUpgrade {
    * Start switching the given nodes (in order) to a version: a release number, or "image"
    * for each node's image's own daemon.
    * @param {import("./nodes.js").Node[]} nodes @param {string} target
-   * @param {"dashboard" | "automatic"} [trigger]
+   * @param {"dashboard" | "automatic" | "scheduled"} [trigger]
    */
   start(nodes, target, trigger = "dashboard") {
     if (this.running) throw new Error("A version switch is already running");

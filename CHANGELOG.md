@@ -74,6 +74,8 @@ First public version, planned as 0.1.0.
   Options the daemon refuses together, such as fast sync with boost sync, are refused on save.
 - A Settings page: the official node fallback, trusted peers and the most useful daemon
   options with plain-language explanations, and every other daemon option below them.
+- Scheduled version switches at a block height, for network upgrades: the release is
+  prepared on every node at once and switched in one node at a time at the height.
 - Optional automatic node updates (off by default, two local nodes needed): new releases are
   installed one node at a time 24 hours after they come out.
 - Daemon upgrades from the dashboard: official releases, checked against their checksums,

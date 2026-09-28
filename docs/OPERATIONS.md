@@ -236,6 +236,15 @@ progress shows step by step, and the switch carries on if the page is closed.
 - Going back to an older version may fail if the newer one changed the database. Keep a
   snapshot or the other node's copy at hand.
 
+**Switch at a block height**, for network upgrades (hard forks) announced as "version X
+required from height H": choose the version and a height under **Daemon version**. The
+release is downloaded and checked on every node right away, so a problem shows long before
+the height. When the chain reaches the height (checked every 10 seconds), the nodes switch
+one at a time as above. Pick a height a few hundred blocks before the activation height:
+with 5-second blocks, 100 blocks is about 8 minutes, and switching two nodes takes a few.
+The schedule is kept on the config volume, so restarts do not lose it, and it can be
+cancelled until it starts. Automatic updates wait while a switch is scheduled.
+
 **Automatic updates** (optional, off by default) do the same by themselves: with two local
 nodes, switch them on under **Daemon version** (or `XELIS_AUTO_UPDATE=true` in `.env` for
 the first start). Every 15 minutes xelDash compares the nodes with the latest release; a
@@ -340,7 +349,7 @@ latest XELIS release (checked on GitHub every 6 hours; `XELDASH_VERSION_CHECK=of
 
 **Hard forks:** XELIS announces network upgrades with a minimum daemon version and an
 activation height (for example, the V7 fork at height 6,909,122 required 1.24.0). Upgrade
-before the activation height. A daemon that is too old stops following the network, and
+before the activation height, now or with **Switch at a block height**. A daemon that is too old stops following the network, and
 blocks found on it are worthless.
 
 ### Official node fallback

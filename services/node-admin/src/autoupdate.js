@@ -21,16 +21,17 @@ function base(version) {
 export class AutoUpdate {
   /**
    * @param {{ configDir: string, releases: import("./releases.js").Releases, upgrade: import("./upgrade.js").RollingUpgrade,
-   *   nodes: () => import("./nodes.js").Node[], order: () => import("./nodes.js").Node[],
+   *   nodes: () => import("./nodes.js").Node[], order: () => import("./nodes.js").Node[], scheduled: () => Promise<boolean>,
    *   env: Partial<Record<string, string | undefined>>, logger?: Pick<Console, "info" | "warn"> }} options
    */
-  constructor({ configDir, releases, upgrade, nodes, order, env, logger = console }) {
+  constructor({ configDir, releases, upgrade, nodes, order, scheduled, env, logger = console }) {
     this.configDir = configDir;
     this.file = join(configDir, "auto-update.json");
     this.releases = releases;
     this.upgrade = upgrade;
     this.nodes = nodes;
     this.order = order;
+    this.scheduled = scheduled;
     this.logger = logger;
     this.defaultEnabled = (env.XELIS_AUTO_UPDATE ?? "false").toLowerCase() === "true";
     const delay = Number(env.XELIS_AUTO_UPDATE_DELAY_HOURS ?? DEFAULT_DELAY_HOURS);
@@ -124,6 +125,7 @@ export class AutoUpdate {
     if (!saved.enabled) return null;
     if (!this.eligible) return "Waiting for a second local node";
     if (this.upgrade.running) return "A version switch is running";
+    if (await this.scheduled()) return "A switch at a set height is scheduled; automatic updates wait for it";
 
     const latest = (await this.releases.list())[0];
     if (!latest) return "No release found for this machine";

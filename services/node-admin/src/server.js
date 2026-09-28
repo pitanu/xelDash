@@ -3,6 +3,7 @@ import { MiningFallback } from "./fallback.js";
 import { Node } from "./nodes.js";
 import { Releases } from "./releases.js";
 import { AutoUpdate } from "./autoupdate.js";
+import { ScheduledUpgrade } from "./schedule.js";
 import { RollingUpgrade, nodeView } from "./upgrade.js";
 import { message, tokensMatch } from "./snapshot.js";
 
@@ -56,7 +57,11 @@ function updateOrder() {
 }
 
 // Optional (off by default): keep both local nodes on the latest release automatically.
-const autoUpdate = new AutoUpdate({ configDir, releases, upgrade, nodes: () => nodes, order: updateOrder, env: process.env });
+// A switch at a block height, for network upgrades.
+const scheduled = new ScheduledUpgrade({ configDir, releases, upgrade, order: updateOrder });
+const autoUpdate = new AutoUpdate({
+  configDir, releases, upgrade, nodes: () => nodes, order: updateOrder, scheduled: () => scheduled.pending(), env: process.env,
+});
 
 function busyNode() {
   return nodes.find((node) => node.snapshots.busy) ?? null;
@@ -128,6 +133,10 @@ const server = createServer(async (request, response) => {
       send(response, 200, { nodes: list, actionsEnabled: Boolean(adminToken), upgrade: upgrade.state });
       return;
     }
+    if (request.method === "GET" && path === "/scheduled-upgrade") {
+      send(response, 200, await scheduled.status());
+      return;
+    }
     if (request.method === "GET" && path === "/auto-update") {
       send(response, 200, { ...(await autoUpdate.status()), actionsEnabled: Boolean(adminToken) });
       return;
@@ -187,6 +196,20 @@ const server = createServer(async (request, response) => {
       else if (path === "/control/start") await node.start();
       else await node.restart();
       send(response, 202, { ok: true, state: node.state });
+      return;
+    }
+    if (request.method === "POST" && path === "/scheduled-upgrade") {
+      const body = await readJson(request);
+      if (typeof body?.version !== "string" || !/^[0-9]+[.][0-9]+[.][0-9]+$/.test(body.version) || !Number.isSafeInteger(body?.height)) {
+        send(response, 400, { error: "Send { \"version\": \"1.26.0\", \"height\": 7900000 }" });
+        return;
+      }
+      send(response, 200, await scheduled.create(body.version, body.height));
+      return;
+    }
+    if (request.method === "DELETE" && path === "/scheduled-upgrade") {
+      await scheduled.cancel();
+      send(response, 200, { ok: true });
       return;
     }
     if (request.method === "PUT" && path === "/auto-update") {
@@ -322,11 +345,13 @@ server.listen(port, "0.0.0.0", async () => {
     await primary.snapshots.clearBootstrap();
   }
   autoUpdate.start();
+  scheduled.start();
   ready = true;
 });
 
 async function shutdown() {
   autoUpdate.stop();
+  scheduled.stop();
   for (const node of nodes) node.snapshots.shutdown();
   server.close();
 }
