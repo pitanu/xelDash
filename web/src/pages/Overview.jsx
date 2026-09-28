@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { usePolled } from "../api.js";
 import HashrateChart from "../components/HashrateChart.jsx";
+import LuckCard from "../components/LuckCard.jsx";
 import { BlocksTable, Card, EventsList, HealthBadge, MinersTable, StatTile } from "../components/ui.jsx";
 import { formatCompact, formatDuration, formatHashrate, formatInteger, formatBucket } from "../format.js";
 
@@ -49,6 +50,8 @@ export default function Overview() {
         <StatTile icon="height" label="Node height" value={formatInteger(o?.node?.height)}
           detail={o ? `${o.node.network} · ${o.node.version}` : undefined} />
       </div>
+
+      <LuckCard luck={o?.luck} />
 
       <Card title="Hashrate" subtitle={history.data ? `Accepted share difficulty per second, ${formatBucket(history.data.bucketSeconds)} buckets` : undefined}>
         <HashrateChart points={history.data?.points ?? null} dimmed={history.loading} range={range} onRangeChange={setRange} />

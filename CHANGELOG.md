@@ -37,6 +37,9 @@ First public version, planned as 0.1.0.
   updates over WebSocket.
 - Hashrate charts from 6 hours to 1 year, estimated from accepted shares, next to the
   hashrate miners report.
+- Mining luck: the current round's effort (work done against the work expected per block),
+  luck as blocks found against blocks expected, and each block's round effort. Weighed
+  against the network difficulty when each share arrived; tracked from this version on.
 - Chart smoothing (raw, light or strong, remembered per browser) with the raw buckets kept
   as a faint line behind the smoothed one.
 - REST API for all dashboard data.

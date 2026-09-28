@@ -102,6 +102,7 @@ export function createShareSubmitter({ daemon, pool, logger = console }) {
       jobId: job.jobId,
       nonce,
       difficulty: String(job.shareDifficulty),
+      networkDifficulty: job.networkDifficulty,
       accepted: meetsShareTarget,
       rejectReason: meetsShareTarget ? null : "low_difficulty",
     });

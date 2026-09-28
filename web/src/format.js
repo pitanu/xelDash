@@ -79,3 +79,9 @@ export function formatBucket(seconds) {
   if (seconds % 3600 === 0) return `${seconds / 3600}-hour`;
   return `${seconds / 60}-minute`;
 }
+
+/** Effort (1 = the work expected for one block) as a percentage. @param {number} effort */
+export function formatEffort(effort) {
+  const pct = effort * 100;
+  return `${pct < 10 ? pct.toFixed(1) : Math.round(pct).toLocaleString()}%`;
+}

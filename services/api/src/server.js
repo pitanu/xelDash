@@ -3,6 +3,7 @@ import { createPool } from "@xeldash/db";
 import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, listBlocks, listEvents, listMiners } from "./queries.js";
 import { alertConfigFromEnv, startAlerts } from "./alerts.js";
 import { startLiveUpdates } from "./live.js";
+import { getBlockEfforts, getLuck } from "./luck.js";
 import { callAnyNode, fallbackUrl, rpcUrlsFromEnv } from "./nodes.js";
 import { CURRENCIES, getPrice } from "./price.js";
 import { getStatus } from "./status.js";
@@ -101,6 +102,7 @@ async function getOverview() {
     `),
   ]);
 
+  const luck = await getLuck(pool);
   const workerCounts = await pool.query(`
     SELECT
       COUNT(DISTINCT w.id) FILTER (WHERE s.bucket >= date_trunc('minute', now()) - interval '4 minutes')::text AS active_workers,
@@ -116,6 +118,7 @@ async function getOverview() {
     shares: activity.rows[0],
     miningEstimates: estimateMining(activity.rows[0], network),
     blocks: blocks.rows,
+    luck,
   };
 }
 
@@ -238,12 +241,17 @@ const server = createServer(async (request, response) => {
         return;
       }
       const miner = await getMiner(pool, minerAddress);
-      sendJson(response, miner ? 200 : 404, miner ?? { error: "not_found" });
+      sendJson(response, miner ? 200 : 404, miner ? { ...miner, luck: await getLuck(pool, { address: minerAddress }) } : { error: "not_found" });
       return;
     }
 
     if (pathname === "/api/v1/blocks") {
-      sendJson(response, 200, { blocks: await listBlocks(pool, { address, worker, limit: clampLimit(searchParams.get("limit"), 50, 500) }) });
+      // Round effort per block: per miner when filtered by address, else across all miners.
+      const [list, efforts] = await Promise.all([
+        listBlocks(pool, { address, worker, limit: clampLimit(searchParams.get("limit"), 50, 500) }),
+        getBlockEfforts(pool, { address }),
+      ]);
+      sendJson(response, 200, { blocks: list.map((b) => ({ ...b, effort: efforts.get(b.hash) ?? null })) });
       return;
     }
 

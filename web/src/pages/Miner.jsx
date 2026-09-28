@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { usePolled } from "../api.js";
 import HashrateChart from "../components/HashrateChart.jsx";
+import LuckCard from "../components/LuckCard.jsx";
 import { BlocksTable, Card, StatTile, WorkersTable } from "../components/ui.jsx";
 import { formatAgo, formatHashrate, formatInteger, formatBucket } from "../format.js";
 
@@ -35,6 +36,8 @@ export default function Miner({ address }) {
         <StatTile icon="block" label="Blocks found" value={formatInteger(blockList.filter((b) => b.status !== "rejected").length)}
           detail={`${blockList.filter((b) => b.status === "main-chain").length} main chain`} />
       </div>
+
+      <LuckCard luck={m?.luck} />
 
       <Card title="Hashrate" subtitle={history.data ? `${formatBucket(history.data.bucketSeconds)} buckets` : undefined}>
         <HashrateChart points={history.data?.points ?? null} dimmed={history.loading} range={range} onRangeChange={setRange} />

@@ -4,7 +4,7 @@ const { Pool } = pg;
 
 /** @typedef {import("pg").Pool} PgPool */
 /** @typedef {{ address: string, name?: string, ip?: string | null }} WorkerInput */
-/** @typedef {{ workerId: string | bigint, jobId: string, nonce: string, accepted: boolean, rejectReason?: string | null, difficulty: string | bigint, createdAt?: Date | string | null }} ShareInput */
+/** @typedef {{ workerId: string | bigint, jobId: string, nonce: string, accepted: boolean, rejectReason?: string | null, difficulty: string | bigint, networkDifficulty?: string | bigint | null, createdAt?: Date | string | null }} ShareInput */
 
 /** @param {string | undefined} [connectionString] @returns {PgPool} */
 export function createPool(connectionString = process.env.DATABASE_URL) {
@@ -79,6 +79,11 @@ export async function recordShare(pool, share) {
   if (!/^(?:0|[1-9]\d*)(?:\.\d{1,12})?$/.test(difficulty) || /^0(?:\.0+)?$/.test(difficulty)) {
     throw new TypeError("difficulty must be a positive decimal with at most 12 fractional digits");
   }
+  // The network difficulty the share was mined against, for effort; omitted for stale shares.
+  const networkDifficulty = share.networkDifficulty === undefined || share.networkDifficulty === null ? null : String(share.networkDifficulty);
+  if (networkDifficulty !== null && !/^[1-9]\d*$/.test(networkDifficulty)) {
+    throw new TypeError("networkDifficulty must be a positive integer");
+  }
 
   const client = await pool.connect();
   try {
@@ -113,18 +118,20 @@ export async function recordShare(pool, share) {
 
     const row = inserted.rows[0];
     await client.query(
-      `INSERT INTO worker_stats_1m (bucket, worker_id, accepted, rejected, sum_difficulty)
+      `INSERT INTO worker_stats_1m (bucket, worker_id, accepted, rejected, sum_difficulty, sum_effort)
        VALUES (
          date_trunc('minute', $1::timestamptz), $2,
          CASE WHEN $3 THEN 1 ELSE 0 END,
          CASE WHEN $3 THEN 0 ELSE 1 END,
-         CASE WHEN $3 THEN $4::numeric ELSE 0 END
+         CASE WHEN $3 THEN $4::numeric ELSE 0 END,
+         CASE WHEN $3 AND $5::numeric IS NOT NULL THEN round($4::numeric / $5::numeric, 20) ELSE 0 END
        )
        ON CONFLICT (bucket, worker_id) DO UPDATE SET
          accepted = worker_stats_1m.accepted + EXCLUDED.accepted,
          rejected = worker_stats_1m.rejected + EXCLUDED.rejected,
-         sum_difficulty = worker_stats_1m.sum_difficulty + EXCLUDED.sum_difficulty`,
-      [row.created_at, row.worker_id, row.accepted, row.difficulty],
+         sum_difficulty = worker_stats_1m.sum_difficulty + EXCLUDED.sum_difficulty,
+         sum_effort = worker_stats_1m.sum_effort + EXCLUDED.sum_effort`,
+      [row.created_at, row.worker_id, row.accepted, row.difficulty, networkDifficulty],
     );
     // Keep last_seen current while a rig stays connected; at most one write per 30 s.
     await client.query(

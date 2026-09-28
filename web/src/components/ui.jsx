@@ -1,4 +1,4 @@
-import { XEL_DECIMALS, formatAgo, formatHashrate, formatInteger, formatTime, formatXel, shorten } from "../format.js";
+import { XEL_DECIMALS, formatAgo, formatEffort, formatHashrate, formatInteger, formatTime, formatXel, shorten } from "../format.js";
 import { formatMoney, usePrice } from "../price.js";
 
 /** @param {{ title: string, subtitle?: string, action?: React.ReactNode, children: React.ReactNode }} props */
@@ -119,6 +119,7 @@ export function BlocksTable({ blocks, showMiner = true }) {
     <Table>
       <thead>
         <tr><th className={th}>Height</th><th className={th}>Status</th>{showMiner && <th className={th}>Miner</th>}
+          <th className={`${th} text-right`} title="Work spent on the round this block ended, as a share of the work expected per block">Effort</th>
           <th className={`${th} text-right`}>Reward</th><th className={`${th} text-right`}>Found</th></tr>
       </thead>
       <tbody className="tabular">
@@ -132,6 +133,7 @@ export function BlocksTable({ blocks, showMiner = true }) {
                 {b.worker && <span className="text-muted"> · {b.worker}</span>}
               </td>
             )}
+            <td className={`${td} text-right text-ink-2`}>{b.effort === null || b.effort === undefined ? "—" : formatEffort(b.effort)}</td>
             <td className={`${td} text-right`}>
               {formatXel(b.reward)}
               {price && b.reward && (
