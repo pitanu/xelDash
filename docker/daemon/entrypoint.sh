@@ -11,6 +11,10 @@
 #   staged/, staged/READY  a verified, unpacked database ready to replace the current one
 #   RESTART              restart the daemon now
 #   STOP                 keep the daemon stopped until the marker is removed (dashboard Stop)
+#   bin/<version>/xelis_daemon  a release binary downloaded and verified by node-admin
+#   bin/current          the release version in use; absent means the image's own binary
+#   bin/pending          version to switch to on the next start ("image" for the image's own)
+#   upgrade-result       outcome of the last switch (applied, rejected, reverted)
 #   STOPPED              written while stopped, so node-admin knows the database is closed
 #
 # Settings are checked with the daemon's own parser before they are applied, and put back if
@@ -22,7 +26,8 @@ DATA=/root/.xelis
 NETWORK="${XELIS_NETWORK:-devnet}"
 DB="$DATA/$NETWORK"
 CONTROL="$DATA/.xeldash"
-BIN=/var/run/xelis/xelis
+IMAGE_BIN=/var/run/xelis/xelis
+BIN=$IMAGE_BIN
 SETTLE_SECONDS=30
 child=""
 
@@ -89,7 +94,6 @@ mkdir -p "$CONTROL"
 # Compose's flags (network, RPC address, data path) always come first; dashboard settings are
 # added after them from daemon-args.
 printf '%s\n' "$@" > "$CONTROL/base-args"
-"$BIN" --help > "$CONTROL/daemon-help.txt" 2>&1 || true
 
 # Check a settings file with the daemon's parser: generating a config template parses every
 # flag and exits without starting the node. Prints the parser's error on failure.
@@ -118,6 +122,54 @@ apply_pending() {
   return 1
 }
 
+# The binary to run: a downloaded release when one is selected and still there, else the image's.
+select_bin() {
+  BIN=$IMAGE_BIN
+  if [ -f "$CONTROL/bin/current" ]; then
+    version=$(cat "$CONTROL/bin/current")
+    if [ -x "$CONTROL/bin/$version/xelis_daemon" ]; then
+      BIN="$CONTROL/bin/$version/xelis_daemon"
+    else
+      log "Release $version is missing; using the image's daemon"
+      rm -f "$CONTROL/bin/current"
+    fi
+  fi
+}
+
+upgrade_result() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" > "$CONTROL/upgrade-result"; }
+
+# Switch to the version node-admin asked for, after checking the binary runs here.
+apply_binary() {
+  [ -f "$CONTROL/bin/pending" ] || return 1
+  wanted=$(cat "$CONTROL/bin/pending")
+  rm -f "$CONTROL/bin/pending"
+  previous=$(cat "$CONTROL/bin/current" 2>/dev/null || echo image)
+  if [ "$wanted" = image ]; then
+    rm -f "$CONTROL/bin/current"
+    echo "$previous" > "$CONTROL/bin/previous"
+    upgrade_result "applied image"
+    log "Switched back to the image's daemon"
+    return 0
+  fi
+  candidate="$CONTROL/bin/$wanted/xelis_daemon"
+  out="not found"
+  if [ -x "$candidate" ] && out=$("$candidate" --version 2>&1); then
+    echo "$wanted" > "$CONTROL/bin/current"
+    echo "$previous" > "$CONTROL/bin/previous"
+    upgrade_result "applied $wanted"
+    log "Switched to release $wanted ($out)"
+    return 0
+  fi
+  upgrade_result "rejected $wanted does not run here: $(echo "$out" | tr '\n' ' ' | cut -c1-300)"
+  log "Release $wanted does not run here; keeping the current daemon"
+  return 1
+}
+
+revert_binary() {
+  previous=$(cat "$CONTROL/bin/previous" 2>/dev/null || echo image)
+  if [ "$previous" = image ]; then rm -f "$CONTROL/bin/current"; else echo "$previous" > "$CONTROL/bin/current"; fi
+}
+
 revert_settings() {
   if [ -f "$CONTROL/daemon-args.previous" ]; then mv "$CONTROL/daemon-args.previous" "$CONTROL/daemon-args"; else rm -f "$CONTROL/daemon-args"; fi
 }
@@ -141,6 +193,11 @@ while true; do
     log "Starting again"
   fi
   swap_in_staged
+  just_upgraded=0
+  if apply_binary; then just_upgraded=1; fi
+  select_bin
+  # The dashboard's settings list comes from the daemon that is about to run.
+  "$BIN" --help > "$CONTROL/daemon-help.txt" 2>&1 || true
   just_applied=0
   if apply_pending; then just_applied=1; fi
 
@@ -174,6 +231,14 @@ while true; do
     status=0
     wait "$child" || status=$?
     child=""
+    if [ "$just_upgraded" = 1 ] && [ $(( $(date +%s) - started )) -lt "$SETTLE_SECONDS" ]; then
+      # The new release ran --version but did not stay up (for example, a database it cannot open).
+      failed=$(cat "$CONTROL/bin/current" 2>/dev/null || echo "the image's version")
+      revert_binary
+      upgrade_result "reverted the node exited with code $status within ${SETTLE_SECONDS}s of starting on $failed; the previous version is back"
+      log "The daemon exited ($status) right after switching versions; switching back"
+      continue
+    fi
     if [ "$just_applied" = 1 ] && [ $(( $(date +%s) - started )) -lt "$SETTLE_SECONDS" ]; then
       # The new settings passed the parser but the daemon did not stay up with them.
       revert_settings

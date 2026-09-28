@@ -74,6 +74,9 @@ First public version, planned as 0.1.0.
   Options the daemon refuses together, such as fast sync with boost sync, are refused on save.
 - A Settings page: the official node fallback, trusted peers and the most useful daemon
   options with plain-language explanations, and every other daemon option below them.
+- Daemon upgrades from the dashboard: official releases, checked against their checksums,
+  switched one node at a time with the usual mining node last, each back in sync before the
+  next; a node that does not stay up is switched back.
 - Node management for both nodes on the dashboard: restart, stop and start each node, copy
   one node's chain data into the other (minutes instead of a full sync), and each node's
   snapshots and daemon settings. The Health page flags nodes older than the latest release.

@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react";
 
-/** @typedef {{ id: string, present: boolean, state: "running" | "stopping" | "stopped", dataPresent: boolean, staged: boolean, phase: string }} ManagedNode */
+/**
+ * @typedef {{ id: string, present: boolean, state: "running" | "stopping" | "stopped", dataPresent: boolean, staged: boolean, phase: string,
+ *   binary: string, pending: string | null, installed: string[], lastResult: { at: string, outcome: string, message: string | null } | null,
+ *   running: { version: string, topoheight: number, peers: number, synced: boolean } | null }} ManagedNode
+ */
 
 /**
  * The nodes node-admin manages (daemon, and daemon2 once it has run), refreshed every few
  * seconds so stop and start show up quickly.
  */
 export function useNodes() {
-  const [state, setState] = useState(/** @type {{ nodes: ManagedNode[], actionsEnabled: boolean } | null} */ (null));
+  const [state, setState] = useState(/** @type {{ nodes: ManagedNode[], actionsEnabled: boolean, upgrade: any } | null} */ (null));
   useEffect(() => {
     let cancelled = false;
     const load = () => {

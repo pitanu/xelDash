@@ -55,6 +55,9 @@ check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
 - **Some bad daemon settings do not stop the node** (for example, an invalid P2P bind address
   leaves it running without P2P), so they are not rolled back automatically. Check the Health
   page after a change.
+- **Daemon upgrades from the dashboard run binaries from the XELIS GitHub releases.** They
+  are checked against the release's checksums and GitHub's digest, but not a PGP signature
+  (the signing key is not published). Anyone with the admin token can switch versions.
 - **The official node fallback trusts node.xelis.io while it is in use.** It is off by
   default. When on and none of your nodes can issue work, that server provides block
   templates. The key rewards are paid to comes from your own node whenever it answers, but

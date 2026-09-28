@@ -1,6 +1,8 @@
 import { createServer } from "node:http";
 import { MiningFallback } from "./fallback.js";
 import { Node } from "./nodes.js";
+import { Releases } from "./releases.js";
+import { RollingUpgrade, nodeView } from "./upgrade.js";
 import { message, tokensMatch } from "./snapshot.js";
 
 const port = Number.parseInt(process.env.SNAPSHOT_PORT ?? "8095", 10);
@@ -27,6 +29,8 @@ const nodes = [
   new Node({ id: "daemon2", dataDir: process.env.DATA2_DIR ?? "/data2", network, snapshotUrl, checksumUrl }),
 ];
 const primary = nodes[0];
+const releases = new Releases();
+const upgrade = new RollingUpgrade({ releases });
 const fallback = new MiningFallback({ configDir: process.env.CONFIG_DIR ?? "/config", network, env: process.env });
 for (const node of nodes) await node.snapshots.init().catch((error) => console.warn(`${node.id}: ${message(error)}`));
 await fallback.init();
@@ -105,8 +109,25 @@ const server = createServer(async (request, response) => {
   }
   try {
     if (request.method === "GET" && path === "/nodes") {
-      const list = await Promise.all(nodes.filter((n) => n === primary || n.present).map((n) => n.status()));
-      send(response, 200, { nodes: list, actionsEnabled: Boolean(adminToken) });
+      const list = await Promise.all(nodes.filter((n) => n === primary || n.present).map(async (n) => ({
+        ...(await n.status()),
+        ...(await releases.nodeStatus(n)),
+        running: await nodeView(n.id),
+      })));
+      send(response, 200, { nodes: list, actionsEnabled: Boolean(adminToken), upgrade: upgrade.state });
+      return;
+    }
+    if (request.method === "GET" && path === "/releases") {
+      const list = await releases.list().catch((error) => {
+        console.warn(`Release list unavailable: ${message(error)}`);
+        return null;
+      });
+      send(response, 200, {
+        supported: releases.platform !== null,
+        platform: releases.platform,
+        available: list !== null,
+        releases: (list ?? []).map((r) => ({ version: r.version, publishedAt: r.publishedAt, url: r.url })),
+      });
       return;
     }
     const node = nodeFrom(params) ?? primary;
@@ -151,6 +172,26 @@ const server = createServer(async (request, response) => {
       else if (path === "/control/start") await node.start();
       else await node.restart();
       send(response, 202, { ok: true, state: node.state });
+      return;
+    }
+    if (request.method === "POST" && path === "/upgrade") {
+      const body = await readJson(request);
+      const target = body?.version;
+      if (typeof target !== "string" || !(target === "image" || /^\d+\.\d+\.\d+$/.test(target))) {
+        send(response, 400, { error: "Send { \"version\": \"1.26.0\" | \"image\", \"nodes\": [\"daemon2\"] }" });
+        return;
+      }
+      if (target !== "image") await releases.find(target);
+      // The whole stack by default: every other node first, the usual mining node last.
+      const present = nodes.filter((n) => n === primary || n.present);
+      const order = [...present.filter((n) => n !== primary), primary];
+      const chosen = Array.isArray(body.nodes) ? order.filter((n) => body.nodes.includes(n.id)) : order;
+      if (chosen.length === 0) {
+        send(response, 400, { error: "No such nodes" });
+        return;
+      }
+      upgrade.start(chosen, target);
+      send(response, 202, { ok: true });
       return;
     }
     if (request.method === "POST" && path === "/copy") {

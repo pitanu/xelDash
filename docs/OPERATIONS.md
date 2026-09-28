@@ -216,6 +216,28 @@ lost, which only affects the statistics.
 
 ## Upgrading the XELIS daemon
 
+### From the dashboard
+
+**Health → Manage nodes → Daemon version** lists each node's version and the latest XELIS
+release, and switches nodes to a release (or back to the image's own daemon) one at a time:
+every other node first, `daemon` last. Each node restarts on the new version and must catch
+up with the network before the next one starts, so with two nodes mining never stops. The
+progress shows step by step, and the switch carries on if the page is closed.
+
+- Releases come from the XELIS project's GitHub releases only. Each download must match the
+  release's `checksums.txt` and GitHub's own digest for the file, and `xelis_daemon` inside
+  it the archive's `checksums.txt`. The release signing key is not published yet, so the
+  PGP signature is not checked; this is the same trust as the official Docker images.
+- A node that does not stay up on the new version for 30 seconds is switched back
+  automatically, and the switch stops before touching the next node. (Tested: 1.25.0 on a
+  database written by 1.21.3 exits with "Invalid size" and was switched back.)
+- A downloaded release takes precedence over the image. After raising `XELIS_DAEMON_IMAGE`,
+  choose **Back to the image's version** to run the image's daemon again.
+- Going back to an older version may fail if the newer one changed the database. Keep a
+  snapshot or the other node's copy at hand.
+
+### By image
+
 The daemon release is pinned with `XELIS_DAEMON_IMAGE` (see
 [docker/daemon/README.md](../docker/daemon/README.md) for why the image is re-based):
 

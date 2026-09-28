@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminUnlock, useAdminToken } from "../components/AdminUnlock.jsx";
 import { Card, HealthBadge, Segmented } from "../components/ui.jsx";
 import { nodeQuery, useNodes } from "../nodes.js";
+import UpgradeCard from "../components/UpgradeCard.jsx";
 import { formatAgo, formatTime } from "../format.js";
 
 /** @param {number | null | undefined} bytes */
@@ -411,6 +412,10 @@ export default function NodeData() {
       </div>
 
       {managed && <AdminUnlock actionsEnabled={actionsEnabled} admin={admin} />}
+
+      {managed && list.length > 0 && (
+        <UpgradeCard nodes={list} upgrade={managed.upgrade} token={token} locked={locked} onUnauthorized={admin.forget} />
+      )}
 
       {node && <NodeControls node={node} others={others} token={token} locked={locked} onUnauthorized={admin.forget} />}
       {node && others.map((source) => (
