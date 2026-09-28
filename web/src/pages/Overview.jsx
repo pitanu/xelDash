@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { usePolled } from "../api.js";
+import { EarningsText } from "../components/Earnings.jsx";
 import HashrateChart from "../components/HashrateChart.jsx";
 import LuckCard from "../components/LuckCard.jsx";
 import { BlocksTable, Card, EventsList, HealthBadge, MinersTable, StatTile } from "../components/ui.jsx";
@@ -38,7 +39,8 @@ export default function Overview() {
             detail={`Last 5 min: ${formatHashrate(o?.miningEstimates?.["5m"]?.estimatedHashesPerSecond)}`} />
         </div>
         <StatTile icon="clock" label="Expected time to block" value={formatDuration(o?.miningEstimates?.["1h"]?.expectedTimeToBlockSeconds)}
-          detail="At last hour's hashrate" />
+          detail={<>At last hour's hashrate{o?.node?.miner_reward ? <>{" · "}<EarningsText hashrate={Number(o.miningEstimates["1h"].estimatedHashesPerSecond)}
+            difficulty={o.network.difficulty} minerReward={o.node.miner_reward} /></> : null}</>} />
         <StatTile icon="block" label="Blocks found" value={formatInteger(found)}
           detail={o ? `${countOf(blockRows, "main-chain")} main chain · ${countOf(blockRows, "submitted")} pending` : undefined} />
         <StatTile icon="difficulty" label="Network difficulty" value={formatCompact(o?.network?.difficulty)}

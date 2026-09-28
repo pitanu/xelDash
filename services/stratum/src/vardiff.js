@@ -51,6 +51,17 @@ export class Vardiff {
     this.windowStart = now;
     this.windowShares = 0;
     this.windowDifficulty = 0;
+    this.fixed = false;
+  }
+
+  /**
+   * Hold the difficulty at a value the miner asked for (password d=...), never below the
+   * configured minimum. Retargeting stops for this connection.
+   * @param {number} difficulty
+   */
+  fix(difficulty) {
+    this.difficulty = Math.max(this.config.minDifficulty, Math.floor(difficulty));
+    this.fixed = true;
   }
 
   /** @param {number} now */
@@ -83,6 +94,7 @@ export class Vardiff {
 
   /** @param {number} maxDifficulty @param {number} now */
   retarget(maxDifficulty, now) {
+    if (this.fixed) return null;
     const elapsedSeconds = Math.max((now - this.windowStart) / 1000, 1);
     const hashrate = this.windowDifficulty / elapsedSeconds;
     const ideal = hashrate * this.config.targetShareSeconds;

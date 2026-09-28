@@ -51,6 +51,9 @@ Use your own XELIS address as the user name; the worker name is optional.
 | Stratum over TLS (if enabled) | `stratum+ssl://<host>:3334` | same |
 | Official xelis_miner | `--daemon-address ws://<host>:8090 --miner-address <address> --worker <rig>` | |
 
+Share difficulty adjusts to each rig automatically. To fix it instead, put `d=<difficulty>` in
+the Stratum password (for example `-p d=50000`); it is never set below `STRATUM_MIN_DIFFICULTY`.
+
 ## Documentation
 
 - [Operations](docs/OPERATIONS.md): daemon settings, snapshots, redundant nodes, alerts,

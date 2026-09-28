@@ -138,7 +138,7 @@ export function BlocksTable({ blocks, showMiner = true }) {
               {formatXel(b.reward)}
               {price && b.reward && (
                 <span className="block text-xs text-muted" title="At the current price">
-                  ≈ {formatMoney((Number(b.reward) / 10 ** XEL_DECIMALS) * price.price, price.currency)}
+                  ≈ {formatMoney((Number(b.reward) / 10 ** XEL_DECIMALS) * price.price, price.currency, "amount")}
                 </span>
               )}
             </td>

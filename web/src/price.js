@@ -80,11 +80,14 @@ export function usePrice() {
 }
 
 /**
- * A money amount in a currency, with sensible precision for small prices.
- * @param {number} value @param {string} currency
+ * A money amount in a currency. Prices keep four significant digits below 1; amounts (such as
+ * earnings) are rounded to the currency's usual two decimals.
+ * @param {number} value @param {string} currency @param {"price" | "amount"} [kind]
  */
-export function formatMoney(value, currency) {
+export function formatMoney(value, currency, kind = "price") {
   if (currency === "btc") return `₿${value.toLocaleString(undefined, { maximumSignificantDigits: 4 })}`;
-  const digits = value !== 0 && Math.abs(value) < 1 ? { maximumSignificantDigits: 4 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+  const digits = kind === "price" && value !== 0 && Math.abs(value) < 1
+    ? { maximumSignificantDigits: 4 }
+    : { minimumFractionDigits: 2, maximumFractionDigits: 2 };
   return new Intl.NumberFormat(undefined, { style: "currency", currency: currency.toUpperCase(), ...digits }).format(value);
 }

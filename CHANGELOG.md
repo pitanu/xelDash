@@ -16,7 +16,8 @@ First public version, planned as 0.1.0.
 - Share validation with the official XELIS Hash V3 code (native addon), hashed on a thread
   pool. Hashing, MinerWork layout, block hash and block submission are verified against the
   daemon on devnet.
-- Per-connection vardiff (10 s per share by default).
+- Per-connection vardiff (10 s per share by default), or a fixed difficulty the miner asks for
+  in its password (`d=50000`).
 - Works with classic Stratum miners that leave out `"jsonrpc"`; tested with Rigel 1.23.0.
 - Shares on the previous job are accepted for 1.5 s after a new block (`STRATUM_STALE_GRACE_MS`),
   so GPUs finishing a batch are not rejected; later stale shares are counted as rejected.
@@ -37,6 +38,8 @@ First public version, planned as 0.1.0.
   updates over WebSocket.
 - Hashrate charts from 6 hours to 1 year, estimated from accepted shares, next to the
   hashrate miners report.
+- Expected earnings (blocks and XEL a day, and in money with the price on) on the Overview
+  and each miner's page.
 - Mining luck: the current round's effort (work done against the work expected per block),
   luck as blocks found against blocks expected, and each block's round effort. Weighed
   against the network difficulty when each share arrived; tracked from this version on.

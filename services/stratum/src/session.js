@@ -21,6 +21,17 @@ const MAX_TRACKED_JOBS = 5;
 // its current batch before it switches). Shares on them within this window are real work and
 // are accepted; later ones are stale.
 export const DEFAULT_STALE_GRACE_MS = 1_500;
+
+/**
+ * A fixed share difficulty requested in the Stratum password, as many miners and pools use:
+ * "d=50000", "diff=50000", or among other options ("x,d=50000"). Null when there is none.
+ * @param {string} password
+ */
+export function requestedDifficulty(password) {
+  const match = /(?:^|[,;\s])d(?:iff)?=(\d{1,15})(?=$|[,;\s])/i.exec(password);
+  const value = match ? Number(match[1]) : NaN;
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
 // Timestamp slack for getwork submissions: miners bump the work timestamp while hashing.
 const MAX_FUTURE_TIMESTAMP_MS = 30_000;
 /** A TCP socket, or the getwork WebSocket adapter. @typedef {{ remoteAddress?: string, destroyed: boolean, write: (data: string) => unknown }} StratumSocket */
@@ -223,6 +234,9 @@ export class StratumSession {
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNKNOWN, "No validated xel/v3 mining job provider is available"));
       return;
     }
+    // A difficulty asked for in the password applies to the connection from its first login.
+    const fixedDifficulty = this.miningAddress === null ? requestedDifficulty(password) : null;
+    if (fixedDifficulty !== null) this.vardiff.fix(fixedDifficulty);
     const job = await this.createJob({
       address: miningAddress,
       publicKey: identity.publicKey,

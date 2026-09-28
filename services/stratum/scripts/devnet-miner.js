@@ -181,7 +181,7 @@ async function mine() {
 socket.once(useTls ? "secureConnect" : "connect", async () => {
   const subscribed = await request("mining.subscribe", ["xeldash-devnet-miner", ["xel/v3"]]);
   if (subscribed.error) throw new Error(subscribed.error.message);
-  const authorized = await request("mining.authorize", [address, WORKER, ""]);
+  const authorized = await request("mining.authorize", [address, WORKER, process.env.MINER_PASSWORD ?? ""]);
   if (authorized.error || authorized.result !== true) {
     console.error("authorize failed:", authorized.error?.message ?? authorized.result);
     process.exit(1);
