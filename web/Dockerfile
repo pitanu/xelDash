@@ -5,6 +5,7 @@ COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY web/index.html web/vite.config.js ./
 COPY web/src ./src
+COPY web/public ./public
 RUN npm run build
 
 FROM nginx:1.29-alpine

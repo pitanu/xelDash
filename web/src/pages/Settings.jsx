@@ -3,6 +3,7 @@ import { AdminUnlock, useAdminToken } from "../components/AdminUnlock.jsx";
 import DaemonSettings from "../components/DaemonSettings.jsx";
 import MiningFallback from "../components/MiningFallback.jsx";
 import PriceSetting from "../components/PriceSetting.jsx";
+import ThemeSetting from "../components/ThemeSetting.jsx";
 import { Card } from "../components/ui.jsx";
 
 /** Everything about the node that can be changed from the dashboard, with what each does. */
@@ -29,6 +30,7 @@ export default function Settings() {
       </div>
 
       <h2 className="text-base font-semibold text-ink">Display</h2>
+      <ThemeSetting />
       <PriceSetting />
 
       {error && <p className="text-sm text-critical">Unable to reach the node admin service ({error}).</p>}

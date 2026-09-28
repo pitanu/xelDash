@@ -7,6 +7,7 @@ import Worker from "./pages/Worker.jsx";
 import Health from "./pages/Health.jsx";
 import NodeData from "./pages/NodeData.jsx";
 import Settings from "./pages/Settings.jsx";
+import { ThemeButton } from "./components/ThemeSetting.jsx";
 import { formatMoney, usePrice } from "./price.js";
 
 const NAV = [["/", "Overview"], ["/blocks", "Blocks"], ["/health", "Health"], ["/settings", "Settings"]];
@@ -99,14 +100,17 @@ export default function App() {
             <LiveIndicator />
             <PriceChip />
           </div>
-          <nav className="flex gap-1 text-sm">
-            {NAV.map(([href, label]) => (
-              <a key={href} href={`#${href}`} aria-current={section === href ? "page" : undefined}
-                className={`rounded-md px-2.5 py-1 ${section === href ? "bg-wash font-semibold text-ink" : "text-ink-2 hover:bg-wash hover:text-ink"}`}>
-                {label}
-              </a>
-            ))}
-          </nav>
+          <div className="flex items-center gap-1">
+            <nav className="flex gap-1 text-sm">
+              {NAV.map(([href, label]) => (
+                <a key={href} href={`#${href}`} aria-current={section === href ? "page" : undefined}
+                  className={`rounded-md px-2.5 py-1 ${section === href ? "bg-wash font-semibold text-ink" : "text-ink-2 hover:bg-wash hover:text-ink"}`}>
+                  {label}
+                </a>
+              ))}
+            </nav>
+            <ThemeButton />
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">{page}</main>
