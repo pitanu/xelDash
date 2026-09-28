@@ -32,7 +32,7 @@ services:
     healthcheck:
       # Waiting for a first-start snapshot counts as healthy, so the dashboard (which shows the
       # download) and Stratum (which pauses until the node is ready) can start meanwhile.
-      test: ["CMD", "busybox", "sh", "-c", "test -f /root/.xelis/.xeldash/BOOTSTRAPPING || busybox wget -q -O - --header 'Content-Type: application/json' --post-data '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"get_version\"}' http://127.0.0.1:8080/json_rpc"]
+      test: ["CMD", "busybox", "sh", "-c", "test -f /root/.xelis/.xeldash/BOOTSTRAPPING || test -f /root/.xelis/.xeldash/STOP || busybox wget -q -O - --header 'Content-Type: application/json' --post-data '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"get_version\"}' http://127.0.0.1:8080/json_rpc"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -60,6 +60,8 @@ services:
       XELIS_OFFICIAL_NODE_URL: ${XELIS_OFFICIAL_NODE_URL:-}
     volumes:
       - xelis-data:/data
+      # daemon2's data (redundant profile), so its snapshots and settings can be managed too.
+      - xelis-data-2:/data2
       - xeldash-config:/config
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8095/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -93,7 +95,7 @@ services:
     expose:
       - "8080"
     healthcheck:
-      test: ["CMD", "busybox", "wget", "-q", "-O", "-", "--header", "Content-Type: application/json", "--post-data", "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"get_version\"}", "http://127.0.0.1:8080/json_rpc"]
+      test: ["CMD", "busybox", "sh", "-c", "test -f /root/.xelis/.xeldash/STOP || busybox wget -q -O - --header 'Content-Type: application/json' --post-data '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"get_version\"}' http://127.0.0.1:8080/json_rpc"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -160,6 +162,8 @@ services:
       ALERT_DASHBOARD_URL: ${ALERT_DASHBOARD_URL:-}
       # XEL price from CoinGecko, for viewers who switch it on; "off" disables it for everyone.
       XELDASH_PRICE: ${XELDASH_PRICE:-on}
+      # Asks GitHub for the latest XELIS release (every 6 hours) to flag outdated nodes.
+      XELDASH_VERSION_CHECK: ${XELDASH_VERSION_CHECK:-on}
       XELIS_NETWORK: ${XELIS_NETWORK:-devnet}
       # Nodes in priority order; see docs/OPERATIONS.md#redundant-nodes.
       XELIS_RPC_URLS: ${XELIS_RPC_URLS:-http://daemon:8080/json_rpc}

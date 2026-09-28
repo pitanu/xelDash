@@ -1,5 +1,6 @@
 import { connect } from "node:net";
 import { callNode, nodeLabel } from "./nodes.js";
+import { compareVersions, latestRelease, parseVersion } from "./release.js";
 
 // A node counts as syncing when the peers' median topoheight is this far ahead of ours
 // (same rule as Stratum's sync monitor).
@@ -85,6 +86,7 @@ export async function getStatus({ pool, nodeUrls, fallbackUrl, stratumHost, stra
        WHERE until > now() ORDER BY until DESC LIMIT 50`,
     ),
   ]);
+  const release = await latestRelease();
   const nodes = await Promise.all([
     ...nodeUrls.map((url) => nodeStatus(url, false)),
     ...(fallbackUrl && !nodeUrls.includes(fallbackUrl) ? [nodeStatus(fallbackUrl, true)] : []),
@@ -98,7 +100,11 @@ export async function getStatus({ pool, nodeUrls, fallbackUrl, stratumHost, stra
     ? workState.type.replace("node_", "")
     : workState?.type === "stratum_started" ? workState.payload?.paused ?? null : null;
   const activeLabel = paused ? null : workState?.payload?.to ?? workState?.payload?.node ?? null;
-  const withActive = nodes.map((n) => ({ ...n, active: n.label === activeLabel }));
+  const latest = parseVersion(release?.version);
+  const withActive = nodes.map((n) => {
+    const running = parseVersion(n.ok ? n.version : null);
+    return { ...n, active: n.label === activeLabel, updateAvailable: Boolean(latest && running && compareVersions(running, latest) < 0) };
+  });
   // The top-level node is the one Stratum mines through, or else the first of ours that answered.
   const primary = withActive.find((n) => n.active && n.ok) ?? withActive.find((n) => n.ok && !n.fallback)
     ?? withActive.find((n) => n.ok) ?? null;
@@ -106,6 +112,7 @@ export async function getStatus({ pool, nodeUrls, fallbackUrl, stratumHost, stra
   return {
     node: primary,
     nodes: withActive,
+    latestRelease: release,
     services: {
       // Our own nodes; the official fallback node does not make them healthy.
       daemon: own.some((n) => n.ok)

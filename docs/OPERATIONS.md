@@ -254,9 +254,18 @@ Two nodes on one machine protect against node restarts, upgrades and crashes, no
 machine failing.
 
 **Start daemon2 from daemon's chain data** instead of syncing from scratch (days on
-mainnet). The database must be copied while `daemon` is stopped; with the official node
-fallback on, mining continues meanwhile. Volume names start with the Compose project name
-(the folder name, `xeldash` by default); `mainnet` is the network:
+mainnet): on **Health → Manage nodes**, pick `daemon2` and use **Copy from daemon**.
+`daemon` stops while its database is copied (about a minute per 10 GB) and starts again;
+mining continues on `daemon2` or through the official node fallback meanwhile. `daemon2`
+then restarts on the copy and keeps its previous data as a backup, which **Previous chain
+data** on the same page deletes. The same works the other way round.
+
+The same page restarts, stops and starts each node and handles each node's snapshots; the
+**Settings** page has a node picker for each node's daemon settings. A node stopped there
+stays stopped, across restarts of the stack, until it is started again.
+
+By hand, the copy is (volume names start with the Compose project name, the folder name,
+`xeldash` by default; `mainnet` is the network):
 
 ```sh
 docker compose stop daemon
@@ -295,6 +304,8 @@ seconds and back when it returned, and replacing each node in turn, with no reje
 and no pause.
 
 Switches are recorded as events and, with alerts on, reported as `mining_paused` alerts.
+The Health page marks a node **Update available** when it runs an older version than the
+latest XELIS release (checked on GitHub every 6 hours; `XELDASH_VERSION_CHECK=off` stops it).
 
 **Hard forks:** XELIS announces network upgrades with a minimum daemon version and an
 activation height (for example, the V7 fork at height 6,909,122 required 1.24.0). Upgrade

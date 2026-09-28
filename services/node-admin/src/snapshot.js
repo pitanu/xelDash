@@ -59,8 +59,30 @@ async function dirSize(dir) {
 }
 
 /**
- * @typedef {{ phase: "idle" | "downloading" | "uploading" | "verifying" | "extracting" | "ready" | "error",
- *   source: "download" | "upload" | null, bytes: number, total: number | null, startedAt: string | null,
+ * Copy a directory tree of regular files, reporting bytes as they are written.
+ * @param {string} from @param {string} to @param {AbortSignal} signal @param {(bytes: number) => void} onBytes
+ */
+async function copyTree(from, to, signal, onBytes) {
+  await mkdir(to, { recursive: true });
+  for (const entry of await readdir(from, { withFileTypes: true })) {
+    signal.throwIfAborted();
+    const source = join(from, entry.name);
+    const target = join(to, entry.name);
+    if (entry.isDirectory()) {
+      await copyTree(source, target, signal, onBytes);
+    } else if (entry.isFile()) {
+      const input = createReadStream(source);
+      input.on("data", (chunk) => onBytes(chunk.length));
+      await pipeline(input, createWriteStream(target), { signal });
+    } else {
+      throw new Error(`Refusing to copy ${entry.name}: not a regular file`);
+    }
+  }
+}
+
+/**
+ * @typedef {{ phase: "idle" | "downloading" | "uploading" | "verifying" | "extracting" | "copying" | "ready" | "error",
+ *   source: "download" | "upload" | "copy" | null, bytes: number, total: number | null, startedAt: string | null,
  *   note: string | null, error: string | null, sha256: string | null, checksumMatches: boolean | null }} SnapshotState
  */
 
@@ -94,7 +116,7 @@ export class SnapshotManager {
   }
 
   get busy() {
-    return ["downloading", "uploading", "verifying", "extracting"].includes(this.state.phase);
+    return ["downloading", "uploading", "verifying", "extracting", "copying"].includes(this.state.phase);
   }
 
   hasData() {
@@ -118,11 +140,12 @@ export class SnapshotManager {
     this.state = { ...this.state, ...patch };
   }
 
-  /** @param {"download" | "upload"} source @param {number | null} total */
+  /** @param {"download" | "upload" | "copy"} source @param {number | null} total */
   begin(source, total) {
     if (this.busy) throw new Error(`Another snapshot operation is running (${this.state.phase})`);
     this.abort = new AbortController();
-    this.set({ phase: source === "download" ? "downloading" : "uploading", source, bytes: 0, total,
+    const phase = source === "download" ? "downloading" : source === "upload" ? "uploading" : "copying";
+    this.set({ phase, source, bytes: 0, total,
       startedAt: new Date().toISOString(), note: null, error: null, sha256: null, checksumMatches: null });
     return this.abort.signal;
   }
@@ -354,6 +377,50 @@ export class SnapshotManager {
     this.set({ phase: "ready", bytes: 0, total: null,
       note: "The snapshot is ready. Restart the node to switch to it; the current data is kept as a backup." });
     this.logger.info?.("Snapshot unpacked and staged for the node");
+  }
+
+  /**
+   * Copy another node's chain data into this node: stop the source so its database is closed,
+   * copy it into this node's staging area, start the source again, then restart this node,
+   * which swaps the copy in (its own data is kept as <network>.previous).
+   * @param {import("./nodes.js").Node} source
+   */
+  async copyFrom(source) {
+    const from = source.snapshots.db;
+    if (!existsSync(join(from, "CURRENT"))) throw new Error(`${source.id} has no chain data to copy`);
+    const size = await dirSize(from);
+    await this.requireSpace(size);
+    const signal = this.begin("copy", size);
+    let stopped = false;
+    try {
+      this.set({ note: `Stopping ${source.id} so its database can be copied…` });
+      await source.stopAndWait();
+      stopped = true;
+      this.set({ note: `Copying from ${source.id}; it starts again when the copy is done.` });
+      const target = join(this.work, "copy");
+      await rm(target, { recursive: true, force: true });
+      let bytes = 0;
+      await copyTree(from, target, signal, (n) => {
+        bytes += n;
+        this.set({ bytes });
+      });
+      await source.start();
+      stopped = false;
+      await rm(join(target, "LOCK"), { force: true });
+      await rm(this.staged, { recursive: true, force: true });
+      await rename(target, this.staged);
+      await writeFile(join(this.staged, "READY"), new Date().toISOString());
+      this.abort = null;
+      await writeFile(join(this.control, "RESTART"), new Date().toISOString());
+      this.set({ phase: "idle", source: null, bytes: 0, total: null,
+        note: `Copied ${Math.round(size / 1e9)} GB from ${source.id}. The node is restarting with it; its previous data is kept as a backup.` });
+      this.logger.info?.(`Copied chain data from ${source.id}`);
+    } catch (error) {
+      if (stopped) await source.start();
+      await rm(join(this.work, "copy"), { recursive: true, force: true });
+      this.fail(error);
+      throw error;
+    }
   }
 
   /** Ask the node's entrypoint to restart the daemon, which swaps the staged snapshot in. */

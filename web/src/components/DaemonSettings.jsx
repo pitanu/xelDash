@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatAgo, formatTime } from "../format.js";
+import { nodeQuery } from "../nodes.js";
 import { GUIDE } from "./settings-guide.js";
 import { Card, HealthBadge } from "./ui.jsx";
 
@@ -132,9 +133,10 @@ function TrustedPeers({ draft, set, locked }) {
  * The daemon's own options, read from its --help by node-admin, edited here and applied on
  * a node restart. Changes are checked by the daemon's parser before they take effect, and put
  * back automatically if the node does not stay up with them.
- * @param {{ token: string, onUnauthorized: () => void }} props
+ * @param {{ token: string, onUnauthorized: () => void, node?: string }} props
  */
-export default function DaemonSettings({ token, onUnauthorized }) {
+export default function DaemonSettings({ token, onUnauthorized, node = "daemon" }) {
+  const q = nodeQuery(node);
   const [data, setData] = useState(/** @type {any} */ (null));
   const [draft, setDraft] = useState(/** @type {Record<string, string | true>} */ ({}));
   const [query, setQuery] = useState("");
@@ -145,7 +147,7 @@ export default function DaemonSettings({ token, onUnauthorized }) {
   const [waiting, setWaiting] = useState(false);
 
   const load = useCallback(async () => {
-    const response = await fetch("/api/v1/node/settings");
+    const response = await fetch(`/api/v1/node/settings${q}`);
     if (!response.ok) return;
     const next = await response.json();
     setData((previous) => {
@@ -155,7 +157,7 @@ export default function DaemonSettings({ token, onUnauthorized }) {
       if (!before || !sameValues(saved, before)) setDraft({ ...saved });
       return next;
     });
-  }, []);
+  }, [q]);
 
   useEffect(() => {
     void load();
@@ -203,12 +205,12 @@ export default function DaemonSettings({ token, onUnauthorized }) {
     setError(null);
     try {
       const headers = { "x-admin-token": token, "content-type": "application/json" };
-      const response = await fetch("/api/v1/node/settings", { method: "PUT", headers, body: JSON.stringify({ values: draft }) });
+      const response = await fetch(`/api/v1/node/settings${q}`, { method: "PUT", headers, body: JSON.stringify({ values: draft }) });
       const body = await response.json().catch(() => ({}));
       if (response.status === 401) onUnauthorized();
       if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
       if (apply && body.pending) {
-        const applied = await fetch("/api/v1/node/settings/apply", { method: "POST", headers });
+        const applied = await fetch(`/api/v1/node/settings/apply${q}`, { method: "POST", headers });
         if (!applied.ok) throw new Error((await applied.json().catch(() => ({}))).error ?? `HTTP ${applied.status}`);
         setWaiting(true);
       }
@@ -223,7 +225,7 @@ export default function DaemonSettings({ token, onUnauthorized }) {
   async function discard() {
     setError(null);
     if (data?.pending) {
-      await fetch("/api/v1/node/settings/discard", { method: "POST", headers: { "x-admin-token": token } });
+      await fetch(`/api/v1/node/settings/discard${q}`, { method: "POST", headers: { "x-admin-token": token } });
       await load();
     }
     setDraft({ ...current });

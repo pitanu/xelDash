@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { MiningFallback } from "./fallback.js";
-import { DaemonSettings } from "./settings.js";
-import { SnapshotManager, message, tokensMatch } from "./snapshot.js";
+import { Node } from "./nodes.js";
+import { message, tokensMatch } from "./snapshot.js";
 
 const port = Number.parseInt(process.env.SNAPSHOT_PORT ?? "8095", 10);
 const network = (process.env.XELIS_NETWORK ?? "devnet").toLowerCase();
@@ -20,12 +20,39 @@ const checksumUrl = process.env.XELIS_SNAPSHOT_CHECKSUM_URL?.trim()
   || (official && !process.env.XELIS_SNAPSHOT_URL ? "https://node.xelis.io/files/mainnet_checksum.txt" : null);
 const MAX_UPLOAD_BYTES = 200e9;
 
-const dataDir = process.env.DATA_DIR ?? "/data";
-const manager = new SnapshotManager({ dataDir, network, snapshotUrl, checksumUrl });
-const settings = new DaemonSettings({ dataDir });
+// The nodes in this stack, each managed through its own data volume. daemon2 (the redundant
+// profile) is listed once it has started at least once.
+const nodes = [
+  new Node({ id: "daemon", dataDir: process.env.DATA_DIR ?? "/data", network, snapshotUrl, checksumUrl }),
+  new Node({ id: "daemon2", dataDir: process.env.DATA2_DIR ?? "/data2", network, snapshotUrl, checksumUrl }),
+];
+const primary = nodes[0];
 const fallback = new MiningFallback({ configDir: process.env.CONFIG_DIR ?? "/config", network, env: process.env });
-await manager.init();
+for (const node of nodes) await node.snapshots.init().catch((error) => console.warn(`${node.id}: ${message(error)}`));
 await fallback.init();
+
+/**
+ * The node a request is about (?node=, the first node by default). Unknown nodes, and daemon2
+ * before it has ever started, are not found.
+ * @param {URLSearchParams} params @param {string} [name]
+ */
+function nodeFrom(params, name = "node") {
+  const id = params.get(name) ?? primary.id;
+  const node = nodes.find((n) => n.id === id);
+  return node && (node === primary || node.present) ? node : null;
+}
+
+/** One heavy disk operation at a time across all nodes (download, upload, unpack or copy). */
+function busyNode() {
+  return nodes.find((node) => node.snapshots.busy) ?? null;
+}
+
+/** @param {import("node:http").ServerResponse} response */
+function refuseIfBusy(response) {
+  const busy = busyNode();
+  if (busy) send(response, 409, { error: `${busy.id} is busy (${busy.snapshots.state.phase}); wait for it to finish` });
+  return Boolean(busy);
+}
 let ready = false;
 
 /** Read a small JSON body (settings), refusing anything large. @param {import("node:http").IncomingMessage} request */
@@ -66,23 +93,39 @@ function authorized(request) {
 const server = createServer(async (request, response) => {
   /** @type {string} */
   let path;
+  /** @type {URLSearchParams} */
+  let params;
   try {
-    path = new URL(request.url ?? "/", "http://localhost").pathname.replace(/^\/api\/v1\/node/, "") || "/";
+    const url = new URL(request.url ?? "/", "http://localhost");
+    path = url.pathname.replace(/^\/api\/v1\/node/, "") || "/";
+    params = url.searchParams;
   } catch {
     send(response, 400, { error: "bad_request" });
     return;
   }
   try {
+    if (request.method === "GET" && path === "/nodes") {
+      const list = await Promise.all(nodes.filter((n) => n === primary || n.present).map((n) => n.status()));
+      send(response, 200, { nodes: list, actionsEnabled: Boolean(adminToken) });
+      return;
+    }
+    const node = nodeFrom(params) ?? primary;
+    if (params.has("node") && !nodeFrom(params)) {
+      send(response, 404, { error: "Unknown node" });
+      return;
+    }
+    const manager = node.snapshots;
+    const settings = node.settings;
     if (request.method === "GET" && path === "/healthz") {
       send(response, ready ? 200 : 503, { ready });
       return;
     }
     if (request.method === "GET" && path === "/snapshot/status") {
-      send(response, 200, { ...(await manager.status()), actionsEnabled: Boolean(adminToken), auto });
+      send(response, 200, { ...(await manager.status()), node: node.id, actionsEnabled: Boolean(adminToken), auto: auto && node === primary });
       return;
     }
     if (request.method === "GET" && path === "/settings") {
-      send(response, 200, { ...(await settings.status()), actionsEnabled: Boolean(adminToken) });
+      send(response, 200, { ...(await settings.status()), node: node.id, actionsEnabled: Boolean(adminToken) });
       return;
     }
     if (request.method === "GET" && path === "/fallback") {
@@ -103,12 +146,35 @@ const server = createServer(async (request, response) => {
       send(response, 200, { ok: true });
       return;
     }
+    if (request.method === "POST" && ["/control/stop", "/control/start", "/control/restart"].includes(path)) {
+      if (path === "/control/stop") await node.stop();
+      else if (path === "/control/start") await node.start();
+      else await node.restart();
+      send(response, 202, { ok: true, state: node.state });
+      return;
+    }
+    if (request.method === "POST" && path === "/copy") {
+      const source = nodeFrom(params, "from");
+      if (!source || source === node) {
+        send(response, 400, { error: "Choose another node to copy from (?from=)" });
+        return;
+      }
+      if (refuseIfBusy(response)) return;
+      if (source.state !== "running") {
+        send(response, 409, { error: `${source.id} is stopped; start it first` });
+        return;
+      }
+      void manager.copyFrom(source).catch(() => {});
+      send(response, 202, { ok: true });
+      return;
+    }
     if (request.method === "PUT" && path === "/snapshot/upload") {
       const size = Number(request.headers["content-length"]);
       if (!Number.isSafeInteger(size) || size <= 0 || size > MAX_UPLOAD_BYTES) {
         send(response, 411, { error: "The upload needs a Content-Length" });
         return;
       }
+      if (refuseIfBusy(response)) return;
       // Answered once the file is received and hashed; unpacking continues in the background.
       await manager.upload(request, size).then(
         () => send(response, 200, { ok: true }),
@@ -121,10 +187,7 @@ const server = createServer(async (request, response) => {
         send(response, 409, { error: `No official snapshot is published for ${network}; upload one instead.` });
         return;
       }
-      if (manager.busy) {
-        send(response, 409, { error: `Another snapshot operation is running (${manager.state.phase})` });
-        return;
-      }
+      if (refuseIfBusy(response)) return;
       void manager.download().catch(() => {});
       send(response, 202, { ok: true });
       return;
@@ -188,16 +251,17 @@ server.requestTimeout = 0;
 server.listen(port, "0.0.0.0", async () => {
   console.info(`xelDash node-admin on :${port} (network ${network}, snapshot source: ${snapshotUrl ?? "none published for this network"})`);
   if (!adminToken) console.info("Snapshot actions are off; set XELDASH_ADMIN_TOKEN to enable uploads and downloads.");
+  // Automatic snapshots are for a new stack's first node; a second node can copy from it.
   if (auto && snapshotUrl) {
-    if (await manager.bootstrap()) console.info("No chain data yet: downloading the snapshot before the node starts.");
+    if (await primary.snapshots.bootstrap()) console.info("No chain data yet: downloading the snapshot before the node starts.");
   } else {
-    await manager.clearBootstrap();
+    await primary.snapshots.clearBootstrap();
   }
   ready = true;
 });
 
 async function shutdown() {
-  manager.shutdown();
+  for (const node of nodes) node.snapshots.shutdown();
   server.close();
 }
 process.once("SIGINT", shutdown);

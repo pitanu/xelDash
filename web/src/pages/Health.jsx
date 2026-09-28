@@ -39,6 +39,7 @@ function NodesList({ nodes }) {
               <span className="font-medium text-ink">{n.label}</span>
               {n.fallback && <span className="rounded bg-wash px-1.5 py-0.5 text-xs text-ink-2" title="Mined through only while none of your own nodes can issue work">Official fallback</span>}
               {n.active && <span className="rounded bg-wash px-1.5 py-0.5 text-xs text-ink-2">Mining</span>}
+              {n.updateAvailable && <span className="rounded bg-wash px-1.5 py-0.5 text-xs text-ink-2" title="A newer XELIS release is out">Update available</span>}
             </span>
             <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <HealthBadge level={state.level} label={state.label} />
@@ -62,7 +63,9 @@ export default function Health() {
 
   /** @type {[string, React.ReactNode][]} */
   const rows = node ? [
-    ["Version", node.version],
+    ["Version", s?.latestRelease
+      ? `${node.version}${node.updateAvailable ? ` · ${s.latestRelease.version} available` : " · latest"}`
+      : node.version],
     ["Network", node.network],
     ["Height", formatInteger(node.height)],
     ["Topoheight", formatInteger(node.topoheight)],
@@ -115,7 +118,7 @@ export default function Health() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title={node && s && s.nodes.length > 1 ? `Node ${node.label}` : "Node"}
-          action={<span className="flex gap-3"><a href="#/settings" className="text-xs text-ink-2 hover:text-ink hover:underline">Settings</a><a href="#/node-data" className="text-xs text-ink-2 hover:text-ink hover:underline">Snapshots</a></span>}>
+          action={<span className="flex gap-3"><a href="#/settings" className="text-xs text-ink-2 hover:text-ink hover:underline">Settings</a><a href="#/node-data" className="text-xs text-ink-2 hover:text-ink hover:underline">Manage nodes</a></span>}>
           {node ? (
             <dl className="divide-y divide-line text-sm">
               {rows.map(([label, value]) => (

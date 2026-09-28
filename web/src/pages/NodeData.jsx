@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminUnlock, useAdminToken } from "../components/AdminUnlock.jsx";
-import { Card, HealthBadge } from "../components/ui.jsx";
+import { Card, HealthBadge, Segmented } from "../components/ui.jsx";
+import { nodeQuery, useNodes } from "../nodes.js";
 import { formatAgo, formatTime } from "../format.js";
 
 /** @param {number | null | undefined} bytes */
@@ -17,20 +18,21 @@ function formatBytes(bytes) {
 }
 
 /** Snapshot service status, polled every second while something is running. */
-function useSnapshotStatus() {
+/** @param {string} node */
+function useSnapshotStatus(node) {
   const [status, setStatus] = useState(/** @type {any} */ (null));
   const [error, setError] = useState(/** @type {string | null} */ (null));
   const load = useCallback(async () => {
     try {
-      const response = await fetch("/api/v1/node/snapshot/status");
+      const response = await fetch(`/api/v1/node/snapshot/status${nodeQuery(node)}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       setStatus(await response.json());
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, []);
-  const busy = status && ["downloading", "uploading", "verifying", "extracting"].includes(status.state.phase);
+  }, [node]);
+  const busy = status && ["downloading", "uploading", "verifying", "extracting", "copying"].includes(status.state.phase);
   useEffect(() => {
     void load();
     const timer = setInterval(load, busy ? 1_000 : 10_000);
@@ -62,6 +64,7 @@ const PHASE_LABELS = {
   uploading: "Receiving upload",
   verifying: "Checking the checksum",
   extracting: "Unpacking",
+  copying: "Copying from the other node",
   ready: "Ready to switch",
   error: "Failed",
 };
@@ -78,9 +81,12 @@ function Button({ children, onClick, disabled = false, primary = false, classNam
   );
 }
 
-export default function NodeData() {
-  const { status, error, reload, busy } = useSnapshotStatus();
-  const admin = useAdminToken();
+/**
+ * Snapshots for one node: download, upload, switch and roll back.
+ * @param {{ node: string, admin: ReturnType<typeof useAdminToken> }} props
+ */
+function SnapshotsPanel({ node, admin }) {
+  const { status, error, reload, busy } = useSnapshotStatus(node);
   const { token, forget: forgetToken } = admin;
   const [actionError, setActionError] = useState(/** @type {string | null} */ (null));
   const [pending, setPending] = useState(/** @type {File | null} */ (null));
@@ -92,7 +98,7 @@ export default function NodeData() {
   /** @param {string} path */
   async function action(path) {
     setActionError(null);
-    const response = await fetch(`/api/v1/node/snapshot/${path}`, { method: "POST", headers: { "x-admin-token": token } });
+    const response = await fetch(`/api/v1/node/snapshot/${path}${nodeQuery(node)}`, { method: "POST", headers: { "x-admin-token": token } });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       if (response.status === 401) forgetToken();
@@ -119,7 +125,7 @@ export default function NodeData() {
     setUpload({ bytes: 0, total: file.size });
     const request = new XMLHttpRequest();
     xhr.current = request;
-    request.open("PUT", "/api/v1/node/snapshot/upload");
+    request.open("PUT", `/api/v1/node/snapshot/upload${nodeQuery(node)}`);
     request.setRequestHeader("x-admin-token", token);
     request.setRequestHeader("content-type", "application/zip");
     request.upload.onprogress = (event) => setUpload({ bytes: event.loaded, total: event.total || file.size });
@@ -155,17 +161,7 @@ export default function NodeData() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <a href="#/health" className="text-xs text-ink-2 hover:text-ink hover:underline">← Health</a>
-        <h1 className="mt-1 text-lg font-semibold text-ink">Snapshots</h1>
-        <p className="text-sm text-ink-2">
-          Start the node's chain data from a snapshot instead of syncing it from the network. Node settings are
-          on the <a href="#/settings" className="underline decoration-line underline-offset-2 hover:text-ink">Settings</a> page.
-        </p>
-      </div>
-
-      <AdminUnlock actionsEnabled={s.actionsEnabled} admin={admin} />
-
+      <h2 className="pt-2 text-base font-semibold text-ink">Snapshots</h2>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="min-w-0 rounded-lg border border-line bg-surface p-3 sm:p-4">
           <div className="text-xs text-ink-2">Chain data</div>
@@ -291,6 +287,137 @@ export default function NodeData() {
         </Card>
       )}
 
+    </div>
+  );
+}
+
+const STATE_BADGES = {
+  running: { level: /** @type {const} */ ("good"), label: "Running" },
+  stopping: { level: /** @type {const} */ ("warning"), label: "Stopping…" },
+  stopped: { level: /** @type {const} */ ("unknown"), label: "Stopped" },
+};
+
+/**
+ * Restart, stop or start one node. Stopping keeps it stopped, across restarts of the stack,
+ * until it is started again here.
+ * @param {{ node: import("../nodes.js").ManagedNode, others: import("../nodes.js").ManagedNode[], token: string,
+ *   locked: boolean, onUnauthorized: () => void }} props
+ */
+function NodeControls({ node, others, token, locked, onUnauthorized }) {
+  const [error, setError] = useState(/** @type {string | null} */ (null));
+  const [busy, setBusy] = useState(false);
+  const badge = STATE_BADGES[node.state];
+  const other = others.find((n) => n.state === "running");
+
+  /** @param {"stop" | "start" | "restart"} action */
+  async function control(action) {
+    if (action === "stop" && !window.confirm(
+      `Stop ${node.id}? It stays stopped until you start it here. `
+      + (other ? `Mining continues on ${other.id} if it is in sync, ` : "")
+      + "else through the official node fallback if it is on, else mining pauses.",
+    )) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/v1/node/control/${action}${nodeQuery(node.id)}`, { method: "POST", headers: { "x-admin-token": token } });
+      if (response.status === 401) onUnauthorized();
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? `HTTP ${response.status}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card title={`Node ${node.id}`} subtitle="Restart the node, or stop it for maintenance. The node's settings are on the Settings page.">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <HealthBadge level={badge.level} label={badge.label} />
+        {!locked && (
+          <span className="flex gap-2">
+            {node.state === "running" && <Button disabled={busy} onClick={() => void control("restart")}>Restart</Button>}
+            {node.state === "running"
+              ? <Button disabled={busy} onClick={() => void control("stop")}>Stop</Button>
+              : <Button primary disabled={busy} onClick={() => void control("start")}>Start</Button>}
+          </span>
+        )}
+      </div>
+      {error && <p className="mt-2 text-sm text-critical">{error}</p>}
+    </Card>
+  );
+}
+
+/**
+ * Seed this node with another node's chain data, instead of syncing it from the network.
+ * @param {{ node: import("../nodes.js").ManagedNode, source: import("../nodes.js").ManagedNode, token: string,
+ *   locked: boolean, onUnauthorized: () => void }} props
+ */
+function CopyCard({ node, source, token, locked, onUnauthorized }) {
+  const [error, setError] = useState(/** @type {string | null} */ (null));
+  const [started, setStarted] = useState(false);
+
+  async function copy() {
+    if (!window.confirm(
+      `Copy the chain data of ${source.id} into ${node.id}? ${source.id} stops while it is copied (about a minute per 10 GB), `
+      + `then starts again; ${node.id} restarts with the copy and keeps its current data as a backup.`,
+    )) return;
+    setError(null);
+    const response = await fetch(`/api/v1/node/copy${nodeQuery(node.id)}&from=${encodeURIComponent(source.id)}`, {
+      method: "POST", headers: { "x-admin-token": token },
+    });
+    if (response.status === 401) onUnauthorized();
+    if (!response.ok) setError((await response.json().catch(() => ({}))).error ?? `HTTP ${response.status}`);
+    else setStarted(true);
+  }
+
+  return (
+    <Card title={`Copy chain data from ${source.id}`}
+      subtitle={`The quickest way to bring ${node.id} up to date: minutes instead of a full sync. Mining continues on ${node.id} meanwhile if it is in sync, else through the official node fallback if it is on.`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-ink-2">
+          {started ? "Copy started; progress shows under Snapshots below." : `${source.id} stops for the copy and starts again when it is done.`}
+        </p>
+        {!locked && <Button disabled={source.state !== "running" || node.phase !== "idle"} onClick={() => void copy()}>Copy from {source.id}</Button>}
+      </div>
+      {error && <p className="mt-2 text-sm text-critical">{error}</p>}
+    </Card>
+  );
+}
+
+/** Managing the nodes in this stack: start and stop, copying chain data, and snapshots. */
+export default function NodeData() {
+  const admin = useAdminToken();
+  const managed = useNodes();
+  const [selected, setSelected] = useState("daemon");
+  const list = managed?.nodes ?? [];
+  const node = list.find((n) => n.id === selected) ?? list[0];
+  const others = list.filter((n) => n !== node);
+  const actionsEnabled = managed?.actionsEnabled ?? false;
+  const token = actionsEnabled ? admin.token : "";
+  const locked = !token;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <a href="#/health" className="text-xs text-ink-2 hover:text-ink hover:underline">← Health</a>
+          <h1 className="mt-1 text-lg font-semibold text-ink">{list.length > 1 ? "Nodes" : "Node"}</h1>
+          <p className="text-sm text-ink-2">
+            Restart or stop a node, bring its chain data up to date, or start it from a snapshot. Node settings are on
+            the <a href="#/settings" className="underline decoration-line underline-offset-2 hover:text-ink">Settings</a> page.
+          </p>
+        </div>
+        {list.length > 1 && <Segmented label="Node" value={node?.id ?? selected} options={list.map((n) => n.id)} onChange={setSelected} />}
+      </div>
+
+      {managed && <AdminUnlock actionsEnabled={actionsEnabled} admin={admin} />}
+
+      {node && <NodeControls node={node} others={others} token={token} locked={locked} onUnauthorized={admin.forget} />}
+      {node && others.map((source) => (
+        <CopyCard key={source.id} node={node} source={source} token={token} locked={locked} onUnauthorized={admin.forget} />
+      ))}
+
+      {node && <SnapshotsPanel key={node.id} node={node.id} admin={admin} />}
     </div>
   );
 }

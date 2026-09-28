@@ -10,6 +10,8 @@
 #   BOOTSTRAPPING        the first snapshot is still downloading; wait before starting
 #   staged/, staged/READY  a verified, unpacked database ready to replace the current one
 #   RESTART              restart the daemon now
+#   STOP                 keep the daemon stopped until the marker is removed (dashboard Stop)
+#   STOPPED              written while stopped, so node-admin knows the database is closed
 #
 # Settings are checked with the daemon's own parser before they are applied, and put back if
 # the daemon exits within SETTLE_SECONDS of starting with them. On a snapshot swap the current
@@ -120,6 +122,10 @@ revert_settings() {
   if [ -f "$CONTROL/daemon-args.previous" ]; then mv "$CONTROL/daemon-args.previous" "$CONTROL/daemon-args"; else rm -f "$CONTROL/daemon-args"; fi
 }
 
+# A STOPPED marker from before a container restart is stale; STOP itself is kept, so a node
+# stopped from the dashboard stays stopped.
+rm -f "$CONTROL/STOPPED"
+
 while [ -f "$CONTROL/BOOTSTRAPPING" ]; do
   log "Waiting for the snapshot download to finish before starting (see the dashboard)"
   sleep 30
@@ -127,6 +133,13 @@ done
 
 while true; do
   rm -f "$CONTROL/RESTART"
+  if [ -f "$CONTROL/STOP" ]; then
+    : > "$CONTROL/STOPPED"
+    log "Stopped from the dashboard; waiting to be started again"
+    while [ -f "$CONTROL/STOP" ]; do sleep 2; done
+    rm -f "$CONTROL/STOPPED"
+    log "Starting again"
+  fi
   swap_in_staged
   just_applied=0
   if apply_pending; then just_applied=1; fi
@@ -143,8 +156,13 @@ while true; do
   started=$(date +%s)
   "$BIN" "$@" &
   child=$!
-  # Wait for the daemon to exit, or for a restart request.
+  # Wait for the daemon to exit, or for a restart or stop request.
   while kill -0 "$child" 2>/dev/null; do
+    if [ -f "$CONTROL/STOP" ]; then
+      log "Stop requested from the dashboard"
+      stop_child
+      break
+    fi
     if [ -f "$CONTROL/RESTART" ]; then
       log "Restart requested from the dashboard"
       stop_child
