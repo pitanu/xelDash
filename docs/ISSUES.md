@@ -10,6 +10,10 @@ Open:
 
 Resolved:
 
+- Redundant nodes and rolling updates tested on mainnet (daemon2 seeded from daemon's data).
+  daemon2's `--priority-nodes=daemon:2125` was silently ignored (the daemon takes IP:port
+  only); the entrypoint now resolves peer host names on each start.
+
 - Rigel 1.23.0 (RTX 3060 Ti, about 8.7 KH/s) mines on mainnet through Stratum; all shares
   accepted. It sends classic Stratum without `"jsonrpc"`, which is now accepted.
 

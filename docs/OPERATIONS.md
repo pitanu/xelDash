@@ -248,10 +248,26 @@ XELIS_RPC_URLS=http://daemon:8080/json_rpc,http://daemon2:8080/json_rpc
 ```
 
 then `docker compose up -d`. The `daemon2` service has its own chain data (the
-`xelis-data-2` volume) and connects to `daemon` directly. It needs to sync the chain before
-it can take over; the Health page lists both nodes and marks the one in use. Two nodes on
-one machine protect against node restarts, upgrades and crashes, not against the machine
-failing.
+`xelis-data-2` volume) and connects to `daemon` directly as a priority peer. It needs the
+chain before it can take over; the Health page lists both nodes and marks the one in use.
+Two nodes on one machine protect against node restarts, upgrades and crashes, not against the
+machine failing.
+
+**Start daemon2 from daemon's chain data** instead of syncing from scratch (days on
+mainnet). The database must be copied while `daemon` is stopped; with the official node
+fallback on, mining continues meanwhile. Volume names start with the Compose project name
+(the folder name, `xeldash` by default); `mainnet` is the network:
+
+```sh
+docker compose stop daemon
+docker volume create xeldash_xelis-data-2
+docker run --rm -v xeldash_xelis-data:/from:ro -v xeldash_xelis-data-2:/to busybox   cp -a /from/mainnet /to/
+docker compose start daemon
+docker compose up -d
+```
+
+daemon2 then catches up the few blocks it missed within seconds. (On mainnet, about 10 GB
+copied in about a minute on an SSD.)
 
 ### A node on another machine
 
@@ -269,8 +285,14 @@ Upgrade one node at a time and let it catch up before touching the next:
    `docker compose up -d --build daemon2`.
 2. Wait until the Health page shows `daemon2` in sync.
 3. Set `XELIS_DAEMON_IMAGE` to the same tag (and remove `XELIS_DAEMON2_IMAGE`, which follows
-   it by default), then `docker compose up -d --build daemon`. Mining switches to `daemon2`
-   while `daemon` restarts, and back once it is in sync.
+   it by default), then `docker compose up -d --build daemon`. If the restart takes more than
+   about 10 seconds (a new image, a database upgrade), mining switches to `daemon2` and back
+   once `daemon` is in sync. A quicker restart may not switch at all: miners keep their
+   current job for those few seconds.
+
+Tested on mainnet with Rigel mining: stopping `daemon` moved mining to `daemon2` within
+seconds and back when it returned, and replacing each node in turn, with no rejected shares
+and no pause.
 
 Switches are recorded as events and, with alerts on, reported as `mining_paused` alerts.
 

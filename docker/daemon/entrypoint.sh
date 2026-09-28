@@ -37,6 +37,38 @@ stop_child() {
 # docker stop sends SIGTERM to PID 1 (this script); pass it on so the daemon shuts down cleanly.
 trap 'stop_child; exit 0' TERM INT
 
+# The daemon reads peers as IP:port and skips a host name, so a peer given by Compose service
+# name (daemon2's --priority-nodes=daemon:2125) is resolved to its current address on each
+# start. A name that does not resolve is left out and logged.
+resolve_peer() {
+  case "$1" in
+    --priority-nodes=*|--exclusive-nodes=*) ;;
+    *) printf '%s\n' "$1"; return ;;
+  esac
+  flag=${1%%=*}
+  peer=${1#*=}
+  host=${peer%:*}
+  port=${peer##*:}
+  # Already an address: IPv4 digits and dots, or a bracketed IPv6 address.
+  case "$host" in
+    \[*) printf '%s\n' "$1"; return ;;
+    *[!0-9.]*) ;;
+    *) printf '%s\n' "$1"; return ;;
+  esac
+  ip=""
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    ip=$(busybox nslookup "$host" 2>/dev/null | busybox awk '/^Name:/ { found = 1 } found && /^Address/ { print $NF; exit }')
+    case "$ip" in *.*.*.*) break ;; esac
+    ip=""
+    sleep 3
+  done
+  if [ -n "$ip" ]; then
+    printf '%s=%s:%s\n' "$flag" "$ip" "$port"
+  else
+    log "Could not resolve peer $peer; starting without it" >&2
+  fi
+}
+
 result() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" > "$CONTROL/settings-result"; }
 
 swap_in_staged() {
@@ -100,7 +132,11 @@ while true; do
   if apply_pending; then just_applied=1; fi
 
   set --
-  while IFS= read -r line; do [ -n "$line" ] && set -- "$@" "$line"; done < "$CONTROL/base-args"
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    line=$(resolve_peer "$line")
+    [ -n "$line" ] && set -- "$@" "$line"
+  done < "$CONTROL/base-args"
   if [ -f "$CONTROL/daemon-args" ]; then
     while IFS= read -r line; do [ -n "$line" ] && set -- "$@" "$line"; done < "$CONTROL/daemon-args"
   fi

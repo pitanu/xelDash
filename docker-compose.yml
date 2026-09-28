@@ -83,8 +83,11 @@ services:
       - --network=${XELIS_NETWORK:-devnet}
       - --rpc-bind-address=0.0.0.0:8080
       - --dir-path=/root/.xelis/
+      # A service name; the entrypoint resolves it to daemon's address on each start.
       - --priority-nodes=daemon:2125
     restart: unless-stopped
+    environment:
+      XELIS_NETWORK: ${XELIS_NETWORK:-devnet}
     volumes:
       - xelis-data-2:/root/.xelis
     expose:
