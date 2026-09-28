@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { MiningFallback } from "./fallback.js";
 import { Node } from "./nodes.js";
 import { Releases } from "./releases.js";
+import { AutoUpdate } from "./autoupdate.js";
 import { RollingUpgrade, nodeView } from "./upgrade.js";
 import { message, tokensMatch } from "./snapshot.js";
 
@@ -31,7 +32,8 @@ const nodes = [
 const primary = nodes[0];
 const releases = new Releases();
 const upgrade = new RollingUpgrade({ releases });
-const fallback = new MiningFallback({ configDir: process.env.CONFIG_DIR ?? "/config", network, env: process.env });
+const configDir = process.env.CONFIG_DIR ?? "/config";
+const fallback = new MiningFallback({ configDir, network, env: process.env });
 for (const node of nodes) await node.snapshots.init().catch((error) => console.warn(`${node.id}: ${message(error)}`));
 await fallback.init();
 
@@ -47,6 +49,15 @@ function nodeFrom(params, name = "node") {
 }
 
 /** One heavy disk operation at a time across all nodes (download, upload, unpack or copy). */
+/** Present nodes in update order: every other node first, the usual mining node last. */
+function updateOrder() {
+  const present = nodes.filter((n) => n === primary || n.present);
+  return [...present.filter((n) => n !== primary), primary];
+}
+
+// Optional (off by default): keep both local nodes on the latest release automatically.
+const autoUpdate = new AutoUpdate({ configDir, releases, upgrade, nodes: () => nodes, order: updateOrder, env: process.env });
+
 function busyNode() {
   return nodes.find((node) => node.snapshots.busy) ?? null;
 }
@@ -117,6 +128,10 @@ const server = createServer(async (request, response) => {
       send(response, 200, { nodes: list, actionsEnabled: Boolean(adminToken), upgrade: upgrade.state });
       return;
     }
+    if (request.method === "GET" && path === "/auto-update") {
+      send(response, 200, { ...(await autoUpdate.status()), actionsEnabled: Boolean(adminToken) });
+      return;
+    }
     if (request.method === "GET" && path === "/releases") {
       const list = await releases.list().catch((error) => {
         console.warn(`Release list unavailable: ${message(error)}`);
@@ -174,6 +189,15 @@ const server = createServer(async (request, response) => {
       send(response, 202, { ok: true, state: node.state });
       return;
     }
+    if (request.method === "PUT" && path === "/auto-update") {
+      const body = await readJson(request);
+      if (typeof body?.enabled !== "boolean") {
+        send(response, 400, { error: "Send { \"enabled\": true | false }" });
+        return;
+      }
+      send(response, 200, await autoUpdate.setEnabled(body.enabled));
+      return;
+    }
     if (request.method === "POST" && path === "/upgrade") {
       const body = await readJson(request);
       const target = body?.version;
@@ -183,8 +207,7 @@ const server = createServer(async (request, response) => {
       }
       if (target !== "image") await releases.find(target);
       // The whole stack by default: every other node first, the usual mining node last.
-      const present = nodes.filter((n) => n === primary || n.present);
-      const order = [...present.filter((n) => n !== primary), primary];
+      const order = updateOrder();
       const chosen = Array.isArray(body.nodes) ? order.filter((n) => body.nodes.includes(n.id)) : order;
       if (chosen.length === 0) {
         send(response, 400, { error: "No such nodes" });
@@ -298,10 +321,12 @@ server.listen(port, "0.0.0.0", async () => {
   } else {
     await primary.snapshots.clearBootstrap();
   }
+  autoUpdate.start();
   ready = true;
 });
 
 async function shutdown() {
+  autoUpdate.stop();
   for (const node of nodes) node.snapshots.shutdown();
   server.close();
 }

@@ -58,6 +58,10 @@ services:
       # Mining fallback through the official public node; the dashboard switch overrides it.
       XELIS_OFFICIAL_FALLBACK: ${XELIS_OFFICIAL_FALLBACK:-false}
       XELIS_OFFICIAL_NODE_URL: ${XELIS_OFFICIAL_NODE_URL:-}
+      # Optional, off by default: update both local nodes to new releases by themselves (needs
+      # the redundant profile). The dashboard switch overrides it after the first start.
+      XELIS_AUTO_UPDATE: ${XELIS_AUTO_UPDATE:-false}
+      XELIS_AUTO_UPDATE_DELAY_HOURS: ${XELIS_AUTO_UPDATE_DELAY_HOURS:-24}
     volumes:
       - xelis-data:/data
       # daemon2's data (redundant profile), so its snapshots and settings can be managed too.

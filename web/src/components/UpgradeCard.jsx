@@ -26,6 +26,69 @@ function newer(a, b) {
 }
 
 /**
+ * Optional automatic updates (off by default): only offered with two local nodes.
+ * @param {{ token: string, locked: boolean, onUnauthorized: () => void }} props
+ */
+function AutoUpdateSetting({ token, locked, onUnauthorized }) {
+  const [status, setStatus] = useState(/** @type {any} */ (null));
+  const [error, setError] = useState(/** @type {string | null} */ (null));
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => fetch("/api/v1/node/auto-update").then((r) => (r.ok ? r.json() : null))
+      .then((body) => { if (!cancelled && body) setStatus(body); }).catch(() => {});
+    load();
+    const timer = setInterval(load, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+
+  /** @param {boolean} enabled */
+  async function toggle(enabled) {
+    setError(null);
+    const response = await fetch("/api/v1/node/auto-update", {
+      method: "PUT",
+      headers: { "x-admin-token": token, "content-type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (response.status === 401) onUnauthorized();
+    if (!response.ok) setError(body.error ?? `HTTP ${response.status}`);
+    else setStatus((s) => ({ ...s, ...body }));
+  }
+
+  if (!status) return null;
+  return (
+    <div className="space-y-2 rounded-md border border-line p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-ink">Automatic updates</div>
+          <p className="text-xs text-ink-2">
+            Install new XELIS releases by themselves, {status.delayHours} h after they come out, one node at a time as above.
+            Optional; needs two local nodes, so one always mines. A version that fails on a node is not tried again.
+          </p>
+        </div>
+        <span className="flex items-center gap-3">
+          <HealthBadge level={status.enabled ? "good" : "unknown"} label={status.enabled ? "On" : "Off"} />
+          {!locked && (
+            <button type="button" disabled={!status.enabled && !status.eligible} onClick={() => void toggle(!status.enabled)}
+              className="rounded-md border border-line px-3 py-1.5 text-sm text-ink hover:bg-wash disabled:opacity-40">
+              {status.enabled ? "Turn off" : "Turn on"}
+            </button>
+          )}
+        </span>
+      </div>
+      {!status.eligible && <p className="text-xs text-muted">Available once a second local node runs (COMPOSE_PROFILES=redundant).</p>}
+      {status.enabled && status.note && <p className="text-xs text-ink-2">{status.note}{status.checkedAt ? ` · checked ${formatAgo(status.checkedAt)}` : ""}</p>}
+      {status.failedVersion && <p className="text-xs text-critical">{status.failedVersion} failed on a node and is skipped; a newer release will be tried.</p>}
+      {error && <p className="text-sm text-critical">{error}</p>}
+    </div>
+  );
+}
+
+/**
  * Switch daemon versions from the dashboard: every node in turn, the usual mining node last,
  * each one back on the network before the next is touched.
  * @param {{ nodes: any[], upgrade: any, token: string, locked: boolean, onUnauthorized: () => void }} props
@@ -86,6 +149,7 @@ export default function UpgradeCard({ nodes, upgrade, token, locked, onUnauthori
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
               <span className="font-medium text-ink">
                 {running ? "Switching" : upgrade.phase === "done" ? "Switched" : "Stopped while switching"} to {upgrade.target === "image" ? "the image's version" : upgrade.target}
+                {upgrade.trigger === "automatic" && <span className="font-normal text-muted"> (automatic update)</span>}
               </span>
               <span className="text-xs text-muted" title={formatTime(upgrade.startedAt)}>started {formatAgo(upgrade.startedAt)}</span>
             </div>
@@ -130,6 +194,7 @@ export default function UpgradeCard({ nodes, upgrade, token, locked, onUnauthori
             )}
           </div>
         )}
+        <AutoUpdateSetting token={token} locked={locked} onUnauthorized={onUnauthorized} />
         <p className="text-xs text-muted">
           A node that does not stay up on a new version is switched back automatically. Going back to an older version may
           not work if the new one changed the database; keep a snapshot or the other node's copy at hand.

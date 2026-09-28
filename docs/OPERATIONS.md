@@ -236,6 +236,15 @@ progress shows step by step, and the switch carries on if the page is closed.
 - Going back to an older version may fail if the newer one changed the database. Keep a
   snapshot or the other node's copy at hand.
 
+**Automatic updates** (optional, off by default) do the same by themselves: with two local
+nodes, switch them on under **Daemon version** (or `XELIS_AUTO_UPDATE=true` in `.env` for
+the first start). Every 15 minutes xelDash compares the nodes with the latest release; a
+release is installed once it has been out for `XELIS_AUTO_UPDATE_DELAY_HOURS` (24 by
+default), only when every node runs and is in sync, and only upward. A version that fails on
+a node is not tried again until a newer release is out. With one node they cannot be turned
+on, since mining would stop during each update. Keep an eye on hard-fork announcements
+anyway: a mandatory release may need installing sooner than the delay allows.
+
 ### By image
 
 The daemon release is pinned with `XELIS_DAEMON_IMAGE` (see

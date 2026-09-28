@@ -40,7 +40,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * @typedef {{ node: string, status: "waiting" | "downloading" | "restarting" | "syncing" | "done" | "skipped" | "failed", note: string | null }} Step
- * @typedef {{ phase: "idle" | "running" | "done" | "failed", target: string | null, steps: Step[], startedAt: string | null, finishedAt: string | null, error: string | null }} UpgradeState
+ * @typedef {{ phase: "idle" | "running" | "done" | "failed", target: string | null, trigger: "dashboard" | "automatic" | null, steps: Step[], startedAt: string | null, finishedAt: string | null, error: string | null }} UpgradeState
  */
 
 export class RollingUpgrade {
@@ -49,7 +49,7 @@ export class RollingUpgrade {
     this.releases = releases;
     this.logger = logger;
     /** @type {UpgradeState} */
-    this.state = { phase: "idle", target: null, steps: [], startedAt: null, finishedAt: null, error: null };
+    this.state = { phase: "idle", target: null, trigger: null, steps: [], startedAt: null, finishedAt: null, error: null };
   }
 
   get running() {
@@ -60,12 +60,14 @@ export class RollingUpgrade {
    * Start switching the given nodes (in order) to a version: a release number, or "image"
    * for each node's image's own daemon.
    * @param {import("./nodes.js").Node[]} nodes @param {string} target
+   * @param {"dashboard" | "automatic"} [trigger]
    */
-  start(nodes, target) {
+  start(nodes, target, trigger = "dashboard") {
     if (this.running) throw new Error("A version switch is already running");
     this.state = {
       phase: "running",
       target,
+      trigger,
       steps: nodes.map((n) => ({ node: n.id, status: "waiting", note: null })),
       startedAt: new Date().toISOString(),
       finishedAt: null,
