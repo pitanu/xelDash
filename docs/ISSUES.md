@@ -10,12 +10,13 @@ Open:
 - Ask the XELIS team to publish the release signing key (the checksums are signed with Ed25519
   key D29353EF21F021E7CC86F55A97BC1E87FA8D93AC, which is not on keys.openpgp.org or Slixe's
   GitHub profile). Then check signatures before switching versions.
-- Node-admin actions (version switches, automatic updates, copies, stops) are not yet recorded
-  as service events, so they do not appear in Recent events or alerts.
 - Tests (unit and integration) are deferred; see docs/PLAN.md section 10.
 
 Resolved:
 
+- Node actions are recorded as events (Recent events, live updates) and version switches and
+  failed copies send `node_update` alerts; tested on mainnet with a webhook and on devnet
+  with a failing switch.
 - Scheduled version switches at a block height, tested on mainnet (prepared on both nodes,
   switched at the height with no pause).
 - Optional automatic node updates (off by default, two local nodes), tested on mainnet by

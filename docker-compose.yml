@@ -62,6 +62,18 @@ services:
       # the redundant profile). The dashboard switch overrides it after the first start.
       XELIS_AUTO_UPDATE: ${XELIS_AUTO_UPDATE:-false}
       XELIS_AUTO_UPDATE_DELAY_HOURS: ${XELIS_AUTO_UPDATE_DELAY_HOURS:-24}
+      # Node actions (version switches, stops, copies) are recorded as events for the
+      # dashboard and alerts.
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-xeldash}
+      PGUSER: ${POSTGRES_USER:-xeldash}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     volumes:
       - xelis-data:/data
       # daemon2's data (redundant profile), so its snapshots and settings can be managed too.

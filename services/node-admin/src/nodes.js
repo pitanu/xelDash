@@ -16,7 +16,7 @@ export class Node {
     this.id = id;
     this.dataDir = dataDir;
     this.control = join(dataDir, ".xeldash");
-    this.snapshots = new SnapshotManager({ dataDir, network, snapshotUrl, checksumUrl });
+    this.snapshots = new SnapshotManager({ dataDir, network, snapshotUrl, checksumUrl, nodeId: id });
     this.settings = new DaemonSettings({ dataDir });
   }
 

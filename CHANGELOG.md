@@ -50,7 +50,8 @@ First public version, planned as 0.1.0.
   worth (mainnet only; off by default, chosen per browser under Settings). Fetched by the API
   from CoinGecko, so browsers never contact it; `XELDASH_PRICE=off` disables it.
 - Alerts to Discord, Telegram or a JSON webhook: blocks found and final, mining paused and
-  resumed, workers offline.
+  resumed, workers offline, and node version switches (started, done, failed).
+- Node actions (version switches, stops, starts, restarts, chain copies) in Recent events.
 
 ### Security
 

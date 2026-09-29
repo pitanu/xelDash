@@ -4,8 +4,11 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "Node administration for the dashboard: daemon settings and snapshots. No dependencies; uses Info-ZIP unzip.",
+  "description": "Node administration for the dashboard: settings, snapshots, control and versions of the local nodes. Uses Info-ZIP unzip.",
   "scripts": {
     "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@xeldash/db": "*"
   }
 }

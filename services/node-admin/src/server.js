@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { MiningFallback } from "./fallback.js";
+import { closeEvents, recordEvent } from "./events.js";
 import { Node } from "./nodes.js";
 import { Releases } from "./releases.js";
 import { AutoUpdate } from "./autoupdate.js";
@@ -195,6 +196,7 @@ const server = createServer(async (request, response) => {
       if (path === "/control/stop") await node.stop();
       else if (path === "/control/start") await node.start();
       else await node.restart();
+      recordEvent(`node_${path.slice("/control/".length)}_requested`, { node: node.id });
       send(response, 202, { ok: true, state: node.state });
       return;
     }
@@ -352,6 +354,7 @@ server.listen(port, "0.0.0.0", async () => {
 async function shutdown() {
   autoUpdate.stop();
   scheduled.stop();
+  void closeEvents();
   for (const node of nodes) node.snapshots.shutdown();
   server.close();
 }

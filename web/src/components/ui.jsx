@@ -213,6 +213,14 @@ const EVENT_LABELS = {
   node_unreachable: "Node not responding, work paused",
   node_ready: "Node ready, work resumed",
   node_switched: "Mining switched node",
+  node_update_started: "Node version switch started",
+  node_update_done: "Node version switch done",
+  node_update_failed: "Node version switch failed",
+  chain_copied: "Chain data copied",
+  chain_copy_failed: "Chain data copy failed",
+  node_stop_requested: "Node stopped from the dashboard",
+  node_start_requested: "Node started from the dashboard",
+  node_restart_requested: "Node restarted from the dashboard",
 };
 
 const LEVELS = {
@@ -235,6 +243,14 @@ const EVENT_LEVELS = {
   node_unreachable: "critical",
   node_ready: "good",
   node_switched: "info",
+  node_update_started: "info",
+  node_update_done: "good",
+  node_update_failed: "critical",
+  chain_copied: "good",
+  chain_copy_failed: "critical",
+  node_stop_requested: "warning",
+  node_start_requested: "info",
+  node_restart_requested: "info",
 };
 
 /** @param {{ level: keyof typeof LEVELS, className?: string }} props */
@@ -273,6 +289,9 @@ export function EventsList({ events }) {
               {e.payload?.status && <span className="text-ink-2"> · {e.payload.status}</span>}
               {e.payload?.ip && <span className="text-ink-2"> · {e.payload.ip}</span>}
               {e.payload?.from && e.payload?.to && <span className="text-ink-2"> · {e.payload.from} → {e.payload.to}</span>}
+              {e.payload?.target && <span className="text-ink-2"> · {e.payload.target === "image" ? "image's version" : e.payload.target}{e.payload.trigger && e.payload.trigger !== "dashboard" ? ` (${e.payload.trigger})` : ""}</span>}
+              {e.payload?.node && !e.payload?.from && <span className="text-ink-2"> · {e.payload.node}</span>}
+              {e.payload?.error && <span className="text-ink-2"> · {e.payload.error}</span>}
             </span>
           </span>
           <span className="shrink-0 pt-0.5 text-xs text-muted" title={formatTime(e.createdAt)}>{formatAgo(e.createdAt)}</span>

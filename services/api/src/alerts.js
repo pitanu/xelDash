@@ -2,7 +2,8 @@ const SEND_INTERVAL_MS = 1_000;
 const MAX_QUEUE = 20;
 const FINAL_BATCH_MS = 5_000;
 const XEL_DECIMALS = 8;
-const EVENT_TYPES = ["block_found", "block_rejected", "block_final", "mining_paused", "worker_offline"];
+const EVENT_TYPES = ["block_found", "block_rejected", "block_final", "mining_paused", "worker_offline", "node_update"];
+const TRIGGERS = /** @type {Record<string, string>} */ ({ automatic: " (automatic update)", scheduled: " (at the scheduled height)" });
 
 /** @param {unknown} error */
 function message(error) {
@@ -219,6 +220,17 @@ export function startAlerts({ pool, config, logger = console }) {
         text: state === "ready"
           ? `🔀 Mining moved back to node ${p.to}, the preferred node. Miners got fresh work.`
           : `🔀 Mining switched from node ${p.from} to ${p.to}: ${p.from} ${state === "syncing" ? "is syncing" : "is not responding"}. Miners got fresh work and keep mining.` });
+    } else if (type.startsWith("node_update_") && config.events.has("node_update")) {
+      const version = p.target === "image" ? "the image's version" : p.target;
+      const why = TRIGGERS[p.trigger] ?? "";
+      send({ event: "node_update", data: { ...p, outcome: type.slice("node_update_".length) },
+        text: type === "node_update_started"
+          ? `⬆️ Switching ${p.nodes.join(", then ")} to ${version}${why}, one node at a time.`
+          : type === "node_update_done"
+            ? `✅ ${p.switched?.length ? p.switched.join(" and ") : "The nodes"} now run${p.switched?.length === 1 ? "s" : ""} ${version}${why}.`
+            : `❌ Switching ${p.node} to ${version} failed${why}: ${p.error}. Later nodes were left as they were.${link("/node-data")}` });
+    } else if (type === "chain_copy_failed" && config.events.has("node_update")) {
+      send({ event: "node_update", data: p, text: `❌ Copying chain data from ${p.from} to ${p.to} failed: ${p.error}${link("/node-data")}` });
     } else if (type === "node_ready" && config.events.has("mining_paused")) {
       send({ event: "mining_resumed", data: p, text: "▶️ Mining resumed: the node is ready again." });
     }

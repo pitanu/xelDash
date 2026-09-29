@@ -4,6 +4,7 @@
 // normally mines (the first) goes last. Runs here, not in the browser, so closing the page
 // does not stop it halfway.
 
+import { recordEvent } from "./events.js";
 import { message } from "./snapshot.js";
 
 const SYNC_TOLERANCE = 16;
@@ -90,6 +91,8 @@ export class RollingUpgrade {
 
   /** @param {import("./nodes.js").Node[]} nodes @param {string} target */
   async run(nodes, target) {
+    const about = { target, trigger: this.state.trigger, nodes: nodes.map((n) => n.id) };
+    recordEvent("node_update_started", about);
     for (const node of nodes) {
       try {
         await this.switchNode(node, target);
@@ -98,10 +101,13 @@ export class RollingUpgrade {
         this.step(node.id, { status: "failed", note: text });
         this.logger.warn?.(`Version switch stopped at ${node.id}: ${text}`);
         this.state = { ...this.state, phase: "failed", error: `${node.id}: ${text}. Later nodes were left as they were.`, finishedAt: new Date().toISOString() };
+        recordEvent("node_update_failed", { ...about, node: node.id, error: text });
         return;
       }
     }
     this.state = { ...this.state, phase: "done", finishedAt: new Date().toISOString() };
+    const switched = this.state.steps.filter((s) => s.status === "done").map((s) => s.node);
+    recordEvent("node_update_done", { ...about, switched });
   }
 
   /** @param {import("./nodes.js").Node} node @param {string} target */

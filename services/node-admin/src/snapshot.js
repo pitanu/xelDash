@@ -4,6 +4,7 @@ import { createReadStream, createWriteStream, existsSync } from "node:fs";
 import { lstat, mkdir, readdir, readFile, rename, rm, stat, statfs, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
+import { recordEvent } from "./events.js";
 
 // Unpacked RocksDB snapshots are about as large as the zip; keep headroom on top of that.
 const DISK_MARGIN = 1.1;
@@ -94,10 +95,11 @@ async function copyTree(from, to, signal, onBytes) {
 export class SnapshotManager {
   /**
    * @param {{ dataDir: string, network: string, snapshotUrl: string | null, checksumUrl: string | null,
-   *   logger?: Pick<Console, "info" | "warn"> }} options
+   *   nodeId?: string, logger?: Pick<Console, "info" | "warn"> }} options
    */
-  constructor({ dataDir, network, snapshotUrl, checksumUrl, logger = console }) {
+  constructor({ dataDir, network, snapshotUrl, checksumUrl, nodeId = "daemon", logger = console }) {
     this.dataDir = dataDir;
+    this.nodeId = nodeId;
     this.network = network;
     this.snapshotUrl = snapshotUrl;
     this.checksumUrl = checksumUrl;
@@ -415,10 +417,12 @@ export class SnapshotManager {
       this.set({ phase: "idle", source: null, bytes: 0, total: null,
         note: `Copied ${Math.round(size / 1e9)} GB from ${source.id}. The node is restarting with it; its previous data is kept as a backup.` });
       this.logger.info?.(`Copied chain data from ${source.id}`);
+      recordEvent("chain_copied", { from: source.id, to: this.nodeId, gigabytes: Math.round(size / 1e8) / 10 });
     } catch (error) {
       if (stopped) await source.start();
       await rm(join(this.work, "copy"), { recursive: true, force: true });
       this.fail(error);
+      recordEvent("chain_copy_failed", { from: source.id, to: this.nodeId, error: message(error) });
       throw error;
     }
   }

@@ -25,6 +25,11 @@ Events:
 - `worker_offline`: a worker stopped sending accepted shares, and when it comes back. Only
   workers with shares in the last 24 hours are watched. After an API restart the first check
   only records state, so workers that were already offline are not announced again.
+- `node_update`: a node version switch started, finished or failed (including automatic and
+  scheduled ones), and a failed chain copy.
+
+Node stops, starts, restarts and chain copies also show under Recent events on the
+dashboard.
 
 Each channel sends at most one message per second. If alerts pile up, extra ones are skipped
 and the next message says how many.
