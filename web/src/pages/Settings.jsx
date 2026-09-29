@@ -57,7 +57,7 @@ export default function Settings() {
           Ports, share difficulty, connection limits, alerts, backups and the node list are set in
           {" "}<code className="rounded bg-wash px-1">.env</code>, and apply after <code className="rounded bg-wash px-1">docker compose up -d</code>.
           Each is explained in <code className="rounded bg-wash px-1">.env.example</code>. Restarting nodes, copying chain data and snapshots are on the
-          {" "}<a href="#/node-data" className="underline decoration-line underline-offset-2 hover:text-ink">Nodes</a> page.
+          {" "}<a href="#/nodes" className="underline decoration-line underline-offset-2 hover:text-ink">Nodes</a> page.
         </p>
       </Card>
     </div>

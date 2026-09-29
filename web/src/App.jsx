@@ -10,7 +10,7 @@ import Settings from "./pages/Settings.jsx";
 import { ThemeButton } from "./components/ThemeSetting.jsx";
 import { formatMoney, usePrice } from "./price.js";
 
-const NAV = [["/", "Overview"], ["/blocks", "Blocks"], ["/health", "Health"], ["/settings", "Settings"]];
+const NAV = [["/", "Overview"], ["/blocks", "Blocks"], ["/health", "Health"], ["/nodes", "Nodes"], ["/settings", "Settings"]];
 
 /** The xelDash mark: a pickaxe-like X on the accent color. */
 function Logo() {
@@ -84,10 +84,11 @@ export default function App() {
   } else if (minerMatch) page = <Miner key={minerMatch[1]} address={decodeURIComponent(minerMatch[1])} />;
   else if (route === "/blocks") page = <Blocks />;
   else if (route === "/health") page = <Health />;
-  else if (route === "/node-data") page = <NodeData />;
+  // #/node-data is the page's old address, kept for bookmarks.
+  else if (route === "/nodes" || route === "/node-data") page = <NodeData />;
   else if (route === "/settings") page = <Settings />;
 
-  const section = ["/blocks", "/health", "/settings"].includes(route) ? route : route === "/node-data" ? "/health" : "/";
+  const section = ["/blocks", "/health", "/nodes", "/settings"].includes(route) ? route : route === "/node-data" ? "/nodes" : "/";
   return (
     <div>
       <header className="sticky top-0 z-20 border-b border-line bg-page/85 backdrop-blur supports-[backdrop-filter]:bg-page/70">

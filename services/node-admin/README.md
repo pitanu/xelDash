@@ -1,6 +1,6 @@
 # Node admin service
 
-Node administration for the dashboard (**Health → Manage nodes** and **Settings**), for each
+Node administration for the dashboard (the **Nodes** page and **Settings**), for each
 local node: `daemon`, and `daemon2` once the `redundant` profile has started it. It manages a
 node only through files on that node's data volume (`<data>/.xeldash`), which the node's
 supervisor (`docker/daemon/entrypoint.sh`) acts on: extra daemon flags, restart and stop

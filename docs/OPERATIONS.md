@@ -177,7 +177,7 @@ xelDash. Without it, the dashboard only shows status.
 
 ### From the dashboard
 
-Open **Health → Manage nodes**, pick the node, and enter the admin token. Then either:
+Open the **Nodes** page, pick the node, and enter the admin token. Then either:
 
 - drop a snapshot `.zip` onto the page: the official `mainnet.zip` downloaded elsewhere, or a
   zip of another node's `<network>` data directory; or
@@ -225,7 +225,7 @@ lost, which only affects the statistics.
 
 ### From the dashboard
 
-**Health → Manage nodes → Daemon version** lists each node's version and the latest XELIS
+**Nodes → Daemon version** lists each node's version and the latest XELIS
 release, and switches nodes to a release (or back to the image's own daemon) one at a time:
 every other node first, `daemon` last. Each node restarts on the new version and must catch
 up with the network before the next one starts, so with two nodes mining never stops. The
@@ -301,7 +301,7 @@ Two nodes on one machine protect against node restarts, upgrades and crashes, no
 machine failing.
 
 **Start daemon2 from daemon's chain data** instead of syncing from scratch (days on
-mainnet): on **Health → Manage nodes**, pick `daemon2` and use **Copy from daemon**.
+mainnet): on the **Nodes** page, pick `daemon2` and use **Copy from daemon**.
 `daemon` stops while its database is copied (about a minute per 10 GB) and starts again;
 mining continues on `daemon2` or through the official node fallback meanwhile. `daemon2`
 then restarts on the copy and keeps its previous data as a backup, which **Previous chain

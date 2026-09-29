@@ -448,8 +448,7 @@ export default function NodeData() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <a href="#/health" className="text-xs text-ink-2 hover:text-ink hover:underline">← Health</a>
-          <h1 className="mt-1 text-lg font-semibold text-ink">{list.length > 1 ? "Nodes" : "Node"}</h1>
+          <h1 className="text-lg font-semibold text-ink">{list.length > 1 ? "Nodes" : "Node"}</h1>
           <p className="text-sm text-ink-2">
             Restart or stop a node, bring its chain data up to date, or start it from a snapshot. Node settings are on
             the <a href="#/settings" className="underline decoration-line underline-offset-2 hover:text-ink">Settings</a> page.

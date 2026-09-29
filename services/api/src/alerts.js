@@ -228,9 +228,9 @@ export function startAlerts({ pool, config, logger = console }) {
           ? `⬆️ Switching ${p.nodes.join(", then ")} to ${version}${why}, one node at a time.`
           : type === "node_update_done"
             ? `✅ ${p.switched?.length ? p.switched.join(" and ") : "The nodes"} now run${p.switched?.length === 1 ? "s" : ""} ${version}${why}.`
-            : `❌ Switching ${p.node} to ${version} failed${why}: ${p.error}. Later nodes were left as they were.${link("/node-data")}` });
+            : `❌ Switching ${p.node} to ${version} failed${why}: ${p.error}. Later nodes were left as they were.${link("/nodes")}` });
     } else if (type === "chain_copy_failed" && config.events.has("node_update")) {
-      send({ event: "node_update", data: p, text: `❌ Copying chain data from ${p.from} to ${p.to} failed: ${p.error}${link("/node-data")}` });
+      send({ event: "node_update", data: p, text: `❌ Copying chain data from ${p.from} to ${p.to} failed: ${p.error}${link("/nodes")}` });
     } else if (type === "node_ready" && config.events.has("mining_paused")) {
       send({ event: "mining_resumed", data: p, text: "▶️ Mining resumed: the node is ready again." });
     }
