@@ -19,15 +19,16 @@ function formatAmount(value) {
 
 /**
  * "≈ 0.49 XEL a day (≈ $0.23)", with the money part when the price is switched on.
- * @param {{ hashrate: number | null | undefined, difficulty: string | undefined, minerReward: number | undefined }} props
+ * `prefix` (such as a separator) is shown only when there is something to show after it.
+ * @param {{ hashrate: number | null | undefined, difficulty: string | undefined, minerReward: number | undefined, prefix?: string }} props
  */
-export function EarningsText({ hashrate, difficulty, minerReward }) {
+export function EarningsText({ hashrate, difficulty, minerReward, prefix = "" }) {
   const { price } = usePrice();
   if (!hashrate || !difficulty || !minerReward) return null;
   const { xel } = dailyEarnings(hashrate, difficulty, minerReward);
   return (
     <>
-      ≈ {formatAmount(xel)} XEL a day{price ? ` (≈ ${formatMoney(xel * price.price, price.currency, "amount")})` : ""}
+      {prefix}≈ {formatAmount(xel)} XEL a day{price ? ` (≈ ${formatMoney(xel * price.price, price.currency, "amount")})` : ""}
     </>
   );
 }

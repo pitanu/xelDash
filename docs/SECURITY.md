@@ -2,7 +2,9 @@
 
 xelDash is built to run on a private LAN, bound to `127.0.0.1` by default. This page
 describes what it protects against, what each part trusts, and the risks that remain.
-Report security problems privately to the maintainer rather than in a public issue.
+Report security problems privately rather than in a public issue: use the repository's
+**Security** tab ("Report a vulnerability"), or contact the maintainer through their GitHub
+profile.
 
 ## Who can do what
 

@@ -34,6 +34,8 @@ First public version, planned as 0.1.0.
 
 ### Dashboard and API
 
+- A "Page not found" page for unknown or malformed dashboard addresses, and clearer text on a
+  new install before the first share arrives.
 - The navigation fits on phones: all six pages, with the theme button beside the logo.
 
 - Overview, Miner, Worker, Blocks and Health pages, in light and dark mode, with live

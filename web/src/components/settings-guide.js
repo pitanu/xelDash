@@ -23,7 +23,7 @@ export const GUIDE = [
         flag: "allow-fast-sync",
         title: "Fast sync",
         explain: "When the node is very far behind, it downloads the current state of the chain instead of replaying every block. The skipped history is not checked by your node.",
-        tip: "Rarely needed: a snapshot from the Snapshots page does the same job. Only with peers you trust. Cannot be on together with boost sync.",
+        tip: "Rarely needed: a snapshot from the Nodes page does the same job. Only with peers you trust. Cannot be on together with boost sync.",
       },
     ],
   },

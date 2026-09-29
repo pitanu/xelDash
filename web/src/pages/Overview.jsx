@@ -35,11 +35,13 @@ export default function Overview() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="col-span-2">
           <StatTile hero icon="hashrate" aside={miningBadge} label="Hashrate, last hour" value={formatHashrate(o?.miningEstimates?.["1h"]?.estimatedHashesPerSecond)}
-            detail={`Last 5 min: ${formatHashrate(o?.miningEstimates?.["5m"]?.estimatedHashesPerSecond)}`} />
+            detail={o && !o.miningEstimates?.["1h"]?.estimatedHashesPerSecond
+              ? "Waiting for shares: point a miner at this server."
+              : `Last 5 min: ${formatHashrate(o?.miningEstimates?.["5m"]?.estimatedHashesPerSecond)}`} />
         </div>
         <StatTile icon="clock" label="Expected time to block" value={formatDuration(o?.miningEstimates?.["1h"]?.expectedTimeToBlockSeconds)}
-          detail={<>At last hour's hashrate{o?.node?.miner_reward ? <>{" · "}<EarningsText hashrate={Number(o.miningEstimates["1h"].estimatedHashesPerSecond)}
-            difficulty={o.network.difficulty} minerReward={o.node.miner_reward} /></> : null}</>} />
+          detail={<>At last hour's hashrate{o?.node?.miner_reward ? <EarningsText prefix=" · " hashrate={Number(o.miningEstimates["1h"].estimatedHashesPerSecond)}
+            difficulty={o.network.difficulty} minerReward={o.node.miner_reward} /> : null}</>} />
         <StatTile icon="block" label="Blocks found" value={formatInteger(found)}
           detail={o ? `${countOf(blockRows, "main-chain")} main chain · ${countOf(blockRows, "submitted")} pending` : undefined} />
         <StatTile icon="difficulty" label="Network difficulty" value={formatCompact(o?.network?.difficulty)}

@@ -73,17 +73,41 @@ function Blocks() {
   );
 }
 
+/** Decoded path segment, or null for a malformed %-escape (which would otherwise throw). @param {string} segment */
+function decode(segment) {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
+}
+
+/** Shown for an address that is not a page, such as a mistyped or very old link. */
+function NotFound() {
+  return (
+    <Card title="Page not found">
+      <p className="text-sm text-ink-2">
+        There is no page at this address. Try the <a href="#/" className="underline decoration-line underline-offset-2 hover:text-ink">Overview</a>{" "}
+        or one of the pages in the menu.
+      </p>
+    </Card>
+  );
+}
+
 export default function App() {
   const route = useHashRoute();
   const workerMatch = /^\/miner\/([^/]+)\/worker\/(.+)$/.exec(route);
   const minerMatch = /^\/miner\/([^/]+)$/.exec(route);
-  let page = <Overview />;
-  if (workerMatch) {
-    const address = decodeURIComponent(workerMatch[1]);
-    const name = decodeURIComponent(workerMatch[2]);
-    page = <Worker key={route} address={address} name={name} />;
-  } else if (minerMatch) page = <Miner key={minerMatch[1]} address={decodeURIComponent(minerMatch[1])} />;
-  else if (route === "/miners") page = <Miners />;
+  let page = <NotFound />;
+  if (route === "/") page = <Overview />;
+  else if (workerMatch) {
+    const address = decode(workerMatch[1]);
+    const name = decode(workerMatch[2]);
+    if (address !== null && name !== null) page = <Worker key={route} address={address} name={name} />;
+  } else if (minerMatch) {
+    const address = decode(minerMatch[1]);
+    if (address !== null) page = <Miner key={minerMatch[1]} address={address} />;
+  } else if (route === "/miners") page = <Miners />;
   else if (route === "/blocks") page = <Blocks />;
   else if (route === "/health") page = <Health />;
   // #/node-data is the page's old address, kept for bookmarks.
