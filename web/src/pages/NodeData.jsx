@@ -385,6 +385,53 @@ function CopyCard({ node, source, token, locked, onUnauthorized }) {
   );
 }
 
+/**
+ * Old chain data kept after a snapshot or copy, for every node at once, so it is easy to
+ * find and delete once the nodes run well on their new data.
+ * @param {{ nodes: import("../nodes.js").ManagedNode[], token: string, locked: boolean, onUnauthorized: () => void }} props
+ */
+function OldDataCard({ nodes, token, locked, onUnauthorized }) {
+  const [error, setError] = useState(/** @type {string | null} */ (null));
+  const [deleting, setDeleting] = useState(/** @type {string | null} */ (null));
+  const withOld = nodes.filter((n) => n.previousBytes > 0);
+  if (withOld.length === 0) return null;
+  const total = withOld.reduce((sum, n) => sum + n.previousBytes, 0);
+
+  /** @param {string} node */
+  async function remove(node) {
+    if (!window.confirm(`Delete the old chain data of ${node}? It is the database from before the last snapshot or copy, kept for rolling back by hand. This cannot be undone.`)) return;
+    setError(null);
+    setDeleting(node);
+    try {
+      const response = await fetch(`/api/v1/node/snapshot/discard-previous${nodeQuery(node)}`, { method: "POST", headers: { "x-admin-token": token } });
+      if (response.status === 401) onUnauthorized();
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? `HTTP ${response.status}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  return (
+    <Card title="Free up disk space"
+      subtitle={`${formatBytes(total)} of old chain data is kept from before the last snapshot or copy. Delete it once the node runs well on its new data.`}>
+      <ul className="divide-y divide-line text-sm">
+        {withOld.map((n) => (
+          <li key={n.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
+            <span><span className="font-medium text-ink">{n.id}</span> <span className="text-ink-2">· {formatBytes(n.previousBytes)} old chain data</span></span>
+            {!locked && (
+              <Button disabled={deleting !== null} onClick={() => void remove(n.id)}>{deleting === n.id ? "Deleting…" : "Delete"}</Button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {locked && <p className="mt-2 text-xs text-muted">Unlock changes above to delete it.</p>}
+      {error && <p className="mt-2 text-sm text-critical">{error}</p>}
+    </Card>
+  );
+}
+
 /** Managing the nodes in this stack: start and stop, copying chain data, and snapshots. */
 export default function NodeData() {
   const admin = useAdminToken();
@@ -412,6 +459,8 @@ export default function NodeData() {
       </div>
 
       {managed && <AdminUnlock actionsEnabled={actionsEnabled} admin={admin} />}
+
+      <OldDataCard nodes={list} token={token} locked={locked} onUnauthorized={admin.forget} />
 
       {managed && list.length > 0 && (
         <UpgradeCard nodes={list} upgrade={managed.upgrade} token={token} locked={locked} onUnauthorized={admin.forget} />

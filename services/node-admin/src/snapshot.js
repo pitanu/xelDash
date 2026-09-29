@@ -115,6 +115,8 @@ export class SnapshotManager {
     this.stopping = false;
     /** @type {{ size: number | null, lastModified: string | null, checkedAt: number } | null} */
     this.officialInfo = null;
+    /** @type {{ at: number, bytes: number } | null} */
+    this.previousSize = null;
   }
 
   get busy() {
@@ -440,7 +442,22 @@ export class SnapshotManager {
     this.set({ phase: "idle", source: null, note: null, error: null });
   }
 
+  /**
+   * Size of the old chain data kept after a snapshot or copy (0 if none), measured at most
+   * once a minute since it walks thousands of files.
+   */
+  async previousBytes() {
+    const dir = `${this.db}.previous`;
+    if (!existsSync(dir)) return 0;
+    if (!this.previousSize || Date.now() - this.previousSize.at > 60_000) {
+      this.previousSize = { at: Date.now(), bytes: await dirSize(dir) };
+    }
+    return this.previousSize.bytes;
+  }
+
   async discardPrevious() {
+    if (this.busy) throw new Error("A snapshot operation is running");
+    this.previousSize = null;
     await rm(`${this.db}.previous`, { recursive: true, force: true });
   }
 

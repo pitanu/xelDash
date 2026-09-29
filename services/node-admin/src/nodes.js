@@ -73,6 +73,7 @@ export class Node {
       dataPresent: this.snapshots.hasData(),
       staged: this.snapshots.isStaged(),
       phase: this.snapshots.state.phase,
+      previousBytes: await this.snapshots.previousBytes(),
     };
   }
 }

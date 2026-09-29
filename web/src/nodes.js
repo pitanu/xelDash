@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 /**
- * @typedef {{ id: string, present: boolean, state: "running" | "stopping" | "stopped", dataPresent: boolean, staged: boolean, phase: string,
+ * @typedef {{ id: string, present: boolean, state: "running" | "stopping" | "stopped", dataPresent: boolean, staged: boolean, phase: string, previousBytes: number,
  *   binary: string, pending: string | null, installed: string[], lastResult: { at: string, outcome: string, message: string | null } | null,
  *   running: { version: string, topoheight: number, peers: number, synced: boolean } | null }} ManagedNode
  */
