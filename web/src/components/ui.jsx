@@ -1,10 +1,10 @@
 import { XEL_DECIMALS, formatAgo, formatEffort, formatHashrate, formatInteger, formatTime, formatXel, shorten } from "../format.js";
 import { formatMoney, usePrice } from "../price.js";
 
-/** @param {{ title: string, subtitle?: string, action?: React.ReactNode, children: React.ReactNode }} props */
-export function Card({ title, subtitle, action, children }) {
+/** @param {{ title: React.ReactNode, subtitle?: string, action?: React.ReactNode, children: React.ReactNode, className?: string }} props */
+export function Card({ title, subtitle, action, children, className = "" }) {
   return (
-    <section className="min-w-0 rounded-lg border border-line bg-surface p-4 sm:p-5">
+    <section className={`min-w-0 rounded-lg border border-line bg-surface p-4 sm:p-5 ${className}`}>
       <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-ink">{title}</h2>
@@ -157,7 +157,8 @@ export function MinersTable({ miners }) {
     <Table>
       <thead>
         <tr><th className={th}>Address</th><th className={`${th} text-right`}>Hashrate (1 h)</th>
-          <th className={`${th} text-right`}>Workers</th><th className={`${th} text-right`}>Blocks</th><th className={`${th} text-right`}>Last seen</th></tr>
+          <th className={`${th} text-right`}>Workers</th><th className={`${th} text-right`}>Blocks</th><th className={`${th} text-right`}>Last seen</th>
+          {onRemove && <th className={th}><span className="sr-only">Remove</span></th>}</tr>
       </thead>
       <tbody className="tabular">
         {miners.map((m) => (
@@ -174,8 +175,8 @@ export function MinersTable({ miners }) {
   );
 }
 
-/** @param {{ workers: any[], address: string }} props */
-export function WorkersTable({ workers, address }) {
+/** @param {{ workers: any[], address: string, onRemove?: (name: string) => void }} props */
+export function WorkersTable({ workers, address, onRemove }) {
   if (workers.length === 0) return <p className="text-sm text-muted">No workers.</p>;
   return (
     <Table>
@@ -196,6 +197,12 @@ export function WorkersTable({ workers, address }) {
             <td className={`${td} text-right`}>{formatInteger(w.accepted1h)}</td>
             <td className={`${td} text-right`}>{formatInteger(w.rejected1h)}</td>
             <td className={`${td} text-right text-ink-2`}>{formatAgo(w.lastSeen)}</td>
+            {onRemove && (
+              <td className={`${td} text-right`}>
+                <button type="button" onClick={() => onRemove(w.name)}
+                  className="rounded-md border border-line px-2 py-0.5 text-xs text-ink-2 hover:bg-wash hover:text-ink">Remove</button>
+              </td>
+            )}
           </tr>
         ))}
       </tbody>

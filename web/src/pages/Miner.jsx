@@ -3,10 +3,10 @@ import { usePolled } from "../api.js";
 import { EarningsText, dailyEarnings } from "../components/Earnings.jsx";
 import HashrateChart from "../components/HashrateChart.jsx";
 import LuckCard from "../components/LuckCard.jsx";
-import { BlocksTable, Card, StatTile, WorkersTable } from "../components/ui.jsx";
+import { BlocksTable, Card, StatTile } from "../components/ui.jsx";
+import WorkersCard from "../components/WorkersCard.jsx";
 import { formatAgo, formatHashrate, formatInteger, formatBucket } from "../format.js";
 
-/** @param {{ address: string }} props */
 /** Blocks a day as a readable rate: "1.6 blocks a day", or "1 block every 4 days". @param {number} blocks */
 function formatBlocksPerDay(blocks) {
   if (blocks >= 1) return `${blocks.toLocaleString(undefined, { maximumFractionDigits: 1 })} blocks a day`;
@@ -14,7 +14,12 @@ function formatBlocksPerDay(blocks) {
   return `1 block every ${days.toLocaleString(undefined, { maximumFractionDigits: days < 10 ? 1 : 0 })} days`;
 }
 
-export default function Miner({ address }) {
+/**
+ * One miner address: hashrate, earnings, luck, workers and blocks. `back` shows the link
+ * to the Miners tab (not when this page is the Miners tab itself).
+ * @param {{ address: string, back?: boolean }} props
+ */
+export default function Miner({ address, back = true }) {
   const [range, setRange] = useState("24h");
   const encoded = encodeURIComponent(address);
   const miner = usePolled(`/api/v1/miners/${encoded}`);
@@ -34,7 +39,7 @@ export default function Miner({ address }) {
   return (
     <div className="space-y-6">
       <div>
-        <a href="#/" className="text-xs text-ink-2 hover:text-ink hover:underline">← Overview</a>
+        {back && <a href="#/miners" className="text-xs text-ink-2 hover:text-ink hover:underline">← Miners</a>}
         <h1 className="mt-1 break-all text-lg font-semibold text-ink">{address}</h1>
         {m && <p className="text-xs text-muted">First seen {formatAgo(m.firstSeen)} · last seen {formatAgo(m.lastSeen)}</p>}
       </div>
@@ -57,7 +62,7 @@ export default function Miner({ address }) {
         <HashrateChart points={history.data?.points ?? null} dimmed={history.loading} range={range} onRangeChange={setRange} />
       </Card>
 
-      <Card title="Workers">{m && <WorkersTable workers={m.workers} address={address} />}</Card>
+      <WorkersCard address={address} workers={m?.workers} onChanged={miner.reload} />
       <Card title="Blocks">{blocks.data && <BlocksTable blocks={blockList} showMiner={false} />}</Card>
     </div>
   );

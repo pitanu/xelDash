@@ -154,7 +154,7 @@ HTTPS, a login and a host-name check.
 
 ## 8. API and dashboard (Decided)
 
-- Pages: Overview, Miner, Worker, Blocks, Health, Settings (display, the official node
+- Pages: Overview, Miners (with Miner and Worker pages), Blocks, Health, Nodes, Settings (display, the official node
   fallback, each node's daemon settings) and Nodes (stop and start, versions and
   upgrades, copies and snapshots). Light, dark or system theme and an optional XEL price, both
   per browser; phone-sized layouts; live updates over `/api/v1/live` with polling as the

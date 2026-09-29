@@ -72,6 +72,20 @@ export async function getLuck(pool, { address = null } = {}) {
 }
 
 /**
+ * The median effort of the rounds that ended in a found block (only rounds whose work is fully
+ * tracked). Under 1 means blocks typically took less work than average: luckier than usual.
+ * @param {PgPool} pool @param {{ address?: string | null }} [filter]
+ */
+export async function getMedianBlockEffort(pool, filter = {}) {
+  const efforts = [...(await getBlockEfforts(pool, filter)).values()]
+    .filter((e) => e !== null).map(Number).sort((a, b) => a - b);
+  if (efforts.length === 0) return { median: null, blocks: 0 };
+  const mid = Math.floor(efforts.length / 2);
+  const median = efforts.length % 2 ? efforts[mid] : (efforts[mid - 1] + efforts[mid]) / 2;
+  return { median, blocks: efforts.length };
+}
+
+/**
  * The effort of the round each block ended, keyed by block hash. Null for a round that
  * started before effort was tracked, whose work is only partly known.
  * @param {PgPool} pool @param {{ address?: string | null }} [filter]

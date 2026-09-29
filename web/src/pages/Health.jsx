@@ -129,23 +129,30 @@ export default function Health() {
             </dl>
           ) : s && <p className="text-sm text-muted">Node details are unavailable while the daemon is not responding.</p>}
         </Card>
-        <div className="space-y-6">
-          <Card title="Active bans" subtitle="Stratum IPs banned for invalid submissions">
-            {s && (s.bans.length === 0 ? <p className="text-sm text-muted">No active bans.</p> : (
-              <ul className="divide-y divide-line text-sm">
-                {s.bans.map((b) => (
-                  <li key={b.ip} className="py-2">
-                    <div className="flex justify-between gap-4">
-                      <span className="tabular text-ink">{b.ip}</span>
-                      <span className="text-xs text-muted" title={formatTime(b.until)}>until {formatTime(b.until)}</span>
-                    </div>
-                    <div className="text-xs text-ink-2">{b.reason}</div>
-                  </li>
-                ))}
-              </ul>
-            ))}
-          </Card>
-          <Card title="Recent events">{events.data && <EventsList events={events.data.events} />}</Card>
+        {/* On wide screens this column takes the node card's height; recent events fill the rest and scroll. */}
+        <div className="lg:relative">
+          <div className="space-y-6 lg:absolute lg:inset-0 lg:flex lg:flex-col lg:gap-6 lg:space-y-0">
+            <Card title="Active bans" className="lg:shrink-0" subtitle="Stratum IPs banned for invalid submissions">
+              {s && (s.bans.length === 0 ? <p className="text-sm text-muted">No active bans.</p> : (
+                <ul className="divide-y divide-line text-sm">
+                  {s.bans.map((b) => (
+                    <li key={b.ip} className="py-2">
+                      <div className="flex justify-between gap-4">
+                        <span className="tabular text-ink">{b.ip}</span>
+                        <span className="text-xs text-muted" title={formatTime(b.until)}>until {formatTime(b.until)}</span>
+                      </div>
+                      <div className="text-xs text-ink-2">{b.reason}</div>
+                    </li>
+                  ))}
+                </ul>
+              ))}
+            </Card>
+            <Card title="Recent events" className="flex flex-col lg:min-h-0 lg:flex-1">
+              <div className="-mr-2 max-h-96 overflow-y-auto pr-2 lg:max-h-none lg:min-h-0 lg:flex-1">
+                {events.data && <EventsList events={events.data.events} />}
+              </div>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

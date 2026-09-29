@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { MiningFallback } from "./fallback.js";
-import { closeEvents, recordEvent } from "./events.js";
+import { closeEvents, hideWorker, recordEvent } from "./events.js";
 import { Node } from "./nodes.js";
 import { Releases } from "./releases.js";
 import { AutoUpdate } from "./autoupdate.js";
@@ -198,6 +198,16 @@ const server = createServer(async (request, response) => {
       else await node.restart();
       recordEvent(`node_${path.slice("/control/".length)}_requested`, { node: node.id });
       send(response, 202, { ok: true, state: node.state });
+      return;
+    }
+    if (request.method === "POST" && path === "/workers/hide") {
+      const body = await readJson(request);
+      if (typeof body?.address !== "string" || typeof body?.name !== "string" || body.address.length > 200 || body.name.length > 128) {
+        send(response, 400, { error: "Send { \"address\": \"xel:…\", \"name\": \"worker\" }" });
+        return;
+      }
+      const found = await hideWorker(body.address, body.name);
+      send(response, found ? 200 : 404, found ? { ok: true } : { error: "No such worker" });
       return;
     }
     if (request.method === "POST" && path === "/scheduled-upgrade") {

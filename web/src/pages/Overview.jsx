@@ -2,8 +2,8 @@ import { useState } from "react";
 import { usePolled } from "../api.js";
 import { EarningsText } from "../components/Earnings.jsx";
 import HashrateChart from "../components/HashrateChart.jsx";
-import LuckCard from "../components/LuckCard.jsx";
-import { BlocksTable, Card, EventsList, HealthBadge, MinersTable, StatTile } from "../components/ui.jsx";
+import { EffortSummary } from "../components/LuckCard.jsx";
+import { BlocksTable, Card, EventsList, HealthBadge, StatTile } from "../components/ui.jsx";
 import { formatCompact, formatDuration, formatHashrate, formatInteger, formatBucket } from "../format.js";
 
 /** @param {{ status: string, count: string }[]} rows @param {string} status */
@@ -15,7 +15,6 @@ export default function Overview() {
   const [range, setRange] = useState("24h");
   const overview = usePolled("/api/v1/overview");
   const history = usePolled(`/api/v1/hashrate?range=${range}`);
-  const miners = usePolled("/api/v1/miners");
   const blocks = usePolled("/api/v1/blocks?limit=10");
   const events = usePolled("/api/v1/events?limit=10");
   const status = usePolled("/api/v1/status");
@@ -53,20 +52,18 @@ export default function Overview() {
           detail={o ? `${o.node.network} · ${o.node.version}` : undefined} />
       </div>
 
-      <LuckCard luck={o?.luck} />
+      <EffortSummary luck={o?.luck} />
 
       <Card title="Hashrate" subtitle={history.data ? `Accepted share difficulty per second, ${formatBucket(history.data.bucketSeconds)} buckets` : undefined}>
         <HashrateChart points={history.data?.points ?? null} dimmed={history.loading} range={range} onRangeChange={setRange} />
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Miners">{miners.data && <MinersTable miners={miners.data.miners} />}</Card>
         <Card title="Recent blocks" action={<a href="#/blocks" className="text-xs text-ink-2 hover:text-ink hover:underline">All blocks</a>}>
           {blocks.data && <BlocksTable blocks={blocks.data.blocks} />}
         </Card>
+        <Card title="Recent events">{events.data && <EventsList events={events.data.events} />}</Card>
       </div>
-
-      <Card title="Recent events">{events.data && <EventsList events={events.data.events} />}</Card>
     </div>
   );
 }

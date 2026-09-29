@@ -40,6 +40,10 @@ First public version, planned as 0.1.0.
   hashrate miners report.
 - Expected earnings (blocks and XEL a day, and in money with the price on) on the Overview
   and each miner's page.
+- A Miners tab (the address list with more than ten active addresses, else their workers).
+  Workers without shares for 7 days drop off the lists, and can be removed sooner; history is
+  kept and a worker that mines again comes back.
+- The Overview shows the current round's effort and the median effort of found blocks.
 - Mining luck: the current round's effort (work done against the work expected per block),
   luck as blocks found against blocks expected, and each block's round effort. Weighed
   against the network difficulty when each share arrived; tracked from this version on.

@@ -3,7 +3,7 @@ import { createPool } from "@xeldash/db";
 import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, listBlocks, listEvents, listMiners } from "./queries.js";
 import { alertConfigFromEnv, startAlerts } from "./alerts.js";
 import { startLiveUpdates } from "./live.js";
-import { getBlockEfforts, getLuck } from "./luck.js";
+import { getBlockEfforts, getLuck, getMedianBlockEffort } from "./luck.js";
 import { callAnyNode, fallbackUrl, rpcUrlsFromEnv } from "./nodes.js";
 import { CURRENCIES, getPrice } from "./price.js";
 import { getStatus } from "./status.js";
@@ -102,7 +102,7 @@ async function getOverview() {
     `),
   ]);
 
-  const luck = await getLuck(pool);
+  const luck = { ...(await getLuck(pool)), medianBlockEffort: await getMedianBlockEffort(pool) };
   const workerCounts = await pool.query(`
     SELECT
       COUNT(DISTINCT w.id) FILTER (WHERE s.bucket >= date_trunc('minute', now()) - interval '4 minutes')::text AS active_workers,

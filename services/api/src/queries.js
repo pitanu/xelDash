@@ -70,12 +70,16 @@ export async function getHashrateHistory(pool, { address, worker = null, range }
   };
 }
 
+// Workers listed on the dashboard: seen within the last 7 days, and not removed since they
+// were last seen. Nothing is deleted; a worker that mines again is listed again.
+const LISTED_WORKER = "(w.last_seen > now() - interval '7 days' AND (w.hidden_at IS NULL OR w.last_seen > w.hidden_at))";
+
 /** @param {PgPool} pool */
 export async function listMiners(pool) {
   const result = await pool.query(
     `SELECT m.address,
             m.last_seen,
-            COUNT(DISTINCT w.id)::text AS workers,
+            COUNT(DISTINCT w.id) FILTER (WHERE ${LISTED_WORKER})::text AS workers,
             ROUND(COALESCE(SUM(s.sum_difficulty), 0) / 3600, 3)::text AS hashrate_1h,
             COALESCE(SUM(s.accepted), 0)::text AS accepted_1h,
             COALESCE(SUM(s.rejected), 0)::text AS rejected_1h,
@@ -116,7 +120,7 @@ export async function getMiner(pool, address) {
      LEFT JOIN worker_stats_1m s ON s.worker_id = w.id
        AND s.bucket >= date_trunc('minute', now()) - interval '1 hour'
        AND s.bucket < date_trunc('minute', now())
-     WHERE w.miner_id = $1
+     WHERE w.miner_id = $1 AND ${LISTED_WORKER}
      GROUP BY w.id
      ORDER BY w.last_seen DESC`,
     [miner.rows[0].id],

@@ -63,5 +63,6 @@ export function usePolled(path) {
     return () => clearTimeout(timer);
   }, [live.version]);
 
-  return state;
+  // reload() refetches now, for example after a change made from the page.
+  return { ...state, reload: () => loadRef.current() };
 }
