@@ -34,6 +34,8 @@ First public version, planned as 0.1.0.
 
 ### Dashboard and API
 
+- The navigation fits on phones: all six pages, with the theme button beside the logo.
+
 - Overview, Miner, Worker, Blocks and Health pages, in light and dark mode, with live
   updates over WebSocket.
 - Hashrate charts from 6 hours to 1 year, estimated from accepted shares, next to the

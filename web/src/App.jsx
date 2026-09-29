@@ -96,24 +96,27 @@ export default function App() {
     <div>
       <header className="sticky top-0 z-20 border-b border-line bg-page/85 backdrop-blur supports-[backdrop-filter]:bg-page/70">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
             <a href="#/" className="flex items-center gap-2 text-base font-semibold tracking-tight text-ink">
               <Logo />
               xelDash
             </a>
             <LiveIndicator />
             <PriceChip />
+            {/* On phones the theme button sits up here, so the six links have the row to themselves. */}
+            <span className="ml-auto sm:hidden"><ThemeButton /></span>
           </div>
-          <div className="flex items-center gap-1">
-            <nav className="flex gap-1 text-sm">
+          <div className="flex w-full min-w-0 items-center gap-1 sm:w-auto">
+            {/* Scrolls sideways on very narrow screens instead of clipping a link. */}
+            <nav className="flex min-w-0 gap-0.5 overflow-x-auto text-[13px] sm:gap-1 sm:text-sm">
               {NAV.map(([href, label]) => (
                 <a key={href} href={`#${href}`} aria-current={section === href ? "page" : undefined}
-                  className={`rounded-md px-2.5 py-1 ${section === href ? "bg-wash font-semibold text-ink" : "text-ink-2 hover:bg-wash hover:text-ink"}`}>
+                  className={`shrink-0 rounded-md px-1.5 py-1 sm:px-2.5 ${section === href ? "bg-wash font-semibold text-ink" : "text-ink-2 hover:bg-wash hover:text-ink"}`}>
                   {label}
                 </a>
               ))}
             </nav>
-            <ThemeButton />
+            <span className="hidden sm:block"><ThemeButton /></span>
           </div>
         </div>
       </header>

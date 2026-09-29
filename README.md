@@ -1,93 +1,214 @@
-# xelDash
+<p align="center">
+  <img src="docs/images/logo.svg" width="88" alt="xelDash logo">
+</p>
 
-> Self-hosted XELIS solo mining with pool-style statistics, in Docker, for your LAN.
+<h1 align="center">xelDash</h1>
 
-xelDash runs your own XELIS node, a Stratum (and getwork) endpoint for your miners, and a
-dashboard. Every share is validated, so you get per-worker hashrate, accepted and rejected
-shares, and time-to-block estimates like a pool would show. Only solved blocks are submitted,
-to your own node, and each block pays the miner's own address directly: xelDash holds no
-funds and has no balances, payouts or wallet.
+<p align="center">
+  <b>Self-hosted XELIS solo mining, with the statistics of a pool.</b><br>
+  Your node. Your miners. Your rewards. And a dashboard that shows exactly how it is going.
+</p>
 
-**Status:** feature-complete for a first release, verified end to end on a private devnet and
-in a mainnet trial with two nodes, and tested with Rigel 1.23.0 on a GPU. Before 0.1.0:
-tests with more third-party miners (see [docs/ISSUES.md](docs/ISSUES.md)).
+<p align="center">
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2a78d6"></a>
+  <img alt="Runs with Docker Compose" src="https://img.shields.io/badge/runs%20with-Docker%20Compose-2a78d6">
+  <img alt="XELIS mainnet tested" src="https://img.shields.io/badge/XELIS-mainnet%20tested-2a78d6">
+  <img alt="No custody, no fees" src="https://img.shields.io/badge/pool%20fees-none-2a78d6">
+</p>
 
-## What you get
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#screenshots">Screenshots</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="docs/README.md">Documentation</a>
+</p>
 
-- **Mining endpoints:** Stratum (`xel/v3`) on port 3333, optional Stratum over TLS on 3334,
-  and getwork on 8090 for the official `xelis_miner`. Per-connection vardiff, or a fixed
-  difficulty from the miner's password. Late shares just after a new block still count.
-- **Dashboard** at port 8088: hashrate with smoothed charts, round effort and luck, expected
-  earnings, per-miner and per-worker pages, blocks with their final status, reward and
-  effort, and node health. Live updates, light and dark themes, and an optional XEL price in
-  one of eleven currencies.
-- **Reliability:** an optional second node with automatic failover, and an optional fallback
-  to the XELIS team's public node, so node restarts and upgrades do not stop mining. Mining
-  pauses by itself while no node can issue work.
-- **Node management from the dashboard:** restart, stop and start each node; every daemon
-  setting, with plain-language explanations for the common ones and trusted peers; chain
-  snapshots (the official daily mainnet snapshot, or a zip you drop onto the page) and
-  copying one node's chain into the other.
-- **Daemon upgrades from the dashboard:** official XELIS releases, checked against their
-  checksums and switched in one node at a time. Now, at a set block height for network
-  upgrades, or automatically (optional, with two nodes).
-- **Alerts** to Discord, Telegram or a webhook; optional daily database backups; optional
-  HTTPS and login in front of the dashboard.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/overview-dark.png">
+    <img alt="The xelDash overview: hashrate, expected time to a block, effort and a hashrate chart" src="docs/images/overview-light.png" width="900">
+  </picture>
+</p>
+
+xelDash runs your own XELIS node, a mining server for your rigs, and a live dashboard, all
+together with Docker Compose. Point your miners at it and every share is checked and counted,
+so you see per-rig hashrate, rejected shares, luck and expected earnings, the way a pool would
+show them.
+
+It is **solo mining**: when one of your rigs finds a block, the reward goes straight to that
+rig's own XELIS address. There is no pool, no fee, no balance and no wallet inside xelDash. It
+holds no funds, ever.
+
+## Why xelDash
+
+- **You keep everything.** Blocks are found on your own node and pay your own address.
+- **You see everything.** Pool-grade statistics for a setup that is entirely yours.
+- **It keeps mining.** A second node, an optional fallback to the official public node, and
+  upgrades that go one node at a time mean restarts and new releases do not stop your rigs.
+- **It is quick to run.** One `docker compose up`, on a machine on your LAN.
+
+## Features
+
+### Mining
+
+- **Stratum and getwork.** Stratum (`xel/v3`) for GPU and CPU miners such as Rigel, optional
+  Stratum over TLS, and getwork for the official `xelis_miner`.
+- **Every share is validated** with the official XELIS Hash V3 code, so the numbers you see
+  are real.
+- **Difficulty that fits each rig.** Automatic per-connection tuning, or a fixed value from
+  the miner's password (`d=50000`).
+- **Fair to fast GPUs.** Shares that arrive just after a new block still count, so 5-second
+  blocks do not waste your hashrate.
+- **Per-address work.** Each miner mines to its own address; rewards never touch xelDash.
+
+### Dashboard
+
+- **Live overview:** hashrate, expected time to a block, network difficulty, workers, shares
+  and node health, updating as it happens.
+- **Effort and luck.** See how far the current round is from an average block, and how the
+  blocks you found compare. Recorded per share against the difficulty of the moment, so it
+  stays true as the network changes.
+- **Expected earnings** in XEL, and optionally in money with the XEL price in one of eleven
+  currencies. Prices are fetched by your server, never by your browser.
+- **Smooth, honest charts** from six hours to a year, with adjustable smoothing and the raw
+  data kept behind the line.
+- **Miners and workers** with per-rig hashrate, the hashrate each miner reports about
+  itself, rejected shares by reason, and a clean list that hides rigs that went away.
+- **Blocks** with their final status, reward and the effort of the round that found them.
+- **Light, dark or system theme**, and a layout that works on a phone.
+
+### Nodes that look after themselves
+
+- **Two local nodes** with automatic failover and failback, and an **optional fallback to the
+  official public node**. Mining pauses only when nothing can issue work, and resumes by
+  itself.
+- **Everything from the dashboard:** restart, stop and start each node; change any daemon
+  setting, with plain-language explanations for the important ones; set trusted peers.
+- **Snapshots:** download the official daily mainnet snapshot, or drop your own zip onto the
+  page. Copy one node's chain into the other in minutes instead of syncing for days.
+- **Daemon upgrades:** pick an official XELIS release and xelDash installs it one node at a
+  time, checking it against the published checksums, waiting for each node to catch up, and
+  rolling back a node that does not stay up.
+- **Network upgrades on schedule:** switch at a specific block height for hard forks.
+- **Optional automatic updates** for setups with two local nodes.
+
+### Stay informed
+
+- **Alerts** to Discord, Telegram or any webhook: blocks found and final, mining paused or
+  resumed, workers offline, and node updates started, finished or failed.
+- **Events** for everything that happens to your nodes, on the dashboard.
+- **Optional daily database backups.**
+
+### Safe by default
+
+- Listens on `127.0.0.1` until you open it to your LAN.
+- Changes to your nodes need an admin token, sent in a header, and nothing in xelDash can
+  control Docker.
+- Strict content security policy, per-IP limits and bans for abusive clients, checked snapshots
+  and release downloads, and an optional HTTPS front with a login.
+
+See [Security](docs/SECURITY.md) for what is protected and what is not.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/nodes-dark.png">
+        <img alt="The Nodes page: daemon versions, scheduled switches, restart and copy controls" src="docs/images/nodes-light.png">
+      </picture>
+      <p align="center"><sub><b>Nodes:</b> versions, upgrades, restart, copy, snapshots</sub></p>
+    </td>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/health-dark.png">
+        <img alt="The Health page: both nodes and the official fallback in sync, node details and recent events" src="docs/images/health-light.png">
+      </picture>
+      <p align="center"><sub><b>Health:</b> every node, mining status, recent events</sub></p>
+    </td>
+  </tr>
+</table>
+
+<p align="center">
+  <img alt="The xelDash overview on a phone" src="docs/images/overview-phone.png" width="300"><br>
+  <sub>The same dashboard on a phone</sub>
+</p>
+
+## How it works
+
+```mermaid
+flowchart LR
+  miners["Your miners"] -->|"Stratum / getwork"| stratum["xelDash Stratum"]
+  stratum --> node1["XELIS node"]
+  stratum -.-> node2["Second node (optional)"]
+  stratum -.-> public["Official public node (optional fallback)"]
+  stratum --> db[("PostgreSQL")]
+  api["API"] --> db
+  dash["Dashboard"] --> api
+  dash --> admin["Node admin"]
+  admin --> node1
+  admin --> node2
+```
+
+Miners connect to xelDash's Stratum server. It asks your node for a block template for each
+miner's own address, checks every share against it, and records the results. Only when a share
+also meets the network's difficulty does it submit a block, to your node, before anything else
+happens. The dashboard reads the recorded statistics, and a small admin service does the node
+management. Details are in the [plan](docs/PLAN.md).
 
 ## Quick start
 
-You need Docker with Compose.
+You need Docker with Compose and a XELIS address.
 
 ```sh
-cp .env.example .env
-# Edit .env: set POSTGRES_PASSWORD, XELIS_NETWORK (devnet, testnet or mainnet) and, for
-# mainnet, XELIS_DAEMON_IMAGE=xelis/daemon:1.25.0 (mainnet needs 1.24.0 or newer).
+git clone https://github.com/pitanu/xelDash.git && cd xelDash
+cp .env.example .env      # set POSTGRES_PASSWORD and XELIS_NETWORK
 docker compose up -d
 ```
 
-Open the dashboard at `http://localhost:8088`. The node syncs the chain first; on mainnet,
-set `XELIS_SNAPSHOT_AUTO=true` (or use the **Nodes** page) to start from the official
-snapshot instead. Node changes on the dashboard need `XELDASH_ADMIN_TOKEN` in `.env`. Everything listens on `127.0.0.1` until you set the `*_BIND_IP` values in
-`.env` to this machine's LAN address.
+Then open **http://localhost:8088** and point a miner at `stratum+tcp://<this machine>:3333`
+with your address as the user name.
 
-## Connecting miners
+The [getting started guide](docs/GETTING-STARTED.md) covers the settings, mainnet and
+snapshots, opening it to your LAN, and updates. [Connecting miners](docs/MINERS.md) has the
+settings for each kind of miner.
 
-Use your own XELIS address as the user name; the worker name is optional.
+## Status
 
-| Miner type | Pool URL | User / worker |
-|------------|----------|---------------|
-| Stratum (Rigel, SRBMiner, lolMiner, ...) | `stratum+tcp://<host>:3333` | `<your xel: address>` / `<rig name>` |
-| Stratum over TLS (if enabled) | `stratum+ssl://<host>:3334` | same |
-| Official xelis_miner | `--daemon-address ws://<host>:8090 --miner-address <address> --worker <rig>` | |
-
-Share difficulty adjusts to each rig automatically. To fix it instead, put `d=<difficulty>` in
-the Stratum password (for example `-p d=50000`); it is never set below `STRATUM_MIN_DIFFICULTY`.
+xelDash is feature-complete for a first release and has been run on XELIS mainnet with two
+nodes, failover, rolling and scheduled upgrades, and a GPU mining through it. What remains
+before a tagged 0.1.0 is testing with more mining programs, and automated tests. Rigel and the
+official `xelis_miner` are tested; others should work but are not verified yet. The
+[open issues](docs/ISSUES.md) list the rest, honestly.
 
 ## Documentation
 
-- [Operations](docs/OPERATIONS.md): daemon settings, snapshots, redundant nodes, daemon
-  upgrades, the official node fallback, alerts, backups, restores and upgrades
-- [Security](docs/SECURITY.md): what is protected, the admin token, remaining risks
-- [Devnet checks](docs/DEVNET.md): how the mining path is verified
-- [Plan](docs/PLAN.md), [decisions](docs/DECISIONS.md), [open issues](docs/ISSUES.md)
-- [Changelog](CHANGELOG.md), [contributing](CONTRIBUTING.md)
+Everything else lives in [docs/](docs/README.md):
 
-## How it is built
+| | |
+|---|---|
+| [Getting started](docs/GETTING-STARTED.md) | Install, configure, first run |
+| [Connecting miners](docs/MINERS.md) | Settings for Rigel, SRBMiner, `xelis_miner` and others |
+| [Operations](docs/OPERATIONS.md) | Alerts, backups, HTTPS, snapshots, second node, upgrades |
+| [Security](docs/SECURITY.md) | The model, the protections, the remaining risks |
+| [Plan](docs/PLAN.md) and [decisions](docs/DECISIONS.md) | Architecture and the reasons behind it |
 
-| Part | Tech |
-|------|------|
-| Node | Official XELIS daemon (Docker), under a small supervisor for settings, snapshots, stop and start, and release versions |
-| Stratum, getwork | Node.js with the official XELIS Hash V3 code as a native addon (Rust, napi-rs) |
-| API, node admin | Node.js |
-| Dashboard | React, Vite, Tailwind, served by nginx |
-| Database | PostgreSQL |
-| Deployment | Docker Compose; multi-arch images (amd64, arm64) |
+## Built with
 
-The daemon's RPC, PostgreSQL and node-admin stay on the internal Compose network. For
-debugging, `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d daemon`
-publishes the daemon's RPC on `127.0.0.1:8080`.
+Node.js and PostgreSQL for the services, React, Vite and Tailwind for the dashboard, and the
+official XELIS daemon and [XELIS Hash V3](https://github.com/xelis-project/xelis-hash) code
+(compiled into a small Rust addon) for validation. Images are built for amd64 and arm64.
+
+## Contributing
+
+Bug reports, miner compatibility reports and pull requests are welcome. See
+[CONTRIBUTING.md](CONTRIBUTING.md). Changes are listed in the [changelog](CHANGELOG.md).
 
 ## License
 
 [MIT](LICENSE). The XELIS Hash V3 code built into the Stratum image comes from
 [xelis-project/xelis-hash](https://github.com/xelis-project/xelis-hash), also MIT.
+
+xelDash is a community project and is not an official XELIS product.
