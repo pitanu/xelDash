@@ -17,7 +17,11 @@ const useTls = process.env.MINER_TLS === "1";
 const stratumPort = Number.parseInt(process.env.MINER_STRATUM_PORT ?? (useTls ? "3334" : "3333"), 10);
 const rpcUrl = process.env.XELIS_RPC_URL ?? "http://daemon:8080/json_rpc";
 const MAX_U256 = (1n << 256n) - 1n;
-const WORKER = "devnet-verify";
+const WORKER = process.env.MINER_WORKER ?? "devnet-verify";
+// MINER_STYLE=classic logs in the way most third-party miners do: "address.worker" as the user
+// name and the password second, then submits shares under that full user name.
+const CLASSIC = process.env.MINER_STYLE === "classic";
+const USERNAME = () => (CLASSIC ? `${address}.${WORKER}` : WORKER);
 
 if (!address) {
   console.error("Usage: devnet-miner.js <address> [blocks]");
@@ -135,7 +139,7 @@ function minerWork(work, value) {
 async function submit(work, bytes, value, hash) {
   const nonceHex = value.toString(16).padStart(16, "0");
   const blockHash = Buffer.from(blake3(bytes)).toString("hex");
-  const reply = await request("mining.submit", [WORKER, work.jobId, nonceHex]);
+  const reply = await request("mining.submit", [USERNAME(), work.jobId, nonceHex]);
   if (reply.error) {
     console.warn(`share rejected: ${reply.error.message}`);
     return;
@@ -181,7 +185,9 @@ async function mine() {
 socket.once(useTls ? "secureConnect" : "connect", async () => {
   const subscribed = await request("mining.subscribe", ["xeldash-devnet-miner", ["xel/v3"]]);
   if (subscribed.error) throw new Error(subscribed.error.message);
-  const authorized = await request("mining.authorize", [address, WORKER, process.env.MINER_PASSWORD ?? ""]);
+  const authorized = await request("mining.authorize", CLASSIC
+    ? [USERNAME(), process.env.MINER_PASSWORD ?? "x"]
+    : [address, WORKER, process.env.MINER_PASSWORD ?? ""]);
   if (authorized.error || authorized.result !== true) {
     console.error("authorize failed:", authorized.error?.message ?? authorized.result);
     process.exit(1);

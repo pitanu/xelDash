@@ -29,6 +29,7 @@ streaming uploads without buffering. Reads are open; every change needs
 | `GET/POST/DELETE /scheduled-upgrade` | A switch at a block height, for network upgrades |
 | `GET/PUT /auto-update` | Optional automatic updates (off by default, two local nodes needed) |
 | `GET/PUT /fallback` | The official node fallback switch, read by Stratum and the API |
+| `GET/PUT /mining-address` | The address xelDash mines to when a miner sends none: checked by your node (network, typos, not integrated), kept on the config volume, read by Stratum |
 | `POST /token/check` | Check an admin token when it is entered |
 
 One heavy disk operation (download, upload, unpack or copy) runs at a time across all nodes.

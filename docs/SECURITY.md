@@ -12,7 +12,7 @@ profile.
 |-----|-----|
 | Anyone who can reach the dashboard | Read everything it shows: miner addresses, worker names and last IPs, hashrates, blocks, node status |
 | Anyone who can reach Stratum or getwork | Mine, within the limits below |
-| Holder of `XELDASH_ADMIN_TOKEN` | For every local node: change its settings and trusted peers, stop, start and restart it, replace its chain data (snapshot or copy), and switch it to another XELIS release (now, at a height, or automatically). Turn the official node fallback on or off. |
+| Holder of `XELDASH_ADMIN_TOKEN` | For every local node: change its settings and trusted peers, stop, start and restart it, replace its chain data (snapshot or copy), and switch it to another XELIS release (now, at a height, or automatically). Turn the official node fallback on or off, and choose the address that miners without one mine to. |
 
 **The admin token is full control of the nodes.** Daemon settings include file paths and
 network options, a snapshot or copy replaces the chain a node follows, and a version switch
@@ -51,6 +51,16 @@ Leave it unset if you do not need these features.
   and data swaps go through files on each node's volume that the node's own supervisor acts on.
 - **Mining rewards.** The key a block pays is looked up on your own node whenever it answers,
   never taken from a block template.
+- **The launcher** (`xeldash.cmd`, `xeldash.sh`) makes a random database password and admin
+  token, keeps them in `.env` (which git ignores), and only lets other computers connect if this
+  computer has a home-network address (10.x, 172.16-31.x or 192.168.x). It never asks for or
+  touches a wallet.
+- **The setup link** the installer opens carries the admin token after a `#`, which browsers
+  never send to any server. The dashboard keeps it for that browser tab and removes it from the
+  address bar and the history entry as soon as the page loads. It is only opened on the computer
+  running the installer.
+- **The mining address** is validated by your own node before it is saved (right network, no typos,
+  not an integrated address), and changing it needs the admin token.
 - **Alerts** do not let worker names trigger Discord mentions such as `@everyone`.
 - **Containers.** The API and Stratum run as an unprivileged user. Backups are owner-only
   files.
@@ -76,6 +86,13 @@ check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
   default. When on and none of your nodes can issue work, that server provides block
   templates. The key rewards are paid to comes from your own node whenever it answers, but
   if none of your nodes is reachable at all, the public node looks it up too.
+- **"Allow other computers" listens on every network interface** of this computer (the
+  launcher checks first that the computer has a home-network address). On a home network behind
+  a router that is fine; on a computer with a public address, or if you forward xelDash's ports on
+  your router, anyone on the internet could read the dashboard and use your mining server. Never
+  forward its ports.
+- **The wallet link is only a link.** The setup page points to the official web wallet at
+  wallet.xelis.io. xelDash never sees a recovery phrase, and cannot move coins.
 - **Outbound requests.** Besides the XELIS network, xelDash contacts: GitHub (latest release,
   every 6 hours; `XELDASH_VERSION_CHECK=off`), CoinGecko (XEL price, only while a viewer has
   it on; `XELDASH_PRICE=off`), node.xelis.io (snapshots when asked, and the official node

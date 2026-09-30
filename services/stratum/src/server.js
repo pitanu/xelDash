@@ -7,6 +7,7 @@ import {
 import { createWorkerAuthorizer } from "./authorize-worker.js";
 import { BlockTracker } from "./block-tracker.js";
 import { ChainWatcher } from "./chain-watcher.js";
+import { watchDefaultAddress } from "./default-address.js";
 import { watchFallbackConfig } from "./fallback-config.js";
 import { startGetworkServer } from "./getwork.js";
 import { IpGuard, MessageRateLimiter, ipGuardConfigFromEnv, normalizeIp } from "./ip-guard.js";
@@ -41,6 +42,12 @@ if (!Number.isSafeInteger(handshakeTimeoutMs) || handshakeTimeoutMs < 1000
   throw new Error("Stratum handshake timeout, queue limit, or job refresh interval is invalid");
 }
 
+// The address for miners that send none: chosen on the dashboard's setup page, else .env.
+const defaultAddress = watchDefaultAddress({
+  file: process.env.XELDASH_MINING_ADDRESS_FILE ?? "/config/mining-address.json",
+  fallback: process.env.XELIS_DEFAULT_ADDRESS ?? "",
+});
+await defaultAddress.ready;
 const pool = createPool();
 // One or more XELIS nodes, in priority order (XELIS_RPC_URLS). Work comes from the first one
 // that is in sync; see node-pool.js.
@@ -140,7 +147,7 @@ function newSession(socket, ip, onAuthorized = () => {}) {
     submitShare,
     jobRefreshIntervalMs,
     vardiff,
-    defaultAddress: process.env.XELIS_DEFAULT_ADDRESS ?? "",
+    defaultAddress: defaultAddress.get(),
     onAuthorized,
     onSubmission: (valid) => ipGuard.record(ip, valid),
     staleGraceMs,
@@ -322,6 +329,7 @@ async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
   fallbackConfig?.stop();
+  defaultAddress.stop();
   for (const watcher of chainWatchers.values()) watcher.stop();
   nodes.stop();
   const closed = Promise.all([

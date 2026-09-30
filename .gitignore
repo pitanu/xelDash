@@ -8,3 +8,5 @@ docker/stratum-tls/*.pem
 backups/
 .env.*
 !.env.example
+# Output of ./xeldash.sh start
+.xeldash-start.log

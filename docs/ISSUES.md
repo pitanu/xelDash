@@ -2,6 +2,12 @@
 
 Open:
 
+- Try the macOS and Linux launcher (`xeldash.sh`) on real systems: it was tested for what it writes and
+  its network checks, but only run in Git Bash on Windows. The Windows launcher has been run end to end.
+- Beginner help still to build: a "why is my rig not connecting?" panel that shows rejected logins (an
+  invalid address, a wrong port), alerts set up from the dashboard with a test message, and published
+  images so a first install pulls in a minute instead of building for ten.
+- Someone who has never used a computer terminal should try the install once and tell us where they got stuck.
 - Test more third-party Stratum miners (SRBMiner, lolMiner, OneZeroMiner) against the stack.
 - Upstream glibc mismatch (built on Debian 13, shipped on cc-debian12; commit 99599508) is
   fixed upstream in commit f6ea12c (2026-09-27), not yet released: `1.25.0` and `latest`
@@ -13,6 +19,10 @@ Open:
 - Tests (unit and integration) are deferred; see docs/PLAN.md section 10.
 
 Resolved:
+
+- The beginner path: launcher scripts, mainnet and snapshot defaults, the Get started page with sync
+  progress and time left, the address checked by the node, copy-ready miner settings, and
+  `address.worker` logins. Tested by running the Windows installer from a fresh folder.
 
 - Node actions are recorded as events (Recent events, live updates) and version switches and
   failed copies send `node_update` alerts; tested on mainnet with a webhook and on devnet

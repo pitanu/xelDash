@@ -5,6 +5,7 @@ import { alertConfigFromEnv, startAlerts } from "./alerts.js";
 import { startLiveUpdates } from "./live.js";
 import { getBlockEfforts, getLuck, getMedianBlockEffort } from "./luck.js";
 import { callAnyNode, fallbackUrl, rpcUrlsFromEnv } from "./nodes.js";
+import { getConnectInfo } from "./connect.js";
 import { CURRENCIES, getPrice } from "./price.js";
 import { getStatus } from "./status.js";
 
@@ -187,6 +188,11 @@ const server = createServer(async (request, response) => {
         stratumHost,
         stratumPort,
       }));
+      return;
+    }
+
+    if (pathname === "/api/v1/connect") {
+      sendJson(response, 200, await getConnectInfo());
       return;
     }
 

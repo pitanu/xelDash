@@ -59,7 +59,8 @@ team's public node as a last-resort work source when the fallback is on.
   xelis_miner. Jobs carry the share difficulty, so those miners submit shares too.
 - **TLS Stratum** (port 3334) is optional: `STRATUM_TLS_ENABLED=true` and a certificate in
   `docker/stratum-tls/`.
-- **Classic Stratum** without `"jsonrpc"` is accepted (Rigel sends it that way). The password
+- **Classic Stratum** without `"jsonrpc"` is accepted (Rigel sends it that way), and so are `address.worker` user names and
+  `[user, password]` logins, which most third-party miners use. The password
   may carry a fixed difficulty (`d=50000`).
 - **Miner compatibility (open):** verified with our devnet test miner and xelis_miner
   1.21.3 over getwork, and with Rigel 1.23.0 over Stratum on mainnet. SRBMiner, lolMiner,
@@ -154,7 +155,7 @@ HTTPS, a login and a host-name check.
 
 ## 8. API and dashboard (Decided)
 
-- Pages: Overview, Miners (with Miner and Worker pages), Blocks, Health, Nodes, Settings (display, the official node
+- Pages: Overview (with a setup banner until a miner has connected), Get started (`#/setup`), Miners (with Miner and Worker pages), Blocks, Health, Nodes, Settings (display, the official node
   fallback, each node's daemon settings) and Nodes (stop and start, versions and
   upgrades, copies and snapshots). Light, dark or system theme and an optional XEL price, both
   per browser; phone-sized layouts; live updates over `/api/v1/live` with polling as the
@@ -162,7 +163,7 @@ HTTPS, a login and a host-name check.
 - REST endpoints (all `GET`; `address` must be a valid `xel:`/`xet:` address; `worker` needs
   `address`): `/api/v1/overview`, `/api/v1/status`, `/api/v1/hashrate`, `/api/v1/miners`,
   `/api/v1/miners/{address}`, `/api/v1/miners/{address}/workers/{name}`, `/api/v1/blocks`,
-  `/api/v1/events`, `/api/v1/price`. The overview, miner and blocks responses include effort
+  `/api/v1/events`, `/api/v1/price`, `/api/v1/connect`. The overview, miner and blocks responses include effort
   and luck. node-admin serves `/api/v1/node/*` (see services/node-admin/README.md).
 - Alerts to Discord, Telegram or a JSON webhook: blocks found and final, mining paused,
   resumed or switched, workers offline. See [OPERATIONS.md](OPERATIONS.md#alerts).

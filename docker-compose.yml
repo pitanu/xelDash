@@ -62,6 +62,8 @@ services:
       # the redundant profile). The dashboard switch overrides it after the first start.
       XELIS_AUTO_UPDATE: ${XELIS_AUTO_UPDATE:-false}
       XELIS_AUTO_UPDATE_DELAY_HOURS: ${XELIS_AUTO_UPDATE_DELAY_HOURS:-24}
+      # The address to mine to, chosen on the dashboard's setup page; this is its first value.
+      XELIS_DEFAULT_ADDRESS: ${XELIS_DEFAULT_ADDRESS:-}
       # Node actions (version switches, stops, copies) are recorded as events for the
       # dashboard and alerts.
       PGHOST: postgres
@@ -178,6 +180,16 @@ services:
       ALERT_DASHBOARD_URL: ${ALERT_DASHBOARD_URL:-}
       # XEL price from CoinGecko, for viewers who switch it on; "off" disables it for everyone.
       XELDASH_PRICE: ${XELDASH_PRICE:-on}
+      # What the dashboard's "Connect a miner" page shows: the published ports and this machine's
+      # address on your network (set by the installer).
+      CONNECT_HOST: ${XELDASH_PUBLIC_HOST:-}
+      CONNECT_BIND_IP: ${XELDASH_STRATUM_BIND_IP:-127.0.0.1}
+      CONNECT_STRATUM_PORT: ${XELDASH_STRATUM_PORT:-3333}
+      CONNECT_TLS_PORT: ${XELDASH_STRATUM_TLS_PORT:-3334}
+      CONNECT_GETWORK_PORT: ${XELDASH_GETWORK_PORT:-8090}
+      STRATUM_TLS_ENABLED: ${STRATUM_TLS_ENABLED:-false}
+      GETWORK_ENABLED: ${GETWORK_ENABLED:-true}
+      XELIS_DEFAULT_ADDRESS: ${XELIS_DEFAULT_ADDRESS:-}
       # Asks GitHub for the latest XELIS release (every 6 hours) to flag outdated nodes.
       XELDASH_VERSION_CHECK: ${XELDASH_VERSION_CHECK:-on}
       XELIS_NETWORK: ${XELIS_NETWORK:-devnet}

@@ -21,6 +21,13 @@ difficulty is submitted to the node before any database write and recorded in `b
 block tracker moves it to `main-chain`, `side` or `orphaned` at the stable height. Each
 accepted share also adds its effort (share ÷ network difficulty) for the luck figures.
 
+**Logins.** XELIS-aware miners (Rigel) send `[address, worker, password]`. Classic Stratum miners send
+`[user, password]`, often with `address.worker` as the user: XELIS addresses contain no dot, so xelDash
+splits there and remembers the full user name, under which those miners submit shares. A password
+like `d=50000` is read as options even when it sits in the worker slot. A login that sends no address
+mines to the address chosen on the dashboard's setup page (`src/default-address.js`, re-read every 5
+seconds), else `XELIS_DEFAULT_ADDRESS`.
+
 **Difficulty.** Vardiff per connection (`src/vardiff.js`): starts at 100,000, aims for one
 share every 10 seconds, capped at the network difficulty. A miner can fix it with
 `d=<difficulty>` (or `diff=`) in the password, never below `STRATUM_MIN_DIFFICULTY`.

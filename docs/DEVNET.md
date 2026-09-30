@@ -5,7 +5,10 @@ accepts. Last verified 2026-09-26 with daemon 1.25.0 (and earlier with 1.21.3).
 
 ## 1. Start the stack
 
-Copy `.env.example` to `.env` and set `POSTGRES_PASSWORD`, then run `docker compose up -d --build`.
+Copy `.env.example` to `.env` and set `POSTGRES_PASSWORD`, `XELIS_NETWORK=devnet` and
+`XELIS_SNAPSHOT_AUTO=false` (the defaults are for mainnet). Or let the launcher do it:
+`./xeldash.sh install --network devnet` (`xeldash install --network devnet` on Windows). Then run
+`docker compose up -d --build` (the launcher does this too).
 Devnet has no seed peers, so the daemon creates its own genesis block and chain.
 
 A devnet chain made by one daemon release may not load in a release with different devnet

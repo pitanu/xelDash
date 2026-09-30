@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card } from "./ui.jsx";
 
-const TOKEN_KEY = "xeldash.adminToken";
+export const TOKEN_KEY = "xeldash.adminToken";
 
 function readToken() {
   try {

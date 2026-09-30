@@ -54,6 +54,14 @@ the phase that depends on it.
 | 2026-09    | Version switches one node at a time, the usual mining node last, each back in sync before the next; run by node-admin | Mining never stops with two nodes; closing the browser does not interrupt a switch |
 | 2026-09    | Scheduled switches at a block height; the release is prepared on every node when scheduled | Hard forks name a version and height; preparing early surfaces problems long before the fork |
 | 2026-09    | Automatic updates optional and off by default; need two local nodes; 24 h after a release; forward only; a failed version is not retried | Unattended updates are convenient but a new release carries risk; the delay and the second node limit it |
+| 2026-09    | Beginners are a first-class audience: mainnet and the official snapshot are the `.env.example` defaults, and a launcher script sets everything up | The old defaults (devnet, no snapshot) would have a beginner mining worthless coins, or waiting days for a sync |
+| 2026-09    | Launchers are plain scripts (`xeldash.cmd`/`.ps1`, `xeldash.sh`) that call Docker Compose, not a service with Docker access | Keeps the rule that nothing in xelDash controls Docker; `update` is a `git pull` plus `up`, run by the user |
+| 2026-09    | xelDash never handles wallets: the setup page links to the official web wallet (wallet.xelis.io) and asks only for an address | Custody or seed handling in a mining dashboard is a security risk and would break the non-custodial promise |
+| 2026-09    | The mining address is chosen on the dashboard, validated by the user's own node, and kept on the config volume; `.env` only gives the first value | Beginners should not edit files; the node knows what is valid for the network |
+| 2026-09    | "Allow other computers" binds all interfaces, but only after checking for a private (home-network) address | A specific IP breaks when DHCP changes it; the private-address check refuses the case where 0.0.0.0 would be exposed |
+| 2026-09    | The installer opens the dashboard with the admin token after a `#`, and the page removes it at once | Fragments are never sent to a server; it saves a beginner from finding and typing a 48-character password |
+| 2026-09    | Accept `address.worker` logins and `[user, password]` calls, and read options in the password slot | Most third-party miners send Stratum that way; XELIS-aware Rigel does not |
+| 2026-09    | nginx looks up the API and node admin again as they are recreated | An updated service otherwise left the dashboard on a 502 until the web container restarted |
 | 2026-09    | Calculate V3 share difficulty and pool estimates using XELIS U256 targets | Hash bytes are interpreted big-endian; valid target is `floor((2^256 - 1) / difficulty)`. Accepted assigned share difficulty divided by elapsed completed-window seconds estimates H/s; expected TTB is network difficulty divided by H/s. |
 
 ## Open

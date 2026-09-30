@@ -21,9 +21,10 @@ export function useLive() {
 /**
  * Fetch a JSON endpoint, refetch on live updates, and poll as a fallback. While a refetch is
  * in flight the previous data stays, so views hold their frame instead of flashing.
- * @param {string | null} path
+ * `intervalMs` polls faster than usual, for progress that should feel live.
+ * @param {string | null} path @param {{ intervalMs?: number }} [options]
  */
-export function usePolled(path) {
+export function usePolled(path, { intervalMs } = {}) {
   const [state, setState] = useState({ data: null, error: null, loading: true });
   const live = useLive();
   const current = useRef(path);
@@ -53,9 +54,9 @@ export function usePolled(path) {
   // Only the polling rate follows the live state; changing it must not restart a fetch.
   useEffect(() => {
     if (!path) return undefined;
-    const timer = setInterval(() => loadRef.current(), live.status === "live" ? LIVE_POLL_MS : POLL_MS);
+    const timer = setInterval(() => loadRef.current(), intervalMs ?? (live.status === "live" ? LIVE_POLL_MS : POLL_MS));
     return () => clearInterval(timer);
-  }, [path, live.status]);
+  }, [path, live.status, intervalMs]);
 
   useEffect(() => {
     if (live.version === 0) return undefined;

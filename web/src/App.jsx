@@ -10,6 +10,8 @@ import NodeData from "./pages/NodeData.jsx";
 import Settings from "./pages/Settings.jsx";
 import { ThemeButton } from "./components/ThemeSetting.jsx";
 import { formatMoney, usePrice } from "./price.js";
+import { consumeTokenFromUrl } from "./session-token.js";
+import Setup from "./pages/Setup.jsx";
 
 const NAV = [["/", "Overview"], ["/miners", "Miners"], ["/blocks", "Blocks"], ["/health", "Health"], ["/nodes", "Nodes"], ["/settings", "Settings"]];
 
@@ -54,13 +56,15 @@ function useHashRoute() {
   const [hash, setHash] = useState(window.location.hash);
   useEffect(() => {
     const onChange = () => {
+      consumeTokenFromUrl();
       setHash(window.location.hash);
       window.scrollTo(0, 0);
     };
     window.addEventListener("hashchange", onChange);
     return () => window.removeEventListener("hashchange", onChange);
   }, []);
-  return hash.replace(/^#/, "") || "/";
+  // A "?..." after the path (the setup link's token) is not part of the route.
+  return hash.replace(/^#/, "").split("?")[0] || "/";
 }
 
 function Blocks() {
@@ -107,7 +111,8 @@ export default function App() {
   } else if (minerMatch) {
     const address = decode(minerMatch[1]);
     if (address !== null) page = <Miner key={minerMatch[1]} address={address} />;
-  } else if (route === "/miners") page = <Miners />;
+  } else if (route === "/setup") page = <Setup />;
+  else if (route === "/miners") page = <Miners />;
   else if (route === "/blocks") page = <Blocks />;
   else if (route === "/health") page = <Health />;
   // #/node-data is the page's old address, kept for bookmarks.

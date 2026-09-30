@@ -42,6 +42,9 @@ holds no funds, ever.
 
 ## Why xelDash
 
+- **Made for beginners.** No node or wallet experience needed: a one-step installer, a guided
+  setup in the dashboard, plain-language help, and a link to the official XELIS web wallet if you
+  need an address.
 - **You keep everything.** Blocks are found on your own node and pay your own address.
 - **You see everything.** Pool-grade statistics for a setup that is entirely yours.
 - **It keeps mining.** A second node, an optional fallback to the official public node, and
@@ -49,6 +52,32 @@ holds no funds, ever.
 - **It is quick to run.** One `docker compose up`, on a machine on your LAN.
 
 ## Features
+
+### Easy to start
+
+- **One-step installer.** Double-click `xeldash.cmd` on Windows, or run `./xeldash.sh` on macOS
+  and Linux. It checks Docker, makes the passwords, picks the real XELIS network with the fast
+  snapshot start, builds and starts everything, and opens the dashboard.
+- **A guided setup in the dashboard.** Four steps with a progress bar and time left while your
+  node downloads the blockchain, then your wallet address, then your first miner, then your
+  first share. Every step says what it is and why.
+- **Your address, checked by your own node.** Paste it and xelDash tells you plainly if it has a
+  typo or belongs to the wrong network. No wallet yet? It links to the official XELIS web wallet
+  ([wallet.xelis.io](https://wallet.xelis.io)). xelDash never handles wallets, recovery phrases
+  or coins.
+- **Copy-ready miner settings.** Your server's real address and port, your wallet address, and a
+  ready-made command for each miner, each with a copy button. Common Stratum miners that send
+  `address.worker` as their user name work too.
+- **Plain language.** A short glossary, "it does not connect, what now?" tips, and a
+  `xeldash lan on` command that opens xelDash to your home network safely.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/setup-dark.png">
+    <img alt="The setup guide during a first install: a snapshot of the blockchain downloading with time left, then the address box and miner settings" src="docs/images/setup-light.png" width="760">
+  </picture><br>
+  <sub>The setup guide during a first install (sample values).</sub>
+</p>
 
 ### Mining
 
@@ -160,27 +189,24 @@ management. Details are in the [plan](docs/PLAN.md).
 
 ## Quick start
 
-You need Docker with Compose and a XELIS address.
+1. Install **Docker Desktop** (Windows or macOS) or Docker Engine (Linux).
+2. Download xelDash (**Code → Download ZIP**) and unzip it.
+3. **Windows:** double-click `xeldash.cmd`. **macOS and Linux:** run `./xeldash.sh` in a terminal.
 
-```sh
-git clone https://github.com/pitanu/xelDash.git && cd xelDash
-cp .env.example .env      # set POSTGRES_PASSWORD and XELIS_NETWORK
-docker compose up -d
-```
+The dashboard opens and guides you through the rest. You do not need a wallet before you start.
 
-Then open **http://localhost:8088** and point a miner at `stratum+tcp://<this machine>:3333`
-with your address as the user name.
-
-The [getting started guide](docs/GETTING-STARTED.md) covers the settings, mainnet and
-snapshots, opening it to your LAN, and updates. [Connecting miners](docs/MINERS.md) has the
-settings for each kind of miner.
+The [getting started guide](docs/GETTING-STARTED.md) explains every step for complete beginners,
+including installing Docker and getting a wallet address, and has the manual setup for advanced
+users. [Connecting miners](docs/MINERS.md) has the settings for each kind of miner.
 
 ## Status
 
 xelDash is feature-complete for a first release and has been run on XELIS mainnet with two
 nodes, failover, rolling and scheduled upgrades, and a GPU mining through it. What remains
 before a tagged 0.1.0 is testing with more mining programs, and automated tests. Rigel and the
-official `xelis_miner` are tested; others should work but are not verified yet. The
+official `xelis_miner` are tested; others should work but are not verified yet. The Windows
+installer has been run end to end; the macOS and Linux launcher has not yet been tried on those
+systems. The
 [open issues](docs/ISSUES.md) list the rest, honestly.
 
 ## Documentation

@@ -4,7 +4,7 @@
 
 | Guide | For |
 |-------|-----|
-| [Getting started](GETTING-STARTED.md) | Installing, configuring and opening the dashboard |
+| [Getting started](GETTING-STARTED.md) | From nothing to mining, for complete beginners: Docker, the installer, your wallet address, the setup guide |
 | [Connecting miners](MINERS.md) | Pool URLs, difficulty, tested miners |
 | [Operations](OPERATIONS.md) | Alerts, backups and restores, HTTPS and login, node settings, snapshots, redundant nodes, daemon upgrades, the official node fallback |
 | [Security](SECURITY.md) | What is protected, what the admin token can do, remaining risks |

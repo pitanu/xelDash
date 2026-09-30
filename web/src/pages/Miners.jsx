@@ -26,7 +26,10 @@ export default function Miners() {
   const miners = usePolled("/api/v1/miners");
   if (!miners.data) return miners.error ? <p className="text-sm text-critical">Unable to reach the xelDash API.</p> : null;
   const active = miners.data.miners.filter((/** @type {any} */ m) => Date.now() - Date.parse(m.lastSeen) < ACTIVE_MS);
-  if (active.length === 0) return <Card title="Miners"><p className="text-sm text-muted">No miner has connected in the last 7 days.</p></Card>;
+  if (active.length === 0) return <Card title="Miners">
+    <p className="text-sm text-muted">No miner has connected in the last 7 days.</p>
+    <p className="mt-2 text-sm"><a href="#/setup" className="text-ink underline decoration-line underline-offset-2">How to connect a miner</a></p>
+  </Card>;
   if (active.length === 1) return <Miner address={active[0].address} back={false} />;
   return (
     <div className="space-y-6">

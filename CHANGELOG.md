@@ -48,6 +48,15 @@ First public version, planned as 0.1.0.
   Workers without shares for 7 days drop off the lists, and can be removed sooner; history is
   kept and a worker that mines again comes back.
 - The Overview shows the current round's effort and the median effort of found blocks.
+- A beginner path: a launcher for Windows (`xeldash.cmd`) and macOS/Linux (`xeldash.sh`) that checks Docker,
+  makes the passwords, chooses mainnet with the snapshot start, starts everything and opens the
+  dashboard; commands to start, stop, update and to allow other computers (`lan on`). `.env.example`
+  now defaults to mainnet with the snapshot.
+- A Get started page and an Overview banner: four steps with progress and time left, the wallet
+  address checked by your node (a link to the official web wallet for people without one), and
+  copy-ready settings for Rigel, xelis_miner and other miners.
+- Miners that send `address.worker` as the user name, or `[user, password]`, can log in.
+- The dashboard no longer shows a 502 after the API or node admin is recreated.
 - Mining luck: the current round's effort (work done against the work expected per block),
   luck as blocks found against blocks expected, and each block's round effort. Weighed
   against the network difficulty when each share arrived; tracked from this version on.

@@ -85,3 +85,16 @@ export function formatEffort(effort) {
   const pct = effort * 100;
   return `${pct < 10 ? pct.toFixed(1) : Math.round(pct).toLocaleString()}%`;
 }
+
+/** File and disk sizes in decimal units: "9,2 GB". @param {number | null | undefined} bytes */
+export function formatBytes(bytes) {
+  if (bytes === null || bytes === undefined) return "—";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let n = bytes;
+  let unit = 0;
+  while (n >= 1000 && unit < units.length - 1) {
+    n /= 1000;
+    unit += 1;
+  }
+  return `${n.toLocaleString(undefined, { maximumFractionDigits: unit >= 3 ? 1 : 0 })} ${units[unit]}`;
+}

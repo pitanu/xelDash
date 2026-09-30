@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { MiningFallback } from "./fallback.js";
+import { AddressProblem, MiningAddress } from "./mining-address.js";
 import { closeEvents, hideWorker, recordEvent } from "./events.js";
 import { Node } from "./nodes.js";
 import { Releases } from "./releases.js";
@@ -37,7 +38,9 @@ const upgrade = new RollingUpgrade({ releases });
 const configDir = process.env.CONFIG_DIR ?? "/config";
 const fallback = new MiningFallback({ configDir, network, env: process.env });
 for (const node of nodes) await node.snapshots.init().catch((error) => console.warn(`${node.id}: ${message(error)}`));
+const miningAddress = new MiningAddress({ configDir, network, env: process.env });
 await fallback.init();
+await miningAddress.init();
 
 /**
  * The node a request is about (?node=, the first node by default). Unknown nodes, and daemon2
@@ -134,6 +137,10 @@ const server = createServer(async (request, response) => {
       send(response, 200, { nodes: list, actionsEnabled: Boolean(adminToken), upgrade: upgrade.state });
       return;
     }
+    if (request.method === "GET" && path === "/mining-address") {
+      send(response, 200, { ...(await miningAddress.status()), actionsEnabled: Boolean(adminToken) });
+      return;
+    }
     if (request.method === "GET" && path === "/scheduled-upgrade") {
       send(response, 200, await scheduled.status());
       return;
@@ -222,6 +229,20 @@ const server = createServer(async (request, response) => {
     if (request.method === "DELETE" && path === "/scheduled-upgrade") {
       await scheduled.cancel();
       send(response, 200, { ok: true });
+      return;
+    }
+    if (request.method === "PUT" && path === "/mining-address") {
+      const body = await readJson(request);
+      if (typeof body?.address !== "string" || body.address.length > 200) {
+        send(response, 400, { error: "Send { \"address\": \"xel:...\" }" });
+        return;
+      }
+      try {
+        send(response, 200, await miningAddress.set(body.address));
+      } catch (error) {
+        // A beginner-readable reason, not a server error.
+        send(response, error instanceof AddressProblem ? 422 : 409, { error: message(error) });
+      }
       return;
     }
     if (request.method === "PUT" && path === "/auto-update") {

@@ -82,6 +82,8 @@ export class StratumSession {
     this.agent = "";
     /** @type {Map<string, MiningIdentity>} */
     this.authorizedWorkers = new Map();
+    /** Full user names (address.worker) to the worker name they were logged in as. @type {Map<string, string>} */
+    this.workerAliases = new Map();
     /** @type {Map<string, MiningJob>} */
     this.jobs = new Map();
     /** @type {string | null} */
@@ -162,7 +164,33 @@ export class StratumSession {
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNKNOWN, paused));
       return;
     }
-    const [requestedAddress, workerName = "default", password = ""] = request.params;
+    // Two login styles. XELIS-aware miners (Rigel) send [address, worker, password]. Classic
+    // Stratum miners send [user, password], and often "address.worker" as the user; XELIS
+    // addresses never contain a dot, so the dot separates the worker. The full user name is
+    // remembered, because those miners submit shares under it.
+    const [first, second, third] = request.params;
+    let requestedAddress = first;
+    /** @type {unknown} */
+    let workerName = second ?? "default";
+    /** @type {unknown} */
+    let password = third ?? "";
+    /** @type {string | null} */
+    let username = null;
+    if (typeof first === "string" && first.includes(".")) {
+      username = first;
+      const dot = first.indexOf(".");
+      requestedAddress = first.slice(0, dot);
+      if (request.params.length >= 3 && second !== undefined && second !== "") {
+        workerName = second;
+      } else {
+        workerName = first.slice(dot + 1) || "default";
+        password = request.params.length >= 3 ? third : (second ?? "");
+      }
+    } else if (request.params.length === 2 && typeof second === "string" && second.includes("=")) {
+      // [address, "d=50000"]: options in the password slot, no worker name.
+      workerName = "default";
+      password = second;
+    }
     if ((requestedAddress !== undefined && requestedAddress !== null
           && typeof requestedAddress !== "string") || typeof workerName !== "string"
         || workerName.length === 0 || workerName.length > MAX_WORKER_NAME
@@ -196,6 +224,7 @@ export class StratumSession {
 
     // Logging in again as a known worker changes nothing.
     if (this.authorizedWorkers.has(workerName) && this.miningAddress === address) {
+      if (username) this.workerAliases.set(username, workerName);
       this.send(response(request.id, true));
       return;
     }
@@ -223,6 +252,7 @@ export class StratumSession {
     // Further workers on a connection share its job; only the first login fetches a template.
     if (this.miningIdentity && this.jobs.size > 0) {
       this.authorizedWorkers.set(workerName, identity);
+      if (username) this.workerAliases.set(username, workerName);
       this.send(response(request.id, true));
       return;
     }
@@ -249,6 +279,7 @@ export class StratumSession {
     this.miningIdentity = identity;
     this.publicKey = identity.publicKey.toLowerCase();
     this.authorizedWorkers.set(workerName, identity);
+    if (username) this.workerAliases.set(username, workerName);
     this.trackJob(job, true);
     this.onAuthorized();
     this.send(response(request.id, true));
@@ -423,13 +454,14 @@ export class StratumSession {
 
   /** @param {StratumRequest} request */
   async submit(request) {
-    const [workerName, jobId, nonce] = request.params;
-    if (typeof workerName !== "string" || typeof jobId !== "string"
+    const [submittedName, jobId, nonce] = request.params;
+    if (typeof submittedName !== "string" || typeof jobId !== "string"
         || typeof nonce !== "string" || !/^[0-9a-f]{16}$/i.test(nonce)) {
       this.onSubmission(false);
       this.send(errorResponse(request.id, -32602, "Invalid submit parameters"));
       return;
     }
+    const workerName = this.workerAliases.get(submittedName) ?? submittedName;
     const worker = this.authorizedWorkers.get(workerName);
     if (!worker) {
       this.onSubmission(false);

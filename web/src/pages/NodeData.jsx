@@ -3,23 +3,9 @@ import { AdminUnlock, useAdminToken } from "../components/AdminUnlock.jsx";
 import { Card, HealthBadge, Segmented } from "../components/ui.jsx";
 import { nodeQuery, useNodes } from "../nodes.js";
 import UpgradeCard from "../components/UpgradeCard.jsx";
-import { formatAgo, formatTime } from "../format.js";
+import { formatAgo, formatBytes, formatTime } from "../format.js";
 
-/** @param {number | null | undefined} bytes */
-function formatBytes(bytes) {
-  if (bytes === null || bytes === undefined) return "—";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let n = bytes;
-  let unit = 0;
-  while (n >= 1000 && unit < units.length - 1) {
-    n /= 1000;
-    unit += 1;
-  }
-  return `${n.toLocaleString(undefined, { maximumFractionDigits: unit >= 3 ? 1 : 0 })} ${units[unit]}`;
-}
-
-/** Snapshot service status, polled every second while something is running. */
-/** @param {string} node */
+/** Snapshot service status of one node, polled every second while something is running. @param {string} node */
 function useSnapshotStatus(node) {
   const [status, setStatus] = useState(/** @type {any} */ (null));
   const [error, setError] = useState(/** @type {string | null} */ (null));

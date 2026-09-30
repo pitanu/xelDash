@@ -16,5 +16,8 @@ LISTEN/NOTIFY relayed to browsers), and alerts (`src/alerts.js`).
   (`src/release.js`, from GitHub every 6 hours; `XELDASH_VERSION_CHECK=off`).
 - **Price** (`src/price.js`): XEL in eleven currencies from CoinGecko, fetched by the server
   every 5 minutes while a viewer has it on, mainnet only; `XELDASH_PRICE=off` disables it.
+- **Connect info** (`src/connect.js`, `/api/v1/connect`): the published Stratum, TLS and getwork ports, this
+  computer's network address (from the launcher), whether other computers can reach it, and the
+  mining address, for the dashboard's Get started page.
 - **Nodes** come from `XELIS_RPC_URLS`, plus the official node while the fallback is on
   (read from the config volume).
