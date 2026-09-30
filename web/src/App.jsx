@@ -77,7 +77,7 @@ function RewardsSummary({ totals }) {
   const pending = count("submitted");
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      <StatTile icon="block" label="Rewards found" value={formatXel(totals.reward)}
+      <StatTile icon="block" label="Rewards found" value={<span className="whitespace-nowrap text-xl sm:text-2xl">{formatXel(totals.reward).replace(/ XEL$/, "")}<span className="ml-1 text-sm font-medium text-ink-2">XEL</span></span>}
         detail={price && xel > 0 ? `≈ ${formatMoney(xel * price.price, price.currency, "amount")} at today's price` : "Main-chain and side blocks"} />
       <StatTile label="Main chain" value={formatInteger(count("main-chain"))} detail={formatXel(totals.byStatus["main-chain"]?.reward ?? "0")} />
       <StatTile label="Side blocks" value={formatInteger(count("side"))} detail={count("side") > 0 ? `${formatXel(totals.byStatus.side?.reward ?? "0")} (reduced reward)` : "Paid at a reduced reward"} />
