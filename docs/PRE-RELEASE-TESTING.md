@@ -70,6 +70,9 @@ shares accepted? Does `address.worker` in the user field work?
 - [ ] A wrong Discord address or bot token gives a readable error, not a crash.
 - [ ] Turning an alert type off stops it (for example, "A worker stops sending shares").
 - [ ] Restart the stack: the saved settings are still there.
+- [ ] When one of your blocks loses the race for its height, a "side block for now" event and alert
+      arrive well before the block is final. This has not been seen against a real daemon yet, so
+      note whether it fires. If only the later "final as a side block" alert arrives, report it.
 
 ## 6. Nodes and upgrades
 
