@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AdminUnlock, useAdminToken } from "../components/AdminUnlock.jsx";
+import AlertSettings from "../components/AlertSettings.jsx";
 import DaemonSettings from "../components/DaemonSettings.jsx";
 import MiningFallback from "../components/MiningFallback.jsx";
 import PriceSetting from "../components/PriceSetting.jsx";
@@ -43,6 +44,9 @@ export default function Settings() {
       <h2 className="pt-2 text-base font-semibold text-ink">Mining</h2>
       <MiningFallback token={token} onUnauthorized={admin.forget} />
 
+      <h2 className="pt-2 text-base font-semibold text-ink">Alerts</h2>
+      <AlertSettings token={token} onUnauthorized={admin.forget} />
+
       <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
         <h2 className="text-base font-semibold text-ink">Node</h2>
         {nodeIds.length > 1 && <Segmented label="Node" value={node} options={nodeIds} onChange={setNode} />}
@@ -54,7 +58,7 @@ export default function Settings() {
 
       <Card title="Set in .env">
         <p className="text-sm text-ink-2">
-          Ports, share difficulty, connection limits, alerts, backups and the node list are set in
+          Ports, share difficulty, connection limits, backups and the node list are set in
           {" "}<code className="rounded bg-wash px-1">.env</code>, and apply after <code className="rounded bg-wash px-1">docker compose up -d</code>.
           Each is explained in <code className="rounded bg-wash px-1">.env.example</code>. Restarting nodes, copying chain data and snapshots are on the
           {" "}<a href="#/nodes" className="underline decoration-line underline-offset-2 hover:text-ink">Nodes</a> page.

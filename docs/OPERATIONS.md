@@ -2,8 +2,14 @@
 
 ## Alerts
 
-The API can send alerts to Discord, Telegram and/or any JSON webhook. Set one or more in
-`.env` and restart the API (`docker compose up -d api`):
+The API can send alerts to Discord, Telegram and/or any JSON webhook.
+
+The easy way: open **Settings**, unlock with the admin token, fill in one or more places under
+"Where to send alerts", pick which alerts you want, save, and press **Send a test message**. Changes
+apply within seconds, without restarting anything. The saved settings replace the `.env` values; the
+dashboard only ever shows the last four characters of a saved address or token.
+
+The `.env` way, which gives the starting values (restart the API with `docker compose up -d api`):
 
 | Setting | Use |
 |---------|-----|

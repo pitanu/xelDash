@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { MiningFallback } from "./fallback.js";
+import { AlertSettingsProblem, AlertSettings } from "./alert-settings.js";
 import { AddressProblem, MiningAddress } from "./mining-address.js";
 import { closeEvents, hideWorker, recordEvent } from "./events.js";
 import { Node } from "./nodes.js";
@@ -39,6 +40,7 @@ const configDir = process.env.CONFIG_DIR ?? "/config";
 const fallback = new MiningFallback({ configDir, network, env: process.env });
 for (const node of nodes) await node.snapshots.init().catch((error) => console.warn(`${node.id}: ${message(error)}`));
 const miningAddress = new MiningAddress({ configDir, network, env: process.env });
+const alertSettings = new AlertSettings({ configDir, env: process.env });
 await fallback.init();
 await miningAddress.init();
 
@@ -137,6 +139,10 @@ const server = createServer(async (request, response) => {
       send(response, 200, { nodes: list, actionsEnabled: Boolean(adminToken), upgrade: upgrade.state });
       return;
     }
+    if (request.method === "GET" && path === "/alerts") {
+      send(response, 200, { ...(await alertSettings.status()), actionsEnabled: Boolean(adminToken) });
+      return;
+    }
     if (request.method === "GET" && path === "/mining-address") {
       send(response, 200, { ...(await miningAddress.status()), actionsEnabled: Boolean(adminToken) });
       return;
@@ -229,6 +235,21 @@ const server = createServer(async (request, response) => {
     if (request.method === "DELETE" && path === "/scheduled-upgrade") {
       await scheduled.cancel();
       send(response, 200, { ok: true });
+      return;
+    }
+    if (request.method === "PUT" && path === "/alerts") {
+      const body = await readJson(request);
+      try {
+        send(response, 200, await alertSettings.set(body ?? {}));
+      } catch (error) {
+        if (!(error instanceof AlertSettingsProblem)) throw error;
+        send(response, 422, { error: error.message });
+      }
+      return;
+    }
+    if (request.method === "POST" && path === "/alerts/test") {
+      const results = await alertSettings.test();
+      send(response, 200, { results, none: results.length === 0 });
       return;
     }
     if (request.method === "PUT" && path === "/mining-address") {

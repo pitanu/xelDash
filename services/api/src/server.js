@@ -1,7 +1,8 @@
 import { createServer } from "node:http";
+import { join } from "node:path";
 import { createPool } from "@xeldash/db";
 import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, listBlocks, listEvents, listMiners, listProblems } from "./queries.js";
-import { alertConfigFromEnv, startAlerts } from "./alerts.js";
+import { watchAlerts } from "./alerts.js";
 import { startLiveUpdates } from "./live.js";
 import { getBlockEfforts, getLuck, getMedianBlockEffort } from "./luck.js";
 import { callAnyNode, fallbackUrl, rpcUrlsFromEnv } from "./nodes.js";
@@ -278,7 +279,7 @@ const server = createServer(async (request, response) => {
   }
 });
 
-const alerts = startAlerts({ pool, config: alertConfigFromEnv(process.env) });
+const alerts = watchAlerts({ pool, env: process.env, file: join(process.env.CONFIG_DIR ?? "/config", "alerts.json") });
 const live = startLiveUpdates({ server, pool, onNotification: (payload) => alerts?.handleNotification(payload) });
 
 server.listen(port, host, () => {

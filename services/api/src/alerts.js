@@ -1,3 +1,4 @@
+import { readFile, stat } from "node:fs/promises";
 const SEND_INTERVAL_MS = 1_000;
 const MAX_QUEUE = 20;
 const FINAL_BATCH_MS = 5_000;
@@ -50,6 +51,74 @@ export function alertConfigFromEnv(env) {
     throw new Error("Set both ALERT_TELEGRAM_BOT_TOKEN and ALERT_TELEGRAM_CHAT_ID for Telegram alerts");
   }
   return config;
+}
+
+/**
+ * The alert settings saved from the dashboard (alerts.json on the config volume) when there are
+ * any, else the ALERT_* values from .env.
+ * @param {Partial<Record<string, string | undefined>>} env @param {string} file
+ * @returns {Promise<AlertConfig>}
+ */
+export async function loadAlertConfig(env, file) {
+  let saved;
+  try {
+    saved = JSON.parse(await readFile(file, "utf8"));
+  } catch {
+    return alertConfigFromEnv(env);
+  }
+  const text = (/** @type {unknown} */ v) => (typeof v === "string" ? v : "");
+  const config = alertConfigFromEnv({
+    ALERT_DISCORD_WEBHOOK_URL: text(saved.discordWebhookUrl),
+    ALERT_TELEGRAM_BOT_TOKEN: text(saved.telegramBotToken),
+    ALERT_TELEGRAM_CHAT_ID: text(saved.telegramChatId),
+    ALERT_WEBHOOK_URL: text(saved.webhookUrl),
+    ALERT_WORKER_OFFLINE_MINUTES: String(saved.workerOfflineMinutes ?? 10),
+    ALERT_DASHBOARD_URL: text(saved.dashboardUrl),
+  });
+  // An empty list means "nothing" here, not "everything" as it does in .env.
+  if (Array.isArray(saved.events)) config.events = new Set(saved.events.filter((/** @type {string} */ e) => EVENT_TYPES.includes(e)));
+  return config;
+}
+
+/**
+ * Runs alerts and restarts them when the settings file changes, so a change made on the
+ * dashboard applies within seconds without restarting the API.
+ * @param {{ pool: import("pg").Pool, env: Partial<Record<string, string | undefined>>, file: string,
+ *   logger?: Pick<Console, "info" | "warn">, intervalMs?: number }} options
+ */
+export function watchAlerts({ pool, env, file, logger = console, intervalMs = 10_000 }) {
+  /** @type {ReturnType<typeof startAlerts>} */
+  let current = null;
+  let signature = "";
+  async function reload() {
+    let next;
+    try {
+      next = (await stat(file)).mtimeMs.toString();
+    } catch {
+      next = "none";
+    }
+    if (next === signature) return;
+    signature = next;
+    try {
+      const config = await loadAlertConfig(env, file);
+      current?.stop();
+      current = startAlerts({ pool, config, logger });
+    } catch (error) {
+      logger.warn?.(`Alert settings not applied: ${message(error)}`);
+    }
+  }
+  const timer = setInterval(() => void reload(), intervalMs);
+  timer.unref();
+  const ready = reload();
+  return {
+    ready,
+    /** @param {string} payload */
+    handleNotification: (payload) => current?.handleNotification(payload),
+    stop() {
+      clearInterval(timer);
+      current?.stop();
+    },
+  };
 }
 
 /**
