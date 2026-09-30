@@ -171,6 +171,32 @@ export async function listBlocks(pool, { address, worker = null, limit }) {
   }));
 }
 
+/**
+ * Blocks found and the rewards they earned, over every block on record (not just the ones a list
+ * shows). Main-chain and side blocks are paid, so their rewards make up the total; blocks still
+ * waiting to become final have no reward yet, and orphaned ones earn nothing.
+ * @param {PgPool} pool @param {{ address?: string | null, worker?: string | null }} [filter]
+ */
+export async function getBlockTotals(pool, { address = null, worker = null } = {}) {
+  const result = await pool.query(
+    `SELECT b.status, count(*)::int AS blocks, COALESCE(sum(b.reward), 0)::text AS reward
+     FROM blocks b
+     LEFT JOIN miners m ON m.id = b.miner_id
+     LEFT JOIN workers w ON w.id = b.worker_id
+     WHERE b.status <> 'rejected' AND ($1::text IS NULL OR m.address = $1) AND ($2::text IS NULL OR w.name = $2)
+     GROUP BY b.status`,
+    [address, worker],
+  );
+  /** @type {Record<string, { blocks: number, reward: string }>} */
+  const byStatus = {};
+  let reward = 0n;
+  for (const row of result.rows) {
+    byStatus[row.status] = { blocks: row.blocks, reward: row.reward };
+    if (row.status === "main-chain" || row.status === "side") reward += BigInt(row.reward);
+  }
+  return { reward: reward.toString(), byStatus };
+}
+
 // Rejected connections and logins have their own list (listProblems); they stay out of the
 // general events, where a stuck miner or a scanner would crowd out everything else.
 const PROBLEM_TYPES = ["connection_refused", "login_problem"];

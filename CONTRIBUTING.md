@@ -8,8 +8,7 @@ are all welcome.
 - For a bug, open an issue with the bug template; it asks for the details that are usually
   needed (miner software, daemon version, network, logs).
 - For a larger change, open an issue first so the approach can be agreed before you write
-  much code. Planned work and decisions are in [docs/PLAN.md](docs/PLAN.md),
-  [docs/DECISIONS.md](docs/DECISIONS.md) and [docs/ISSUES.md](docs/ISSUES.md).
+  much code. How it is built is described in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Development setup
 

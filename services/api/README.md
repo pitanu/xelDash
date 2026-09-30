@@ -2,7 +2,7 @@
 
 The Node.js REST API reads PostgreSQL and the XELIS nodes over the private Compose network.
 It serves `/health` and the dashboard endpoints listed in
-[docs/PLAN.md](../../docs/PLAN.md) section 8, the `/api/v1/live` WebSocket (PostgreSQL
+[docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) section 8, the `/api/v1/live` WebSocket (PostgreSQL
 LISTEN/NOTIFY relayed to browsers), and alerts (`src/alerts.js`).
 
 - **Hashrate** is accepted share difficulty over completed 5-minute, 1-hour and 24-hour

@@ -34,6 +34,9 @@ First public version, planned as 0.1.0.
 
 ### Dashboard and API
 
+- The Blocks page shows the total rewards found, split into main-chain and side blocks.
+- Block heights link to the official block explorer.
+- An alert (and event) when one of your blocks becomes a side block, before it is final.
 - Alerts are set up on the Settings page, with a "Send a test message" button; changes apply
   without a restart.
 - A Shares chart (accepted and rejected per bucket) under the hashrate chart, on the Overview, miner and worker pages. Stale shares are counted on their own (still part of the rejected total).

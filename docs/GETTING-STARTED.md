@@ -106,8 +106,10 @@ By default, only the computer running xelDash can connect, which is the safe cho
 other computers on your home network, run `xeldash lan on` (`./xeldash.sh lan on`). It finds this
 computer's address on your network, checks that it is a home-network address (and refuses
 otherwise), lets other computers on your network connect, and shows the address to type into
-your miners. Windows may ask to let Docker through the firewall for private networks:
-say yes.
+your miners. On Windows it also asks for permission to add firewall rules that allow your home
+network and block the internet: say yes (`xeldash firewall status` shows them, `xeldash firewall off`
+removes them). xelDash only accepts miners from private networks; `XELDASH_ALLOWED_NETWORKS` in
+`.env` changes that.
 
 **Never open xelDash's ports on your router** (port forwarding). It is built for your home
 network, not the internet. See [Security](SECURITY.md).
@@ -120,8 +122,9 @@ network, not the internet. See [Security](SECURITY.md).
 - **The snapshot is slow or stuck.** It is a 9 GB download; a slow connection takes a while. It
   resumes if interrupted. The **Nodes** page shows the details.
 - **I forgot the admin password.** Run `xeldash token`. It is also in the `.env` file.
-- **My miner will not connect.** The Get started page has a checklist under "It does not
-  connect". Most often it is the wrong address for another computer, or network access is off.
+- **My miner will not connect.** The Health and Get started pages list connections that were
+  turned away, with the reason and what to change. The Get started page also has a checklist under
+  "It does not connect". Most often it is the wrong address for another computer, or network access is off.
 - **I want to start over.** Run `docker compose down -v` in the folder, then delete the folder.
   This deletes the blockchain copy and all statistics (not your wallet, which is separate).
 

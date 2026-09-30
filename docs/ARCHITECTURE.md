@@ -1,21 +1,16 @@
-# xelDash: Project Plan
+# Architecture
 
-*Last updated: 2026-09-29. Status: Phases 1 to 5 done; mainnet trial done with two nodes,
-failover, rolling and scheduled upgrades, and Rigel on a GPU. Phase 6 (release) waits on
-more third-party miner tests.*
-
-Each section is marked **Decided**, **Draft** (a proposal to confirm), or **Open** (not
-discussed yet). Decisions are recorded in [DECISIONS.md](DECISIONS.md); open work is in
-[ISSUES.md](ISSUES.md).
+How xelDash is built: the services, the mining protocols, how it talks to XELIS nodes, the data
+model and the security model. For using it, start with [Getting started](GETTING-STARTED.md).
 
 ---
 
-## 1. Scope and users (Decided)
+## 1. Scope and users
 
 - An open-source, self-hosted XELIS solo mining server and statistics dashboard, run with
-  Docker Compose and intended for LAN use.
+  Docker Compose and intended for a home or office network.
 - Whoever deploys it runs their own XELIS node (or two). Miners connect to the LAN Stratum or
-  getwork endpoint; public internet exposure is outside the v1 deployment model.
+  getwork endpoint; it is not meant to be reachable from the internet, and refuses connections from outside your networks by default.
 - Validated shares provide pool-quality worker and miner hashrate, share history, and
   time-to-block estimates. Only solved blocks are submitted, to the operator's own node.
 - Each found block pays the address authorized by its miner. xelDash does not split rewards,
@@ -23,9 +18,9 @@ discussed yet). Decisions are recorded in [DECISIONS.md](DECISIONS.md); open wor
 - Each connection authorizes with its own `xel:` address; the operator can configure a
   default address for miners that do not send one.
 
-**Non-goals (for v1):** shared-reward pool mining (PPLNS/PPS), fees, custodial wallets.
+**Non-goals:** shared-reward pool mining (PPLNS/PPS), fees, custodial wallets.
 
-## 2. Architecture (Decided)
+## 2. Architecture
 
 ```
  miners ──► stratum (Stratum :3333, TLS :3334, getwork :8090) ──► daemon [, daemon2]
@@ -36,9 +31,14 @@ discussed yet). Decisions are recorded in [DECISIONS.md](DECISIONS.md); open wor
  browser ──► web (nginx: dashboard, /api → api, /api/v1/node → node-admin)   versions, stop/start)
 ```
 
-node-admin, Stratum and the API share a small config volume for the dashboard's switches
-(official node fallback, automatic updates, scheduled upgrade). Stratum can add the XELIS
-team's public node as a last-resort work source when the fallback is on.
+node-admin, Stratum and the API share a small config volume (`/config`). node-admin writes it;
+Stratum and the API read it: the dashboard's switches (official node fallback, automatic updates,
+scheduled upgrade), the mining address and the alert settings. Stratum can add the XELIS team's
+public node as a last-resort work source when the fallback is on.
+
+Containers sit on three Compose networks: `edge` (dashboard and proxy), `node` (the daemons) and
+`data`, which is internal (no route out). Only the API, Stratum, node-admin and the migration and
+backup jobs join `data`, so the database is unreachable from the web container and from outside.
 
 | Service      | Responsibility | Exposed to host? |
 |--------------|----------------|------------------|
@@ -47,11 +47,11 @@ team's public node as a last-resort work source when the fallback is on.
 | `stratum`    | Miner connections, jobs, share validation, vardiff, block submission, node failover, retention | LAN (loopback by default) |
 | `api`        | Stats, health, live updates, alerts | LAN (loopback by default) |
 | `web`        | React dashboard behind nginx | LAN (loopback by default) |
-| `node-admin` | For each local node: settings, snapshots and copies, stop and start, version switches (now, at a height, or automatic); the fallback switch (admin token) | No |
+| `node-admin` | For each local node: settings, snapshots and copies, stop and start, version switches (now, at a height, or automatic); the fallback switch, the mining address and the alert settings (admin token) | No |
 | `postgres`, `migrate` | Storage and one-shot schema migrations | No |
 | `backup`     | Optional daily database dumps (profile `backup`) | No |
 
-## 3. Mining protocols (Decided; third-party miner tests open)
+## 3. Mining protocols
 
 - **Stratum** follows the [official XELIS Stratum protocol](https://docs.xelis.io/developers-api/stratum)
   and negotiates `xel/v3` and its documented aliases.
@@ -62,13 +62,16 @@ team's public node as a last-resort work source when the fallback is on.
 - **Classic Stratum** without `"jsonrpc"` is accepted (Rigel sends it that way), and so are `address.worker` user names and
   `[user, password]` logins, which most third-party miners use. The password
   may carry a fixed difficulty (`d=50000`).
-- **Miner compatibility (open):** verified with our devnet test miner and xelis_miner
+- **Miner compatibility:** verified with our devnet test miner and xelis_miner
   1.21.3 over getwork, and with Rigel 1.23.0 over Stratum on mainnet. SRBMiner, lolMiner,
-  OneZeroMiner and others still need a run (issue template: "Miner compatibility report").
+  OneZeroMiner and others have not been tested yet (issue template: "Miner compatibility report").
+- **Who may connect:** `XELDASH_ALLOWED_NETWORKS` (default: private networks and this computer).
+  Connections from elsewhere are refused and recorded, so the dashboard can say why a miner could not
+  connect. Docker Desktop hides the real address of a client; see [SECURITY.md](SECURITY.md).
 - **Algorithm:** XELIS Hash V3 (block versions 3 to 7). A future algorithm needs a new
   addon release before its fork height; see [OPERATIONS.md](OPERATIONS.md#algorithm-changes).
 
-## 4. Daemon integration (Decided)
+## 4. Daemon integration
 
 - Work comes from the daemon's `get_block_template` and `get_miner_work` for each miner's
   address; solved blocks go back with `submit_block`. Verified on devnet with daemon 1.21.3
@@ -97,7 +100,7 @@ team's public node as a last-resort work source when the fallback is on.
   both the Docker image build and the GitHub release build, and 1.24.0 on the same database.
 - The network (`mainnet`, `testnet`, `devnet`) is chosen with `XELIS_NETWORK`.
 
-## 5. Data model (Decided)
+## 5. Data model
 
 PostgreSQL, with plain SQL migrations applied in order by the one-shot `migrate` service.
 The migrations in [`packages/db/migrations/`](../packages/db/migrations/) are the source of
@@ -108,11 +111,11 @@ truth for columns, types and constraints; this section only summarizes them.
 | `miners` | One row per mining address | Stratum (on authorize) | Forever |
 | `workers` | Worker names per address, last IP, reported hashrate | Stratum | Forever |
 | `shares` | Every submission: difficulty, accepted or reject reason | Stratum | 7 days |
-| `worker_stats_1m` | Per-worker, per-minute accepted/rejected counts, difficulty sum and effort sum | Stratum, with each share | 90 days |
+| `worker_stats_1m` | Per-worker, per-minute accepted, rejected and stale counts, difficulty sum and effort sum | Stratum, with each share | 90 days |
 | `worker_stats_1h` | Hourly rollup of the minute stats | Stratum's hourly retention job | Forever |
 | `blocks` | Block candidates with status, topoheight and miner reward | Stratum (submit and block tracker) | Forever |
 | `bans` | Stratum IP bans with reason and expiry | Stratum | Forever |
-| `service_events` | Blocks, bans, node switches and pauses, Stratum starts | Stratum | Forever |
+| `service_events` | Blocks (submitted, side, final), bans, node switches and pauses, Stratum starts, rejected connections and logins | Stratum, node-admin | Forever |
 
 Notes:
 
@@ -120,11 +123,12 @@ Notes:
   (section 6). The API reads minute stats for ranges up to 30 days and hourly rollups for a year.
 - Effort (`sum_effort`, migration 005): each accepted share adds share difficulty ÷ network
   difficulty at the time, so luck and round effort survive the raw-share retention.
+- `stale` (migration 007) counts the rejected shares that were stale, found just after the network moved on.
 - Every `service_events` insert is announced on the `xeldash_live` channel for live updates.
 - Retention periods are set with `RETENTION_*`. There is no partitioning at this size.
 - There are no balance, payout or wallet tables: rewards go straight to each miner's address.
 
-## 6. Difficulty and stats (Decided)
+## 6. Difficulty and stats
 
 - V3 hashes are compared as big-endian U256 values against `floor((2^256 - 1) / difficulty)`,
   matching XELIS consensus.
@@ -144,31 +148,30 @@ Notes:
   block); luck is blocks found ÷ blocks expected. Expected earnings are blocks per day at the
   last hour's hashrate times the current miner reward.
 
-## 7. Security (Decided)
+## 7. Security
 
-LAN-only by default; the model, protections and remaining risks are in
+Local-network only by default; the model, protections and remaining risks are in
 [SECURITY.md](SECURITY.md). In short: nothing sensitive is published, Stratum and getwork
 have per-IP connection, message and ban limits, the dashboard sends a strict
 Content-Security-Policy, and every change to a node (settings, snapshots, stop and start,
-versions, the fallback) needs `XELDASH_ADMIN_TOKEN`. Nothing can control Docker. Viewing the dashboard needs no login by default; the optional `proxy` service adds
-HTTPS, a login and a host-name check.
+versions, the fallback) needs `XELDASH_ADMIN_TOKEN`. Nothing can control Docker. Viewing the dashboard needs no login by default; the optional `proxy` service adds HTTPS, a login and a host-name check.
 
-## 8. API and dashboard (Decided)
+## 8. API and dashboard
 
-- Pages: Overview (with a setup banner until a miner has connected), Get started (`#/setup`), Miners (with Miner and Worker pages), Blocks, Health, Nodes, Settings (display, the official node
-  fallback, each node's daemon settings) and Nodes (stop and start, versions and
-  upgrades, copies and snapshots). Light, dark or system theme and an optional XEL price, both
+- Pages: Overview (with a setup banner until a miner has connected), Get started (`#/setup`), Miners (with Miner and Worker pages), Blocks, Health (with connection problems), Nodes (stop and start,
+  versions and upgrades, copies and snapshots) and Settings (display, the official node fallback,
+  alerts, each node's daemon settings). Light, dark or system theme and an optional XEL price, both
   per browser; phone-sized layouts; live updates over `/api/v1/live` with polling as the
   fallback.
 - REST endpoints (all `GET`; `address` must be a valid `xel:`/`xet:` address; `worker` needs
   `address`): `/api/v1/overview`, `/api/v1/status`, `/api/v1/hashrate`, `/api/v1/miners`,
   `/api/v1/miners/{address}`, `/api/v1/miners/{address}/workers/{name}`, `/api/v1/blocks`,
-  `/api/v1/events`, `/api/v1/price`, `/api/v1/connect`. The overview, miner and blocks responses include effort
+  `/api/v1/events`, `/api/v1/problems`, `/api/v1/price`, `/api/v1/connect`. The overview, miner and blocks responses include effort
   and luck. node-admin serves `/api/v1/node/*` (see services/node-admin/README.md).
-- Alerts to Discord, Telegram or a JSON webhook: blocks found and final, mining paused,
-  resumed or switched, workers offline. See [OPERATIONS.md](OPERATIONS.md#alerts).
+- Alerts to Discord, Telegram or a JSON webhook: blocks found, side and final, mining paused,
+  resumed or switched, workers offline, node updates. Set up on the Settings page, with a test message. See [OPERATIONS.md](OPERATIONS.md#alerts).
 
-## 9. Deployment and operations (Decided)
+## 9. Deployment and operations
 
 - One `docker-compose.yml` and `.env.example`. Images build locally by default, or are pulled
   from GHCR (amd64 and arm64) by setting `XELDASH_VERSION`.
@@ -177,14 +180,14 @@ HTTPS, a login and a host-name check.
   daemon settings, snapshots and node control from the dashboard.
 - Optional second node, backups, alerts, and the upgrade guide: [OPERATIONS.md](OPERATIONS.md).
 
-## 10. Testing (Draft, deferred)
+## 10. Testing
 
 - Today: the devnet checks in [DEVNET.md](DEVNET.md) (our test miner, the official miner over
   getwork, two-node failover, snapshots), plus typecheck and image builds in CI.
-- Planned later: unit tests for Stratum parsing, vardiff and hashrate math; hash test vectors;
+- Not yet built: unit tests for Stratum parsing, vardiff and hashrate math; hash test vectors;
   integration tests against the Compose stack; a load test with many simulated miners.
 
-## 11. Open-source project setup (Decided)
+## 11. Open-source project setup
 
 - License: MIT (`LICENSE`).
 - CI (typecheck, dashboard build, Compose validation, image builds) and multi-arch release
@@ -210,22 +213,10 @@ docker/
   daemon/         daemon image wrapper and supervisor entrypoint
   backup/         backup script
   stratum-tls/    optional Stratum TLS certificate
-docs/             PLAN, DECISIONS, ISSUES, OPERATIONS, SECURITY, DEVNET
+docs/             guides, this document, security, devnet notes
 ```
 
-## Build phases
-
-| # | Phase | Goal / done when | Status |
-|---|-------|------------------|--------|
-| 0 | Planning | Enough decided to start the spike | Done |
-| 1 | Spike | Daemon runs in Docker; template to block on devnet; hash addon matches the daemon | Done |
-| 2 | Minimal Stratum | A miner connects, shares are validated, blocks reach the chain | Done |
-| 3 | Multi-miner | Vardiff, per-address work, shares and blocks stored, reconnects | Done |
-| 4 | Dashboard | API and React UI with live stats | Done |
-| 5 | Hardening | Limits, bans, optional TLS, node failover, security review | Done |
-| 6 | Release | Mainnet trial, third-party miners, v0.1.0 tag | Current |
-
-## Known technical risks
+## Known limitations
 
 1. **Algorithm and hard-fork changes:** the daemon and the hash addon must be upgraded
    together, before the fork height. Scheduled switches cover the daemon; a new algorithm
@@ -236,3 +227,5 @@ docs/             PLAN, DECISIONS, ISSUES, OPERATIONS, SECURITY, DEVNET
    ([docker/daemon/README.md](../docker/daemon/README.md)); fixed upstream (f6ea12c), not yet
    released.
 4. **Few miners tested:** Rigel, xelis_miner and our own miner; others may differ in details.
+5. **Docker Desktop hides client addresses**, so the allowed-networks check cannot tell a LAN
+   computer from an internet one there; the Windows firewall rules and the router protect it.

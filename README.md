@@ -101,10 +101,11 @@ holds no funds, ever.
 - **Expected earnings** in XEL, and optionally in money with the XEL price in one of eleven
   currencies. Prices are fetched by your server, never by your browser.
 - **Smooth, honest charts** from six hours to a year, with adjustable smoothing and the raw
-  data kept behind the line.
+  data kept behind the line, and a shares chart that shows accepted, stale and invalid shares.
 - **Miners and workers** with per-rig hashrate, the hashrate each miner reports about
   itself, rejected shares by reason, and a clean list that hides rigs that went away.
-- **Blocks** with their final status, reward and the effort of the round that found them.
+- **Blocks** with their final status, reward and the effort of the round that found them, a link
+  to each in the official block explorer, and the total rewards found so far.
 - **Light, dark or system theme**, and a layout that works on a phone.
 
 ### Nodes that look after themselves
@@ -124,14 +125,19 @@ holds no funds, ever.
 
 ### Stay informed
 
-- **Alerts** to Discord, Telegram or any webhook: blocks found and final, mining paused or
-  resumed, workers offline, and node updates started, finished or failed.
+- **Alerts** to Discord, Telegram or any webhook, set up on the Settings page with a test
+  message: blocks found, side blocks and final blocks, mining paused or resumed, workers
+  offline, and node updates started, finished or failed.
+- **Connection help:** when a miner cannot connect (wrong address, wrong network, not on your
+  network), the dashboard says why and what to change.
 - **Events** for everything that happens to your nodes, on the dashboard.
 - **Optional daily database backups.**
 
 ### Safe by default
 
-- Listens on `127.0.0.1` until you open it to your LAN.
+- Listens on `127.0.0.1` until you open it to your LAN, and then accepts miners and dashboard
+  visitors only from your own networks (on Windows, with firewall rules that block the internet).
+- The database sits on an internal network that only the API and Stratum can reach.
 - Changes to your nodes need an admin token, sent in a header, and nothing in xelDash can
   control Docker.
 - Strict content security policy, per-IP limits and bans for abusive clients, checked snapshots
@@ -185,7 +191,7 @@ Miners connect to xelDash's Stratum server. It asks your node for a block templa
 miner's own address, checks every share against it, and records the results. Only when a share
 also meets the network's difficulty does it submit a block, to your node, before anything else
 happens. The dashboard reads the recorded statistics, and a small admin service does the node
-management. Details are in the [plan](docs/PLAN.md).
+management. Details are in the [architecture guide](docs/ARCHITECTURE.md).
 
 ## Quick start
 
@@ -207,7 +213,7 @@ before a tagged 0.1.0 is testing with more mining programs, and automated tests.
 official `xelis_miner` are tested; others should work but are not verified yet. The Windows
 installer has been run end to end; the macOS and Linux launcher has not yet been tried on those
 systems. The
-[open issues](docs/ISSUES.md) list the rest, honestly.
+[pre-release testing list](docs/PRE-RELEASE-TESTING.md) says what is still unverified.
 
 ## Documentation
 
@@ -219,7 +225,7 @@ Everything else lives in [docs/](docs/README.md):
 | [Connecting miners](docs/MINERS.md) | Settings for Rigel, SRBMiner, `xelis_miner` and others |
 | [Operations](docs/OPERATIONS.md) | Alerts, backups, HTTPS, snapshots, second node, upgrades |
 | [Security](docs/SECURITY.md) | The model, the protections, the remaining risks |
-| [Plan](docs/PLAN.md) and [decisions](docs/DECISIONS.md) | Architecture and the reasons behind it |
+| [Architecture](docs/ARCHITECTURE.md) | Services, protocols, data model |
 
 ## Built with
 

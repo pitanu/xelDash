@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { createPool } from "@xeldash/db";
-import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, listBlocks, listEvents, listMiners, listProblems } from "./queries.js";
+import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, getBlockTotals, listBlocks, listEvents, listMiners, listProblems } from "./queries.js";
 import { watchAlerts } from "./alerts.js";
 import { startLiveUpdates } from "./live.js";
 import { getBlockEfforts, getLuck, getMedianBlockEffort } from "./luck.js";
@@ -254,11 +254,12 @@ const server = createServer(async (request, response) => {
 
     if (pathname === "/api/v1/blocks") {
       // Round effort per block: per miner when filtered by address, else across all miners.
-      const [list, efforts] = await Promise.all([
+      const [list, efforts, totals] = await Promise.all([
         listBlocks(pool, { address, worker, limit: clampLimit(searchParams.get("limit"), 50, 500) }),
         getBlockEfforts(pool, { address }),
+        getBlockTotals(pool, { address, worker }),
       ]);
-      sendJson(response, 200, { blocks: list.map((b) => ({ ...b, effort: efforts.get(b.hash) ?? null })) });
+      sendJson(response, 200, { blocks: list.map((b) => ({ ...b, effort: efforts.get(b.hash) ?? null })), totals });
       return;
     }
 

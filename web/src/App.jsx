@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLive, usePolled } from "./api.js";
-import { BlocksTable, Card } from "./components/ui.jsx";
+import { BlocksTable, Card, StatTile } from "./components/ui.jsx";
+import { formatInteger, formatXel } from "./format.js";
 import Miner from "./pages/Miner.jsx";
 import Miners from "./pages/Miners.jsx";
 import Overview from "./pages/Overview.jsx";
@@ -67,11 +68,30 @@ function useHashRoute() {
   return hash.replace(/^#/, "").split("?")[0] || "/";
 }
 
+/** What all the blocks found are worth. @param {{ totals: { reward: string, byStatus: Record<string, { blocks: number, reward: string }> } | undefined }} props */
+function RewardsSummary({ totals }) {
+  const { price } = usePrice();
+  if (!totals) return null;
+  const count = (/** @type {string} */ status) => totals.byStatus[status]?.blocks ?? 0;
+  const xel = Number(totals.reward) / 1e8;
+  const pending = count("submitted");
+  return (
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <StatTile icon="block" label="Rewards found" value={formatXel(totals.reward)}
+        detail={price && xel > 0 ? `≈ ${formatMoney(xel * price.price, price.currency, "amount")} at today's price` : "Main-chain and side blocks"} />
+      <StatTile label="Main chain" value={formatInteger(count("main-chain"))} detail={formatXel(totals.byStatus["main-chain"]?.reward ?? "0")} />
+      <StatTile label="Side blocks" value={formatInteger(count("side"))} detail={count("side") > 0 ? `${formatXel(totals.byStatus.side?.reward ?? "0")} (reduced reward)` : "Paid at a reduced reward"} />
+      <StatTile label="Waiting to be final" value={formatInteger(pending)} detail={count("orphaned") > 0 ? `${count("orphaned")} orphaned, no reward` : "Reward known once final"} />
+    </div>
+  );
+}
+
 function Blocks() {
   const blocks = usePolled("/api/v1/blocks?limit=200");
   return (
     <div className="space-y-4">
       <a href="#/" className="text-xs text-ink-2 hover:text-ink hover:underline">← Overview</a>
+      <RewardsSummary totals={blocks.data?.totals} />
       <Card title="Blocks" subtitle="Most recent 200">{blocks.data && <BlocksTable blocks={blocks.data.blocks} />}</Card>
     </div>
   );

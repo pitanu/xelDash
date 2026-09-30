@@ -98,5 +98,4 @@ verification does not depend on `daemon`), then stop and start `daemon` while it
 - Native V3 hash, the 112-byte MinerWork layout, `submit_block`, and the BLAKE3 block hash
   match the daemon: 3 of 3 blocks accepted and found by hash (heights 17 to 19).
 - `new_block` subscription works; blocks, service events and shares are recorded.
-- Rigel 1.23.0 was tested against the mainnet trial (see docs/ISSUES.md); SRBMiner and
-  lolMiner are still open.
+- Rigel 1.23.0 has mined on mainnet through Stratum; SRBMiner and lolMiner have not been tested.

@@ -10,3 +10,6 @@ backups/
 !.env.example
 # Output of ./xeldash.sh start
 .xeldash-start.log
+
+# Local working notes (decisions, open issues); not part of the project
+notes/

@@ -10,13 +10,12 @@
 | [Security](SECURITY.md) | What is protected, what the admin token can do, remaining risks |
 | [Devnet](DEVNET.md) | Trying xelDash without real coins, and how the mining path is verified |
 
-**How it works and where it is going**
+**How it works**
 
 | Document | For |
 |----------|-----|
-| [Plan](PLAN.md) | Architecture, data model, protocols and the build phases |
-| [Decisions](DECISIONS.md) | Why things are the way they are |
-| [Open issues](ISSUES.md) | What is left, and what was found and fixed on the way |
+| [Architecture](ARCHITECTURE.md) | Services, protocols, data model and the security model |
+| [Pre-release testing](PRE-RELEASE-TESTING.md) | What still needs testing on real systems, for testers |
 
 **Per service**
 
