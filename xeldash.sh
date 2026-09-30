@@ -114,6 +114,14 @@ lan_on() {
   set_env XELDASH_STRATUM_BIND_IP 0.0.0.0
   set_env XELDASH_PUBLIC_HOST "$ip"
   ok "Other computers on your network can now use xelDash at http://$ip:$(web_port)"
+  case "$(uname -s)" in
+    Darwin)
+      warn "Docker Desktop hides where connections come from on macOS, so xelDash cannot tell your network from the internet here."
+      say "    Never forward these ports on your router, and consider turning on the macOS firewall." ;;
+    *)
+      say "    xelDash only accepts connections from your own network (XELDASH_ALLOWED_NETWORKS in .env)."
+      say "    Never forward these ports on your router." ;;
+  esac
 }
 lan_off() {
   set_env XELDASH_WEB_BIND_IP 127.0.0.1

@@ -1,6 +1,7 @@
 import { usePolled } from "../api.js";
 import { Card, EventsList, HealthBadge } from "../components/ui.jsx";
 import { formatAgo, formatCompact, formatDuration, formatInteger, formatTime } from "../format.js";
+import ProblemsCard from "../components/ProblemsCard.jsx";
 
 /** @param {{ label: string, children: React.ReactNode, detail?: React.ReactNode }} props */
 function ServiceTile({ label, children, detail }) {
@@ -115,6 +116,8 @@ export default function Health() {
           <NodesList nodes={s.nodes} />
         </Card>
       )}
+
+      <ProblemsCard network={node?.network ?? "mainnet"} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title={node && s && s.nodes.length > 1 ? `Node ${node.label}` : "Node"}>

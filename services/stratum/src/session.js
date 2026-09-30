@@ -49,6 +49,7 @@ export class StratumSession {
    *   onHashrate?: (input: { worker: MiningIdentity, workerName: string, hashrate: number }) => void,
    *   onAuthorized?: () => void,
    *   onSubmission?: (valid: boolean) => void,
+   *   onProblem?: (problem: { reason: string, address?: string, worker?: string, detail?: string }) => void,
    *   onStale?: (input: { worker: MiningIdentity, workerName: string, jobId: string, nonce: string, difficulty: number }) => void,
    *   staleGraceMs?: number,
    *   canMine?: () => string | null,
@@ -57,7 +58,7 @@ export class StratumSession {
    *   defaultAddress?: string,
    *   logger?: Pick<Console, "warn"> }} options
    */
-  constructor({ socket, authorizeAddress, createJob = null, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, onSubmission = () => {}, onStale = () => {}, staleGraceMs = DEFAULT_STALE_GRACE_MS, canMine = () => null, jobRefreshIntervalMs = 5000, vardiff = DEFAULT_VARDIFF, defaultAddress = "", logger = console }) {
+  constructor({ socket, authorizeAddress, createJob = null, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, onSubmission = () => {}, onProblem = () => {}, onStale = () => {}, staleGraceMs = DEFAULT_STALE_GRACE_MS, canMine = () => null, jobRefreshIntervalMs = 5000, vardiff = DEFAULT_VARDIFF, defaultAddress = "", logger = console }) {
     this.socket = socket;
     this.authorizeAddress = authorizeAddress;
     this.createJob = createJob;
@@ -67,6 +68,8 @@ export class StratumSession {
     // Reports each submission as valid or invalid for abuse limits. Stale shares and requests
     // that fail on our side are not reported.
     this.onSubmission = onSubmission;
+    // Reports why a connection or login was turned away, for the dashboard's connection help.
+    this.onProblem = onProblem;
     // Records a share that came too late, so the dashboard's reject count matches the miner's.
     this.onStale = onStale;
     this.staleGraceMs = staleGraceMs;
@@ -108,6 +111,7 @@ export class StratumSession {
       request = parseRequest(parsed);
     } catch (error) {
       this.onSubmission(false);
+      this.onProblem({ reason: "bad_request" });
       // Answer under the request's own id when it has a usable one, so the miner can match it.
       const rawId = parsed && typeof parsed === "object" ? /** @type {Record<string, unknown>} */ (parsed).id : null;
       const id = typeof rawId === "string" || Number.isSafeInteger(rawId) ? /** @type {string | number} */ (rawId) : null;
@@ -161,6 +165,7 @@ export class StratumSession {
     }
     const paused = this.canMine();
     if (paused) {
+      this.onProblem({ reason: "node_not_ready", detail: paused });
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNKNOWN, paused));
       return;
     }
@@ -196,6 +201,7 @@ export class StratumSession {
         || workerName.length === 0 || workerName.length > MAX_WORKER_NAME
         || CONTROL_CHARACTERS.test(workerName) || typeof password !== "string") {
       this.onSubmission(false);
+      this.onProblem({ reason: "bad_login" });
       this.send(errorResponse(request.id, -32602, "Invalid authorize parameters"));
       return;
     }
@@ -203,6 +209,7 @@ export class StratumSession {
       ? requestedAddress
       : this.defaultAddress;
     if (!address) {
+      this.onProblem({ reason: "no_address" });
       this.send(errorResponse(
         request.id,
         STRATUM_ERRORS.UNAUTHORIZED,
@@ -214,6 +221,7 @@ export class StratumSession {
     // an address lookup.
     if (this.miningAddress !== null && this.miningAddress !== address) {
       this.onSubmission(false);
+      this.onProblem({ reason: "second_address", address });
       this.send(errorResponse(
         request.id,
         STRATUM_ERRORS.UNAUTHORIZED,
@@ -230,6 +238,7 @@ export class StratumSession {
     }
     if (this.authorizedWorkers.size >= MAX_WORKERS_PER_CONNECTION) {
       this.onSubmission(false);
+      this.onProblem({ reason: "too_many_workers", address });
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, `At most ${MAX_WORKERS_PER_CONNECTION} workers per connection`));
       return;
     }
@@ -246,6 +255,7 @@ export class StratumSession {
     }
     if (!identity?.workerId || !identity?.publicKey) {
       this.onSubmission(false);
+      this.onProblem({ reason: "invalid_address", address, worker: workerName });
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, "Address is invalid or unauthorized"));
       return;
     }

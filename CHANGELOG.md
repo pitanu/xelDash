@@ -34,6 +34,9 @@ First public version, planned as 0.1.0.
 
 ### Dashboard and API
 
+- A "Connection problems" card on Setup and Health explains, in plain words, why miners were
+  turned away (wrong address, wrong network, not on your network, and so on).
+
 - A "Page not found" page for unknown or malformed dashboard addresses, and clearer text on a
   new install before the first share arrives.
 - The navigation fits on phones: all six pages, with the theme button beside the logo.
@@ -71,6 +74,11 @@ First public version, planned as 0.1.0.
 - Node actions (version switches, stops, starts, restarts, chain copies) in Recent events.
 
 ### Security
+
+- Miners and the dashboard accept only private networks by default
+  (`XELDASH_ALLOWED_NETWORKS`); the Windows launcher can add firewall rules that allow the local
+  subnet and block the internet.
+- The database is on an internal network reachable only by the API, Stratum and jobs.
 
 - Optional HTTPS and login in front of the dashboard (Compose profile `proxy`, Caddy), which
   only answers the configured host name.

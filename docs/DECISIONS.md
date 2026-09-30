@@ -61,6 +61,9 @@ the phase that depends on it.
 | 2026-09    | "Allow other computers" binds all interfaces, but only after checking for a private (home-network) address | A specific IP breaks when DHCP changes it; the private-address check refuses the case where 0.0.0.0 would be exposed |
 | 2026-09    | The installer opens the dashboard with the admin token after a `#`, and the page removes it at once | Fragments are never sent to a server; it saves a beginner from finding and typing a 48-character password |
 | 2026-09    | Accept `address.worker` logins and `[user, password]` calls, and read options in the password slot | Most third-party miners send Stratum that way; XELIS-aware Rigel does not |
+| 2026-09    | Miners and the dashboard are limited to private networks by default (`XELDASH_ALLOWED_NETWORKS`); on Windows a firewall rule blocks the internet | Users should not be exposed to the internet by accident; Docker Desktop masks source addresses, so the host firewall is the real check there |
+| 2026-09    | PostgreSQL sits on an internal `data` network shared only with the API, Stratum and jobs | A compromised web container cannot reach the database |
+| 2026-09    | Rejected connections and logins are recorded (once per 10 minutes per cause) and explained on the dashboard | The most common beginner question is why a miner will not connect |
 | 2026-09    | nginx looks up the API and node admin again as they are recreated | An updated service otherwise left the dashboard on a 502 until the web container restarted |
 | 2026-09    | Calculate V3 share difficulty and pool estimates using XELIS U256 targets | Hash bytes are interpreted big-endian; valid target is `floor((2^256 - 1) / difficulty)`. Accepted assigned share difficulty divided by elapsed completed-window seconds estimates H/s; expected TTB is network difficulty divided by H/s. |
 

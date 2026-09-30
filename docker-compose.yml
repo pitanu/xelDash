@@ -38,7 +38,7 @@ services:
       retries: 5
       start_period: 30s
     networks:
-      - backend
+      - node
 
   # Node administration for the dashboard: daemon settings and snapshots, written to the node's
   # data volume and applied when the node restarts. Actions need XELDASH_ADMIN_TOKEN.
@@ -88,7 +88,9 @@ services:
       retries: 12
       start_period: 5s
     networks:
-      - backend
+      - edge
+      - node
+      - data
 
   # Optional second node for redundancy: COMPOSE_PROFILES=redundant, and add it to
   # XELIS_RPC_URLS. It has its own chain data and image pin (XELIS_DAEMON2_IMAGE), so the two
@@ -119,7 +121,7 @@ services:
       retries: 5
       start_period: 30s
     networks:
-      - backend
+      - node
 
   postgres:
     image: postgres:17-alpine
@@ -137,7 +139,7 @@ services:
       retries: 5
       start_period: 10s
     networks:
-      - backend
+      - data
 
   # One-shot schema migration. api and stratum wait for it to complete successfully, so
   # neither service's startup depends on the other's health.
@@ -158,7 +160,7 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - backend
+      - data
 
   api:
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/api:${XELDASH_VERSION:-local}
@@ -219,7 +221,9 @@ services:
       retries: 5
       start_period: 15s
     networks:
-      - backend
+      - edge
+      - node
+      - data
 
   stratum:
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/stratum:${XELDASH_VERSION:-local}
@@ -251,6 +255,9 @@ services:
       STRATUM_BAN_INVALID_RATIO: ${STRATUM_BAN_INVALID_RATIO:-0.5}
       STRATUM_BAN_MINUTES: ${STRATUM_BAN_MINUTES:-15}
       STRATUM_BAN_EXEMPT_IPS: ${STRATUM_BAN_EXEMPT_IPS:-}
+      # Who may connect: "private" (this computer and your home network), "any", or a list of
+      # networks. Stratum, Stratum TLS and getwork all check it.
+      XELDASH_ALLOWED_NETWORKS: ${XELDASH_ALLOWED_NETWORKS:-private}
       RETENTION_RAW_SHARE_DAYS: ${RETENTION_RAW_SHARE_DAYS:-7}
       RETENTION_MINUTE_STATS_DAYS: ${RETENTION_MINUTE_STATS_DAYS:-90}
       STRATUM_TLS_ENABLED: ${STRATUM_TLS_ENABLED:-false}
@@ -287,9 +294,12 @@ services:
       retries: 3
       start_period: 5s
     networks:
-      - backend
+      - node
+      - data
 
   web:
+    environment:
+      XELDASH_ALLOWED_NETWORKS: ${XELDASH_ALLOWED_NETWORKS:-private}
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/web:${XELDASH_VERSION:-local}
     build:
       context: .
@@ -310,7 +320,7 @@ services:
       retries: 3
       start_period: 5s
     networks:
-      - backend
+      - edge
 
   # Optional: HTTPS and a login in front of the dashboard (profile "proxy"). Keep the
   # dashboard's own port on loopback so this is the only way in from the LAN.
@@ -341,7 +351,7 @@ services:
       web:
         condition: service_healthy
     networks:
-      - backend
+      - edge
 
   # Optional: `docker compose --profile backup up -d`. Dumps the database to ./backups every
   # BACKUP_INTERVAL_HOURS and keeps the newest BACKUP_KEEP. See docs/OPERATIONS.md.
@@ -365,7 +375,7 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - backend
+      - data
 
 volumes:
   xelis-data:
@@ -374,6 +384,14 @@ volumes:
   postgres-data:
   proxy-data:
 
+# Three networks, so a service can only reach what it needs:
+#   edge  the dashboard and the HTTPS proxy: they reach the API and node admin, nothing else.
+#         (They cannot reach the database, the node's RPC or the mining server.)
+#   node  the XELIS nodes and the services that talk to them.
+#   data  PostgreSQL and the services that use it. Internal: nothing outside can reach it, and it
+#         cannot reach out.
 networks:
-  backend:
-    driver: bridge
+  edge:
+  node:
+  data:
+    internal: true

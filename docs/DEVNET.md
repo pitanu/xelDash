@@ -24,7 +24,7 @@ Use the 1.21.3 miner image: images from 1.22.0 onward fail to start (see
 daemon.
 
 ```sh
-docker run --rm --name xeldash-bootstrap-miner --network xeldash_backend xelis/miner:1.21.3 \
+docker run --rm --name xeldash-bootstrap-miner --network xeldash_node xelis/miner:1.21.3 \
   --miner-address <devnet address> --daemon-address ws://daemon:8080 \
   --num-threads 16 --disable-interactive-mode
 ```
@@ -52,7 +52,7 @@ mismatch. Afterwards, `blocks` and `service_events` should have one row per bloc
 The official miner can also mine through xelDash's getwork endpoint instead of the daemon:
 
 ```sh
-docker run --rm --network xeldash_backend xelis/miner:1.21.3 \
+docker run --rm --network xeldash_node xelis/miner:1.21.3 \
   --miner-address <devnet address> --daemon-address ws://stratum:8090 \
   --worker official-miner --num-threads 4 --disable-interactive-mode
 ```

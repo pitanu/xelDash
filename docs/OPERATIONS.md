@@ -93,6 +93,15 @@ docker compose exec -T postgres pg_restore -U xeldash -d restore_test /tmp/resto
 docker compose exec -T postgres dropdb -U xeldash restore_test
 ```
 
+## Which networks may connect
+
+`XELDASH_ALLOWED_NETWORKS` in `.env` decides who may use Stratum, getwork and the dashboard:
+`private` (default: home-network addresses and this computer), `tailscale`, `any`, or a comma
+separated list such as `192.168.1.0/24`. Docker Desktop hides the real address of a connecting
+computer, so on Windows and macOS this cannot block the internet by itself: run
+`xeldash firewall` (Windows, asks for administrator rights) and never forward the ports on your
+router. See [SECURITY.md](SECURITY.md).
+
 ## HTTPS and a login
 
 By default the dashboard has no login and no HTTPS, which is fine on a trusted LAN or when you

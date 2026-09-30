@@ -108,9 +108,10 @@ class GetworkSocket {
  *   rateLimit: { messagesPerSecond: number, messageBurst: number },
  *   sessions: Map<any, StratumSession>,
  *   createSession: (socket: GetworkSocket, ip: string) => StratumSession,
+ *   onRefused?: (ip: string, reason: string) => void,
  *   logger?: Pick<Console, "info" | "warn"> }} options
  */
-export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, createSession, logger = console }) {
+export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, createSession, onRefused = () => {}, logger = console }) {
   const server = createServer((_, response) => {
     response.writeHead(426, { "content-type": "text/plain" }).end("Connect with a getwork WebSocket client");
   });
@@ -134,7 +135,8 @@ export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, c
     const refused = ipGuard.connect(ip);
     if (refused) {
       logger.warn?.(`Refusing getwork connection from ${ip}: ${refused}`);
-      socket.end(`HTTP/1.1 ${refused === "banned" ? "403 Forbidden" : "429 Too Many Requests"}\r\n\r\n`);
+      onRefused(ip, refused);
+      socket.end(`HTTP/1.1 ${refused === "too many connections" ? "429 Too Many Requests" : "403 Forbidden"}\r\n\r\n`);
       return;
     }
     wss.handleUpgrade(request, socket, head, (ws) => void onConnection(ws, ip, address, worker));

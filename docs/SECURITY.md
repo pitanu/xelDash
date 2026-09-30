@@ -61,6 +61,21 @@ Leave it unset if you do not need these features.
   running the installer.
 - **The mining address** is validated by your own node before it is saved (right network, no typos,
   not an integrated address), and changing it needs the admin token.
+- **Only your own network can mine.** Stratum, getwork and the dashboard accept connections from
+  private addresses (10.x, 172.16-31.x, 192.168.x) and this computer, and turn everything else
+  away. `XELDASH_ALLOWED_NETWORKS` in `.env` changes that: `private` (default),
+  `tailscale`, `any`, or a list of networks such as `192.168.1.0/24,100.64.0.0/10`.
+  Docker Desktop (Windows and macOS) hides the real address of a connecting computer behind its
+  own gateway, so on those systems this check cannot tell a LAN computer from an internet one.
+  There the protection is the Windows Firewall rules that `xeldash firewall` adds (allow the local
+  subnet, block the internet) and, above all, not forwarding the ports on your router. On Linux
+  with Docker Engine the real address is visible and the allowlist is enforced by xelDash itself.
+  Per-address limits are switched off for Docker's gateway address, because every computer
+  would share it.
+- **The database is unreachable from outside.** Containers sit on three networks: `edge`
+  (dashboard and proxy), `node` (daemons) and `data`, which is internal (no route to the
+  host or the internet). Only the API, Stratum, and the migration and backup jobs join `data`;
+  the web container cannot reach PostgreSQL, and PostgreSQL publishes no port.
 - **Alerts** do not let worker names trigger Discord mentions such as `@everyone`.
 - **Containers.** The API and Stratum run as an unprivileged user. Backups are owner-only
   files.

@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { createPool } from "@xeldash/db";
-import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, listBlocks, listEvents, listMiners } from "./queries.js";
+import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, listBlocks, listEvents, listMiners, listProblems } from "./queries.js";
 import { alertConfigFromEnv, startAlerts } from "./alerts.js";
 import { startLiveUpdates } from "./live.js";
 import { getBlockEfforts, getLuck, getMedianBlockEffort } from "./luck.js";
@@ -258,6 +258,11 @@ const server = createServer(async (request, response) => {
         getBlockEfforts(pool, { address }),
       ]);
       sendJson(response, 200, { blocks: list.map((b) => ({ ...b, effort: efforts.get(b.hash) ?? null })) });
+      return;
+    }
+
+    if (pathname === "/api/v1/problems") {
+      sendJson(response, 200, { problems: await listProblems(pool) });
       return;
     }
 

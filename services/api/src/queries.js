@@ -168,11 +168,50 @@ export async function listBlocks(pool, { address, worker = null, limit }) {
   }));
 }
 
+// Rejected connections and logins have their own list (listProblems); they stay out of the
+// general events, where a stuck miner or a scanner would crowd out everything else.
+const PROBLEM_TYPES = ["connection_refused", "login_problem"];
+
+/**
+ * Connection and login problems from the last day, the same one counted together, newest first.
+ * @param {PgPool} pool
+ */
+export async function listProblems(pool) {
+  const result = await pool.query(
+    `SELECT type, payload, created_at FROM service_events
+     WHERE type = ANY($1) AND created_at > now() - interval '24 hours'
+     ORDER BY id DESC LIMIT 200`,
+    [PROBLEM_TYPES],
+  );
+  /** @type {Map<string, { kind: string, reason: string, ip: string | null, masked: boolean, address: string | null, detail: string | null, count: number, lastSeen: string }>} */
+  const grouped = new Map();
+  for (const row of result.rows) {
+    const p = row.payload ?? {};
+    const key = [row.type, p.reason, p.ip, p.address ?? ""].join("|");
+    const seen = grouped.get(key);
+    if (seen) {
+      seen.count += 1;
+    } else {
+      grouped.set(key, {
+        kind: row.type,
+        reason: String(p.reason ?? "unknown"),
+        ip: typeof p.ip === "string" ? p.ip : null,
+        masked: p.masked === true,
+        address: typeof p.address === "string" ? p.address.slice(0, 200) : null,
+        detail: typeof p.detail === "string" ? p.detail.slice(0, 300) : null,
+        count: 1,
+        lastSeen: row.created_at.toISOString(),
+      });
+    }
+  }
+  return [...grouped.values()].slice(0, 10);
+}
+
 /** @param {PgPool} pool @param {number} limit */
 export async function listEvents(pool, limit) {
   const result = await pool.query(
-    "SELECT id::text, type, payload, created_at FROM service_events ORDER BY service_events.id DESC LIMIT $1",
-    [limit],
+    "SELECT id::text, type, payload, created_at FROM service_events WHERE type <> ALL($2) ORDER BY service_events.id DESC LIMIT $1",
+    [limit, PROBLEM_TYPES],
   );
   return result.rows.map((row) => ({
     id: row.id,

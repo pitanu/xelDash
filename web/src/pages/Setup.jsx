@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AdminUnlock, useAdminToken } from "../components/AdminUnlock.jsx";
 import CopyButton from "../components/CopyButton.jsx";
+import ProblemsCard from "../components/ProblemsCard.jsx";
 import { Card, Segmented } from "../components/ui.jsx";
 import { formatDuration, shorten } from "../format.js";
 import { useSetup } from "../setup.js";
@@ -268,6 +269,8 @@ export default function Setup() {
         <Step step={minerStep} n={3} />
         <Step step={shareStep} n={4} />
       </ol>
+
+      <ProblemsCard network={info?.network ?? "mainnet"} />
 
       <ConnectPanel info={info ? { ...info, address: info.address } : null} />
 

@@ -1,7 +1,53 @@
+import { BlockList, isIP } from "node:net";
+
+/** Addresses on your own network: this machine, home networks, link-local and unique-local IPv6. */
+export const PRIVATE_NETWORKS = Object.freeze([
+  "127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16",
+  "::1/128", "fc00::/7", "fe80::/10",
+]);
+const PRESETS = /** @type {Record<string, string[]>} */ ({
+  private: [...PRIVATE_NETWORKS],
+  // Tailscale and other carrier-grade-NAT ranges, for miners reaching xelDash over a VPN.
+  tailscale: ["100.64.0.0/10", "fd7a:115c:a1e0::/48"],
+});
+
+/**
+ * Turn "private", "private,tailscale", "192.168.1.0/24,10.0.0.5" or "any" into a matcher.
+ * @param {string} text
+ * @returns {{ any: boolean, allows: (ip: string) => boolean, text: string }}
+ */
+export function parseAllowedNetworks(text) {
+  const tokens = text.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
+  if (tokens.length === 0) tokens.push("private");
+  if (tokens.includes("any")) return { any: true, allows: () => true, text: "any" };
+  const list = new BlockList();
+  // The container's own loopback (its health check) can only be the container itself: always fine.
+  list.addSubnet("127.0.0.0", 8, "ipv4");
+  list.addAddress("::1", "ipv6");
+  for (const token of tokens) {
+    for (const entry of PRESETS[token === "cgnat" ? "tailscale" : token] ?? [token]) {
+      const [address, prefix] = entry.split("/");
+      const family = isIP(address);
+      if (family === 0) throw new Error(`STRATUM_ALLOWED_NETWORKS: "${token}" is not private, tailscale, any, an address or a network like 192.168.1.0/24`);
+      const bits = prefix === undefined ? (family === 4 ? 32 : 128) : Number(prefix);
+      if (!Number.isInteger(bits) || bits < 0 || bits > (family === 4 ? 32 : 128)) throw new Error(`STRATUM_ALLOWED_NETWORKS: bad network size in "${entry}"`);
+      list.addSubnet(address, bits, family === 4 ? "ipv4" : "ipv6");
+    }
+  }
+  return {
+    any: false,
+    text: tokens.join(","),
+    allows: (ip) => {
+      const family = isIP(ip);
+      return family !== 0 && list.check(ip, family === 4 ? "ipv4" : "ipv6");
+    },
+  };
+}
+
 /**
  * @typedef {{ maxConnectionsPerIp: number, messagesPerSecond: number, messageBurst: number,
  *   invalidWindowSeconds: number, invalidMinCount: number, invalidRatio: number,
- *   banMinutes: number, exemptIps: string[] }} IpGuardConfig
+ *   banMinutes: number, exemptIps: string[], allowedNetworks: string }} IpGuardConfig
  */
 
 /** @type {IpGuardConfig} */
@@ -14,6 +60,7 @@ export const DEFAULT_IP_GUARD = Object.freeze({
   invalidRatio: 0.5,
   banMinutes: 15,
   exemptIps: [],
+  allowedNetworks: "private",
 });
 
 /** @param {Partial<Record<string, string | undefined>>} env @returns {IpGuardConfig} */
@@ -35,6 +82,8 @@ export function ipGuardConfigFromEnv(env) {
     invalidRatio,
     banMinutes: read("STRATUM_BAN_MINUTES", DEFAULT_IP_GUARD.banMinutes),
     exemptIps: (env.STRATUM_BAN_EXEMPT_IPS ?? "").split(",").map((ip) => normalizeIp(ip.trim())).filter(Boolean),
+    // Validated here, so a typo stops Stratum at start instead of silently allowing everyone.
+    allowedNetworks: parseAllowedNetworks(env.XELDASH_ALLOWED_NETWORKS ?? env.STRATUM_ALLOWED_NETWORKS ?? DEFAULT_IP_GUARD.allowedNetworks).text,
   };
 }
 
@@ -78,6 +127,7 @@ export class IpGuard {
     this.config = config;
     this.onBan = onBan;
     this.exempt = new Set(config.exemptIps);
+    this.allowed = parseAllowedNetworks(config.allowedNetworks);
     /** @type {Map<string, number>} */
     this.connections = new Map();
     /** @type {Map<string, number>} ip -> banned until (ms) */
@@ -100,11 +150,17 @@ export class IpGuard {
     return false;
   }
 
+  /** Whether a source address may connect at all (your own network, by default). @param {string} ip */
+  isAllowed(ip) {
+    return this.allowed.allows(ip);
+  }
+
   /**
    * Register a new connection. Returns a reason string when it must be refused.
    * @param {string} ip @param {number} [now]
    */
   connect(ip, now = Date.now()) {
+    if (!this.isAllowed(ip)) return "not on your local network";
     if (this.isBanned(ip, now)) return "banned";
     const open = this.connections.get(ip) ?? 0;
     if (open >= this.config.maxConnectionsPerIp && !this.exempt.has(ip)) return "too many connections";

@@ -43,7 +43,10 @@ last resort while the dashboard's fallback switch is on (`src/fallback-config.js
 usable node, miners are disconnected and logins refused until one recovers.
 
 **Abuse limits.** Per IP: 64 connections, 20 messages per second per connection (burst 40), and
-a 15-minute ban when 5 minutes hold at least 50 invalid submissions or failed logins that are
+the allowed networks (`XELDASH_ALLOWED_NETWORKS`, default private networks only; refused connections
+are recorded as `connection_refused` events, and logins that fail as `login_problem`, at most once every
+10 minutes per cause, for the dashboard's connection help). Per-address limits are off for Docker's
+gateway address, which hides real clients. A 15-minute ban when 5 minutes hold at least 50 invalid submissions or failed logins that are
 over half of its submissions. At most 32 workers per connection. Bans are stored in `bans`
 and survive restarts. All limits are `STRATUM_*` settings in `.env.example`.
 

@@ -10,6 +10,7 @@ import { ChainWatcher } from "./chain-watcher.js";
 import { watchDefaultAddress } from "./default-address.js";
 import { watchFallbackConfig } from "./fallback-config.js";
 import { startGetworkServer } from "./getwork.js";
+import { readDefaultGateway } from "./gateway.js";
 import { IpGuard, MessageRateLimiter, ipGuardConfigFromEnv, normalizeIp } from "./ip-guard.js";
 import { MiningJobProvider } from "./job-provider.js";
 import { NodePool, rpcUrlsFromEnv } from "./node-pool.js";
@@ -31,6 +32,17 @@ if (!Number.isSafeInteger(staleGraceMs) || staleGraceMs < 0 || staleGraceMs > 30
 }
 const vardiff = vardiffConfigFromEnv(process.env);
 const ipGuardConfig = ipGuardConfigFromEnv(process.env);
+// Connections Docker forwards from the host (Docker Desktop, or the machine itself) arrive from
+// the network's gateway address, whoever really sent them. All of them share that one address,
+// so per-address limits and bans would treat every rig as a single client: one misbehaving rig
+// could lock out the others. Those limits are switched off for the gateway; the per-connection
+// message limits, handshake timeout and queue limits still apply.
+const dockerGateway = readDefaultGateway();
+if (dockerGateway) {
+  ipGuardConfig.exemptIps.push(dockerGateway);
+  console.info(`Connections from ${dockerGateway} (Docker's gateway) hide the real client address: per-address limits are off for it`);
+}
+console.info(`Miners may connect from: ${ipGuardConfig.allowedNetworks}`);
 const retention = retentionConfigFromEnv(process.env);
 const tls = tlsConfigFromEnv(process.env);
 if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
@@ -57,6 +69,26 @@ const jobProvider = new MiningJobProvider({ nodes });
 const submitShare = createShareSubmitter({ daemon: nodes, pool });
 /** @type {Map<{ remoteAddress?: string, destroy: () => void }, StratumSession>} */
 const sessions = new Map();
+// Why a connection or login was turned away, recorded for the dashboard's connection help. The
+// same problem from the same address is recorded at most once every ten minutes, so a stuck
+// miner retrying every few seconds cannot fill the events table.
+const PROBLEM_INTERVAL_MS = 10 * 60_000;
+/** @type {Map<string, number>} */
+const problemSeen = new Map();
+/** @param {string} type @param {Record<string, unknown> & { ip: string, reason: string }} payload */
+function reportProblem(type, payload) {
+  const key = [type, payload.reason, payload.ip, payload.address ?? ""].join("|");
+  const now = Date.now();
+  if (now - (problemSeen.get(key) ?? 0) < PROBLEM_INTERVAL_MS) return;
+  problemSeen.set(key, now);
+  if (problemSeen.size > 1_000) {
+    for (const [k, at] of problemSeen) if (now - at >= PROBLEM_INTERVAL_MS) problemSeen.delete(k);
+  }
+  const masked = payload.ip === dockerGateway;
+  recordServiceEvent(pool, type, { ...payload, ...(masked ? { masked: true } : {}) })
+    .catch((error) => console.warn("Failed to record a connection problem:", error instanceof Error ? error.message : String(error)));
+}
+
 const ipGuard = new IpGuard(ipGuardConfig, {
   onBan: ({ ip, reason, until }) => {
     console.warn(`Banning ${ip} until ${until.toISOString()}: ${reason}`);
@@ -148,6 +180,7 @@ function newSession(socket, ip, onAuthorized = () => {}) {
     jobRefreshIntervalMs,
     vardiff,
     defaultAddress: defaultAddress.get(),
+    onProblem: (problem) => reportProblem("login_problem", { ip, ...problem }),
     onAuthorized,
     onSubmission: (valid) => ipGuard.record(ip, valid),
     staleGraceMs,
@@ -177,6 +210,7 @@ function handleConnection(socket) {
   const refused = ipGuard.connect(ip);
   if (refused) {
     console.warn(`Refusing Stratum connection from ${ip}: ${refused}`);
+    reportProblem("connection_refused", { ip, reason: refused });
     socket.destroy();
     return;
   }
@@ -321,7 +355,8 @@ if (!Number.isSafeInteger(getworkPort) || getworkPort < 1 || getworkPort > 65535
   throw new Error("GETWORK_PORT must be an integer from 1 to 65535");
 }
 const getwork = getworkEnabled
-  ? startGetworkServer({ host, port: getworkPort, ipGuard, rateLimit: ipGuardConfig, sessions, createSession: newSession })
+  ? startGetworkServer({ host, port: getworkPort, ipGuard, rateLimit: ipGuardConfig, sessions, createSession: newSession,
+    onRefused: (ip, reason) => reportProblem("connection_refused", { ip, reason }) })
   : null;
 
 let shuttingDown = false;

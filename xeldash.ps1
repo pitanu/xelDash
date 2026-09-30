@@ -99,6 +99,86 @@ function Test-PrivateIp([string]$Ip) { return ($Ip -match '^(10\.|192\.168\.|172
 
 function Get-WebPort { $p = Get-EnvValue "XELDASH_WEB_PORT"; if ($p) { return $p } else { return "8088" } }
 
+# ---------------------------------------------------------------- firewall
+
+# Docker Desktop hides who is really connecting, so xelDash cannot tell your network from the
+# internet on its own. Windows Firewall can: it sees the real address. These rules let your home
+# network reach xelDash's ports and turn away every address that is not on a private network
+# (block rules win over allow rules), so port forwarding by mistake cannot expose it.
+$FirewallGroup = "xelDash"
+# Every IPv4 address outside the private ranges (10/8, 100.64/10, 127/8, 169.254/16, 172.16/12,
+# 192.168/16), plus IPv6 global addresses.
+$InternetRanges = @(
+    "0.0.0.0-9.255.255.255", "11.0.0.0-100.63.255.255", "100.128.0.0-126.255.255.255",
+    "128.0.0.0-169.253.255.255", "169.255.0.0-172.15.255.255", "172.32.0.0-192.167.255.255",
+    "192.169.0.0-255.255.255.255", "2000::/3"
+)
+
+function Test-Admin {
+    $p = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+    return $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+# The ports xelDash opens beyond this computer: dashboard, Stratum, Stratum over TLS, getwork.
+function Get-FirewallPorts {
+    $ports = @()
+    foreach ($pair in @(@("XELDASH_WEB_PORT", "8088"), @("XELDASH_STRATUM_PORT", "3333"), @("XELDASH_STRATUM_TLS_PORT", "3334"), @("XELDASH_GETWORK_PORT", "8090"))) {
+        $v = Get-EnvValue $pair[0]
+        if (-not $v) { $v = $pair[1] }
+        $ports += $v
+    }
+    return $ports
+}
+
+# Adds (or with -Remove takes away) the rules. Needs an administrator. -Preview only shows them.
+function Set-FirewallRules([switch]$Remove, [switch]$Preview) {
+    if (-not $Preview) { Remove-NetFirewallRule -Group $FirewallGroup -ErrorAction SilentlyContinue }
+    if ($Remove) { return }
+    $ports = Get-FirewallPorts
+    $extra = @{}
+    if ($Preview) { $extra["WhatIf"] = $true }
+    New-NetFirewallRule -DisplayName "xelDash: home network may use the dashboard and mining ports" -Group $FirewallGroup `
+        -Direction Inbound -Action Allow -Protocol TCP -LocalPort $ports -Profile Private, Domain -RemoteAddress LocalSubnet @extra | Out-Null
+    New-NetFirewallRule -DisplayName "xelDash: block the internet from the dashboard and mining ports" -Group $FirewallGroup `
+        -Direction Inbound -Action Block -Protocol TCP -LocalPort $ports -Profile Any -RemoteAddress $InternetRanges @extra | Out-Null
+}
+
+# Runs one xeldash command in a window that asks Windows for administrator permission.
+function Invoke-Elevated([string]$Arguments) {
+    try {
+        $p = Start-Process -FilePath "powershell" -Verb RunAs -Wait -PassThru -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" " + $Arguments)
+        return ($p.ExitCode -eq 0)
+    } catch { return $false }
+}
+
+function Enable-Firewall {
+    Say "Windows will ask for permission to add a firewall rule. Say yes: it keeps xelDash to your own network."
+    if (Invoke-Elevated "firewall apply") { Ok "Windows Firewall: your home network may connect, the internet is blocked." }
+    else { Warn "The firewall rule was not added. xelDash still works on your network, but nothing blocks the internet at this computer: never forward its ports on your router. Try again: xeldash firewall on" }
+}
+function Disable-Firewall {
+    if (@(Get-NetFirewallRule -Group $FirewallGroup -ErrorAction SilentlyContinue).Count -eq 0) { return }
+    if (Invoke-Elevated "firewall remove") { Ok "Windows Firewall rules for xelDash removed." }
+    else { Warn "The firewall rules could not be removed (permission was not given). Remove them later: xeldash firewall off" }
+}
+
+function Invoke-Firewall([string[]]$Rest) {
+    $sub = "status"; if ($Rest.Count -gt 0) { $sub = $Rest[0] }
+    switch ($sub) {
+        "on" { Enable-Firewall }
+        "off" { Disable-Firewall }
+        "apply" { if (-not (Test-Admin)) { Die "Run this as administrator, or use: xeldash firewall on" }; Set-FirewallRules }
+        "remove" { if (-not (Test-Admin)) { Die "Run this as administrator, or use: xeldash firewall off" }; Set-FirewallRules -Remove }
+        "preview" { Set-FirewallRules -Preview }
+        "status" {
+            $rules = @(Get-NetFirewallRule -Group $FirewallGroup -ErrorAction SilentlyContinue)
+            if ($rules.Count -eq 0) { Say "No xelDash firewall rules. Add them with: xeldash firewall on" }
+            else { $rules | ForEach-Object { Say ("  " + $_.DisplayName + "  [" + $_.Action + ", enabled: " + $_.Enabled + "]") } }
+        }
+        default { Die "Use: xeldash firewall on | off | status" }
+    }
+}
+
 # ---------------------------------------------------------------- lan
 
 function Enable-Lan([string]$Ip) {
@@ -135,8 +215,9 @@ function Invoke-Lan([string[]]$Rest) {
             if (-not (Enable-Lan $ip)) { exit 1 }
             docker compose up -d | Out-Null
             Ok "Restarted with the new setting."
+            Enable-Firewall
         }
-        "off" { Assert-Docker; Disable-Lan; docker compose up -d | Out-Null; Ok "Restarted with the new setting." }
+        "off" { Assert-Docker; Disable-Lan; docker compose up -d | Out-Null; Ok "Restarted with the new setting."; Disable-Firewall }
         "status" {
             $bind = Get-EnvValue "XELDASH_STRATUM_BIND_IP"
             if (-not $bind -or $bind -eq "127.0.0.1") { Say "Only this computer can use xelDash. Allow your network with: xeldash lan on" }
@@ -202,7 +283,7 @@ function Invoke-Start([bool]$First = $false) {
 }
 
 function Invoke-Install([string[]]$Rest) {
-    $network = ""; $address = ""; $lan = ""; $yes = $false; $noStart = $false
+    $network = ""; $address = ""; $lan = ""; $yes = $false; $noStart = $false; $wantFirewall = $false
     $sets = New-Object System.Collections.Generic.List[string]
     for ($i = 0; $i -lt $Rest.Count; $i++) {
         switch ($Rest[$i]) {
@@ -262,7 +343,7 @@ function Invoke-Install([string[]]$Rest) {
     if ($network -eq "mainnet") { Set-EnvValue "XELIS_SNAPSHOT_AUTO" "true" }
     if ($address) { Set-EnvValue "XELIS_DEFAULT_ADDRESS" $address }
     if ($lan -match '^(y|yes)$') {
-        if (-not (Enable-Lan "")) { Warn "Continuing without network access. Try later: xeldash lan on" }
+        if (-not (Enable-Lan "")) { Warn "Continuing without network access. Try later: xeldash lan on" } else { $wantFirewall = $true }
     }
     foreach ($kv in $sets) {
         if ($kv -notmatch '^[A-Za-z0-9_]+=') { Die "--set needs KEY=VALUE, got: $kv" }
@@ -273,6 +354,7 @@ function Invoke-Install([string[]]$Rest) {
 
     if ($noStart) { Say "Not starting, as asked. Start later with: xeldash start"; return }
     Invoke-Start $true
+    if ($wantFirewall) { Enable-Firewall }
 }
 
 function Invoke-Update {
@@ -323,6 +405,7 @@ switch ($cmd) {
         if ($t) { Say $t } else { Die "No admin password is set in .env." }
     }
     "lan" { Invoke-Lan $rest }
+    "firewall" { Invoke-Firewall $rest }
     "update" { Invoke-Update }
     { $_ -in @("help", "-h", "--help") } { Show-Usage }
     default { Say "Unknown command: $cmd"; Show-Usage; exit 1 }
