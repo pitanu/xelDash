@@ -36,6 +36,7 @@ First public version, planned as 0.1.0.
 
 - Alerts are set up on the Settings page, with a "Send a test message" button; changes apply
   without a restart.
+- A Shares chart (accepted and rejected per bucket) under the hashrate chart, on the Overview, miner and worker pages.
 - A "Connection problems" card on Setup and Health explains, in plain words, why miners were
   turned away (wrong address, wrong network, not on your network, and so on).
 

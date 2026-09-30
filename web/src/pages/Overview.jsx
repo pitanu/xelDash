@@ -2,6 +2,7 @@ import { useState } from "react";
 import { usePolled } from "../api.js";
 import { EarningsText } from "../components/Earnings.jsx";
 import HashrateChart from "../components/HashrateChart.jsx";
+import SharesChart from "../components/SharesChart.jsx";
 import { EffortSummary } from "../components/LuckCard.jsx";
 import SetupBanner from "../components/SetupBanner.jsx";
 import { BlocksTable, Card, EventsList, HealthBadge, StatTile } from "../components/ui.jsx";
@@ -60,6 +61,10 @@ export default function Overview() {
 
       <Card title="Hashrate" subtitle={history.data ? `Accepted share difficulty per second, ${formatBucket(history.data.bucketSeconds)} buckets` : undefined}>
         <HashrateChart points={history.data?.points ?? null} dimmed={history.loading} range={range} onRangeChange={setRange} />
+      </Card>
+
+      <Card title="Shares" subtitle="Accepted and rejected shares per bucket, for the range chosen above">
+        <SharesChart points={history.data?.points ?? null} dimmed={history.loading} />
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">

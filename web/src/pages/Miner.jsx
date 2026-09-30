@@ -2,6 +2,7 @@ import { useState } from "react";
 import { usePolled } from "../api.js";
 import { EarningsText, dailyEarnings } from "../components/Earnings.jsx";
 import HashrateChart from "../components/HashrateChart.jsx";
+import SharesChart from "../components/SharesChart.jsx";
 import LuckCard from "../components/LuckCard.jsx";
 import { BlocksTable, Card, StatTile } from "../components/ui.jsx";
 import WorkersCard from "../components/WorkersCard.jsx";
@@ -60,6 +61,10 @@ export default function Miner({ address, back = true }) {
 
       <Card title="Hashrate" subtitle={history.data ? `${formatBucket(history.data.bucketSeconds)} buckets` : undefined}>
         <HashrateChart points={history.data?.points ?? null} dimmed={history.loading} range={range} onRangeChange={setRange} />
+      </Card>
+
+      <Card title="Shares" subtitle="Accepted and rejected shares per bucket, for the range chosen above">
+        <SharesChart points={history.data?.points ?? null} dimmed={history.loading} />
       </Card>
 
       <WorkersCard address={address} workers={m?.workers} onChanged={miner.reload} />
