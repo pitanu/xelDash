@@ -33,6 +33,8 @@ export class BlockTracker {
     /** @type {Promise<void> | null} */
     this.running = null;
     this.queued = false;
+    /** @type {Set<string>} */
+    this.sideNoticed = new Set();
   }
 
   start() {
@@ -69,12 +71,33 @@ export class BlockTracker {
     })();
   }
 
+  /**
+   * A block that another block beat to the same height is a side block right away, well before it
+   * is final. Its miner is told then, since side blocks are paid too (a reduced reward) and it will
+   * not be shown as a main-chain block. Told once per block, also after a restart.
+   * @param {string} hash @param {number} height
+   */
+  async noticeSideBlock(hash, height) {
+    if (this.sideNoticed.has(hash)) return;
+    const block = await this.daemon.getBlockByHash(hash).catch(() => null);
+    if (block?.block_type !== "Side") return;
+    this.sideNoticed.add(hash);
+    if (this.sideNoticed.size > 1_000) this.sideNoticed.clear();
+    const seen = await this.pool.query("SELECT 1 FROM service_events WHERE type = 'block_side' AND payload->>'hash' = $1 LIMIT 1", [hash]);
+    if (seen.rowCount) return;
+    this.logger.info?.("Block is a side block for now", { hash, height });
+    await recordServiceEvent(this.pool, "block_side", { hash, height });
+  }
+
   async checkOnce() {
     const pending = await listSubmittedBlocks(this.pool);
     if (pending.length === 0) return;
     const { stableheight } = await this.daemon.getInfo();
     for (const { hash, height } of pending) {
-      if (height > stableheight) break;
+      if (height > stableheight) {
+        await this.noticeSideBlock(hash, height);
+        continue;
+      }
       const block = await this.daemon.getBlockByHash(hash);
       const status = block ? FINAL_STATUS.get(block.block_type) : "orphaned";
       if (!status) {

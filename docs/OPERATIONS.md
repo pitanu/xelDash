@@ -24,6 +24,8 @@ Events:
 
 - `block_found`: a block candidate was accepted by the node.
 - `block_rejected`: the node refused a block candidate.
+- `block_side`: one of your blocks lost the race for its height and is a side block for now. Side
+  blocks are paid too, with a reduced reward, once final; this comes well before that.
 - `block_final`: a block reached the stable height, as main chain, side or orphaned, with its
   reward. Blocks that become final within 5 seconds of each other arrive as one summary.
 - `mining_paused`: Stratum paused work because no node is usable, when it resumes, and

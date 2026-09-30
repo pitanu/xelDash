@@ -1,4 +1,5 @@
 import { XEL_DECIMALS, formatAgo, formatEffort, formatHashrate, formatInteger, formatTime, formatXel, shorten } from "../format.js";
+import { useBlockUrl } from "../explorer.js";
 import { formatMoney, usePrice } from "../price.js";
 
 /** @param {{ title: React.ReactNode, subtitle?: string, action?: React.ReactNode, children: React.ReactNode, className?: string }} props */
@@ -113,6 +114,7 @@ const td = "whitespace-nowrap px-4 py-2 sm:px-5";
 
 /** @param {{ blocks: any[], showMiner?: boolean }} props */
 export function BlocksTable({ blocks, showMiner = true }) {
+  const blockUrl = useBlockUrl();
   const { price } = usePrice();
   if (blocks.length === 0) return <p className="text-sm text-muted">No blocks found yet.</p>;
   return (
@@ -125,7 +127,11 @@ export function BlocksTable({ blocks, showMiner = true }) {
       <tbody className="tabular">
         {blocks.map((b) => (
           <tr key={b.hash} className="border-t border-line">
-            <td className={td}><span title={b.hash}>{formatInteger(b.height)}</span></td>
+            <td className={td}>
+              {blockUrl(b.hash)
+                ? <a href={blockUrl(b.hash) ?? undefined} target="_blank" rel="noopener noreferrer" title="Open in the XELIS block explorer" className="hover:text-ink hover:underline">{formatInteger(b.height)}</a>
+                : <span title={b.hash}>{formatInteger(b.height)}</span>}
+            </td>
             <td className={td}><StatusBadge status={b.status} /></td>
             {showMiner && (
               <td className={`${td} text-ink-2`}>
@@ -214,6 +220,7 @@ const EVENT_LABELS = {
   block_submitted: "Block submitted",
   block_rejected: "Block rejected by daemon",
   block_final: "Block final",
+  block_side: "Block is a side block for now",
   ip_banned: "IP banned",
   stratum_started: "Stratum started",
   node_syncing: "Node syncing, work paused",
@@ -244,6 +251,7 @@ const EVENT_LEVELS = {
   block_submitted: "info",
   block_rejected: "critical",
   block_final: "good",
+  block_side: "warning",
   ip_banned: "warning",
   stratum_started: "info",
   node_syncing: "warning",
@@ -283,6 +291,7 @@ export function HealthBadge({ level, label }) {
 
 /** @param {{ events: any[] }} props */
 export function EventsList({ events }) {
+  const blockUrl = useBlockUrl();
   if (events.length === 0) return <p className="text-sm text-muted">No events yet.</p>;
   return (
     <ul className="divide-y divide-line text-sm">
@@ -292,7 +301,13 @@ export function EventsList({ events }) {
             <LevelIcon level={EVENT_LEVELS[e.type] ?? "info"} className="mt-0.5" />
             <span className="min-w-0">
               {EVENT_LABELS[/** @type {keyof typeof EVENT_LABELS} */ (e.type)] ?? e.type}
-              {e.payload?.height !== undefined && <span className="text-ink-2 tabular"> · height {formatInteger(e.payload.height)}</span>}
+              {e.payload?.height !== undefined && (
+                <span className="text-ink-2 tabular"> · height{" "}
+                  {blockUrl(e.payload.hash)
+                    ? <a href={blockUrl(e.payload.hash) ?? undefined} target="_blank" rel="noopener noreferrer" title="Open in the XELIS block explorer" className="hover:text-ink hover:underline">{formatInteger(e.payload.height)}</a>
+                    : formatInteger(e.payload.height)}
+                </span>
+              )}
               {e.payload?.status && <span className="text-ink-2"> · {e.payload.status}</span>}
               {e.payload?.ip && <span className="text-ink-2"> · {e.payload.ip}</span>}
               {e.payload?.from && e.payload?.to && <span className="text-ink-2"> · {e.payload.from} → {e.payload.to}</span>}

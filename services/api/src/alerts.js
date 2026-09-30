@@ -3,7 +3,7 @@ const SEND_INTERVAL_MS = 1_000;
 const MAX_QUEUE = 20;
 const FINAL_BATCH_MS = 5_000;
 const XEL_DECIMALS = 8;
-const EVENT_TYPES = ["block_found", "block_rejected", "block_final", "mining_paused", "worker_offline", "node_update"];
+const EVENT_TYPES = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "node_update"];
 const TRIGGERS = /** @type {Record<string, string>} */ ({ automatic: " (automatic update)", scheduled: " (at the scheduled height)" });
 
 /** @param {unknown} error */
@@ -275,6 +275,9 @@ export function startAlerts({ pool, config, logger = console }) {
     } else if (type === "block_rejected" && config.events.has("block_rejected")) {
       send({ event: "block_rejected", data: p,
         text: `⚠️ The node rejected a block candidate at height ${p.height}${p.workerName ? ` from ${p.workerName}` : ""}: ${p.error}` });
+    } else if (type === "block_side" && config.events.has("block_side")) {
+      send({ event: "block_side", data: p,
+        text: `🟡 Your block at height ${p.height} is a side block for now: another block was found at the same height. Side blocks are still paid, with a reduced reward, once they are final.${link("/blocks")}` });
     } else if (type === "block_final" && config.events.has("block_final")) {
       queueFinal(p);
     } else if ((type === "node_syncing" || type === "node_unreachable") && config.events.has("mining_paused")) {
