@@ -118,20 +118,22 @@ export async function recordShare(pool, share) {
 
     const row = inserted.rows[0];
     await client.query(
-      `INSERT INTO worker_stats_1m (bucket, worker_id, accepted, rejected, sum_difficulty, sum_effort)
+      `INSERT INTO worker_stats_1m (bucket, worker_id, accepted, rejected, stale, sum_difficulty, sum_effort)
        VALUES (
          date_trunc('minute', $1::timestamptz), $2,
          CASE WHEN $3 THEN 1 ELSE 0 END,
          CASE WHEN $3 THEN 0 ELSE 1 END,
+         CASE WHEN $6 THEN 1 ELSE 0 END,
          CASE WHEN $3 THEN $4::numeric ELSE 0 END,
          CASE WHEN $3 AND $5::numeric IS NOT NULL THEN round($4::numeric / $5::numeric, 20) ELSE 0 END
        )
        ON CONFLICT (bucket, worker_id) DO UPDATE SET
          accepted = worker_stats_1m.accepted + EXCLUDED.accepted,
          rejected = worker_stats_1m.rejected + EXCLUDED.rejected,
+         stale = worker_stats_1m.stale + EXCLUDED.stale,
          sum_difficulty = worker_stats_1m.sum_difficulty + EXCLUDED.sum_difficulty,
          sum_effort = worker_stats_1m.sum_effort + EXCLUDED.sum_effort`,
-      [row.created_at, row.worker_id, row.accepted, row.difficulty, networkDifficulty],
+      [row.created_at, row.worker_id, row.accepted, row.difficulty, networkDifficulty, !row.accepted && !duplicate && share.rejectReason === "stale"],
     );
     // Keep last_seen current while a rig stays connected; at most one write per 30 s.
     await client.query(

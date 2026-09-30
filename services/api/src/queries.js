@@ -39,7 +39,8 @@ export async function getHashrateHistory(pool, { address, worker = null, range }
        SELECT date_bin($2::interval, s.bucket, 'epoch') AS bucket,
               SUM(s.sum_difficulty) AS difficulty,
               SUM(s.accepted) AS accepted,
-              SUM(s.rejected) AS rejected
+              SUM(s.rejected) AS rejected,
+              SUM(s.stale) AS stale
        FROM ${settings.table} s
        JOIN workers w ON w.id = s.worker_id
        JOIN miners m ON m.id = w.miner_id
@@ -52,7 +53,8 @@ export async function getHashrateHistory(pool, { address, worker = null, range }
      SELECT b.bucket,
             ROUND(COALESCE(st.difficulty, 0) / EXTRACT(EPOCH FROM $2::interval), 3)::text AS hashrate,
             COALESCE(st.accepted, 0)::text AS accepted,
-            COALESCE(st.rejected, 0)::text AS rejected
+            COALESCE(st.rejected, 0)::text AS rejected,
+            COALESCE(st.stale, 0)::text AS stale
      FROM buckets b
      LEFT JOIN stats st ON st.bucket = b.bucket
      ORDER BY b.bucket`,
@@ -66,6 +68,7 @@ export async function getHashrateHistory(pool, { address, worker = null, range }
       hashrate: row.hashrate,
       accepted: row.accepted,
       rejected: row.rejected,
+      stale: row.stale,
     })),
   };
 }

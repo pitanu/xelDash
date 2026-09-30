@@ -26,8 +26,8 @@ export function retentionConfigFromEnv(env) {
  */
 export async function rollUpHourlyStats(pool) {
   const result = await pool.query(
-    `INSERT INTO worker_stats_1h (bucket, worker_id, accepted, rejected, sum_difficulty, sum_effort)
-     SELECT date_trunc('hour', bucket), worker_id, SUM(accepted), SUM(rejected), SUM(sum_difficulty), SUM(sum_effort)
+    `INSERT INTO worker_stats_1h (bucket, worker_id, accepted, rejected, stale, sum_difficulty, sum_effort)
+     SELECT date_trunc('hour', bucket), worker_id, SUM(accepted), SUM(rejected), SUM(stale), SUM(sum_difficulty), SUM(sum_effort)
      FROM worker_stats_1m
      WHERE bucket >= COALESCE((SELECT max(bucket) FROM worker_stats_1h) - interval '1 hour', '-infinity')
        AND bucket < date_trunc('hour', now())
@@ -35,6 +35,7 @@ export async function rollUpHourlyStats(pool) {
      ON CONFLICT (bucket, worker_id) DO UPDATE SET
        accepted = EXCLUDED.accepted,
        rejected = EXCLUDED.rejected,
+       stale = EXCLUDED.stale,
        sum_difficulty = EXCLUDED.sum_difficulty,
        sum_effort = EXCLUDED.sum_effort`,
   );

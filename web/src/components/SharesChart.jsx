@@ -20,7 +20,7 @@ function niceTicks(max, count) {
  * Shares per time bucket: accepted, with rejected stacked on top. A rig that suddenly rejects
  * shares (stale work, a wrong setting) shows up here long before the hashrate line moves. Uses
  * the same data and range as the hashrate chart above it.
- * @param {{ points: { time: string, accepted: string, rejected: string }[] | null, dimmed?: boolean }} props
+ * @param {{ points: { time: string, accepted: string, rejected: string, stale?: string }[] | null, dimmed?: boolean }} props
  */
 export default function SharesChart({ points: loaded, dimmed = false }) {
   const points = loaded ?? [];
@@ -36,8 +36,10 @@ export default function SharesChart({ points: loaded, dimmed = false }) {
   }, []);
 
   const accepted = useMemo(() => points.map((p) => Number(p.accepted)), [points]);
-  const rejected = useMemo(() => points.map((p) => Number(p.rejected)), [points]);
-  const max = Math.max(0, ...accepted.map((a, i) => a + rejected[i]));
+  // Stale shares are part of the rejected count; "invalid" is the rest.
+  const stale = useMemo(() => points.map((p) => Number(p.stale ?? 0)), [points]);
+  const rejected = useMemo(() => points.map((p, i) => Math.max(0, Number(p.rejected) - stale[i])), [points, stale]);
+  const max = Math.max(0, ...accepted.map((a, i) => a + stale[i] + rejected[i]));
   const ticks = niceTicks(max, 4);
   const top = ticks[ticks.length - 1] || 1;
   const plotW = Math.max(0, width - PAD.left - PAD.right);
@@ -46,8 +48,10 @@ export default function SharesChart({ points: loaded, dimmed = false }) {
   const barW = Math.max(1, slot - (slot > 4 ? 2 : 0));
   const y = (/** @type {number} */ v) => PAD.top + plotH - (v / top) * plotH;
   const totalAccepted = accepted.reduce((a, b) => a + b, 0);
+  const totalStale = stale.reduce((a, b) => a + b, 0);
   const totalRejected = rejected.reduce((a, b) => a + b, 0);
-  const rate = totalAccepted + totalRejected > 0 ? (totalRejected / (totalAccepted + totalRejected)) * 100 : null;
+  const totalBad = totalStale + totalRejected;
+  const rate = totalAccepted + totalBad > 0 ? (totalBad / (totalAccepted + totalBad)) * 100 : null;
   const empty = max === 0;
   const last = points.length - 1;
 
@@ -76,17 +80,18 @@ export default function SharesChart({ points: loaded, dimmed = false }) {
     <div>
       <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-2">
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-series-1" />Accepted</span>
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-critical" />Rejected (stale or invalid)</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-warning" />Stale (found just too late)</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-critical" />Invalid</span>
         {rate !== null && (
           <span className="tabular text-muted">
-            In this range: {formatInteger(totalAccepted)} accepted, {formatInteger(totalRejected)} rejected ({rate < 0.1 && rate > 0 ? "<0.1" : rate.toFixed(1)}%)
+            In this range: {formatInteger(totalAccepted)} accepted, {formatInteger(totalStale)} stale, {formatInteger(totalRejected)} invalid ({rate < 0.1 && rate > 0 ? "<0.1" : rate.toFixed(1)}%)
           </span>
         )}
       </div>
       <div ref={frame} className={`relative transition-opacity ${dimmed ? "opacity-60" : ""}`}>
         {width > 0 && (
           <svg width={width} height={HEIGHT} role="img" tabIndex={0} onKeyDown={onKeyDown}
-            aria-label="Accepted and rejected shares over time. Use arrow keys to read values."
+            aria-label="Accepted, stale and invalid shares over time. Use arrow keys to read values."
             onFocus={() => setActive((i) => i ?? last)} onBlur={() => setActive(null)}
             className="block rounded outline-none focus-visible:ring-2 focus-visible:ring-series-1/40">
             {ticks.map((t) => (
@@ -107,11 +112,13 @@ export default function SharesChart({ points: loaded, dimmed = false }) {
             {!empty && points.map((p, i) => {
               const x = PAD.left + slot * i + (slot - barW) / 2;
               const acceptedH = (accepted[i] / top) * plotH;
+              const staleH = (stale[i] / top) * plotH;
               const rejectedH = (rejected[i] / top) * plotH;
               return (
                 <g key={p.time} opacity={active === null || active === i ? 1 : 0.55}>
                   {accepted[i] > 0 && <rect x={x} y={y(accepted[i])} width={barW} height={acceptedH} fill="var(--series-1)" />}
-                  {rejected[i] > 0 && <rect x={x} y={y(accepted[i]) - rejectedH} width={barW} height={Math.max(1, rejectedH)} fill="var(--critical)" />}
+                  {stale[i] > 0 && <rect x={x} y={y(accepted[i]) - staleH} width={barW} height={Math.max(1, staleH)} fill="var(--warning)" />}
+                  {rejected[i] > 0 && <rect x={x} y={y(accepted[i] + stale[i]) - rejectedH} width={barW} height={Math.max(1, rejectedH)} fill="var(--critical)" />}
                 </g>
               );
             })}
@@ -132,7 +139,10 @@ export default function SharesChart({ points: loaded, dimmed = false }) {
               <span className="h-2 w-2 rounded-sm bg-series-1" />{formatInteger(accepted[active])} accepted
             </div>
             <div className="flex items-center gap-2 tabular text-ink">
-              <span className="h-2 w-2 rounded-sm bg-critical" />{formatInteger(rejected[active])} rejected
+              <span className="h-2 w-2 rounded-sm bg-warning" />{formatInteger(stale[active])} stale
+            </div>
+            <div className="flex items-center gap-2 tabular text-ink">
+              <span className="h-2 w-2 rounded-sm bg-critical" />{formatInteger(rejected[active])} invalid
             </div>
           </div>
         )}
