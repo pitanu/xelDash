@@ -8,6 +8,7 @@ import { getBlockEfforts, getLuck, getMedianBlockEffort, getRewardsHistory } fro
 import { callAnyNode, fallbackUrl, rpcUrlsFromEnv } from "./nodes.js";
 import { getConnectInfo } from "./connect.js";
 import { CURRENCIES, getPrice } from "./price.js";
+import { atomicToXel, toCsv } from "./csv.js";
 import { getStatus } from "./status.js";
 import { updateStatus } from "./update.js";
 
@@ -250,6 +251,30 @@ const server = createServer(async (request, response) => {
       }
       const miner = await getMiner(pool, minerAddress);
       sendJson(response, miner ? 200 : 404, miner ? { ...miner, luck: await getLuck(pool, { address: minerAddress }) } : { error: "not_found" });
+      return;
+    }
+
+    if (pathname === "/api/v1/blocks.csv") {
+      // Every block on record (up to 100 000), for a spreadsheet or tax records.
+      const [list, efforts] = await Promise.all([
+        listBlocks(pool, { address, worker, limit: 100_000 }),
+        getBlockEfforts(pool, { address }),
+      ]);
+      const body = toCsv([
+        ["found_at_utc", "height", "topoheight", "hash", "status", "reward_xel", "reward_atomic", "miner_address", "worker", "round_effort_percent"],
+        ...list.map((b) => [
+          b.foundAt, b.height, b.topoheight, b.hash, b.status, atomicToXel(b.reward), b.reward, b.address, b.worker,
+          efforts.get(b.hash) == null ? "" : (Number(efforts.get(b.hash)) * 100).toFixed(2),
+        ]),
+      ]);
+      response.writeHead(200, {
+        "content-type": "text/csv; charset=utf-8",
+        "content-disposition": `attachment; filename="xeldash-blocks${address ? "-miner" : ""}${worker ? "-worker" : ""}.csv"`,
+        "content-length": Buffer.byteLength(body),
+        "cache-control": "no-store",
+        "x-content-type-options": "nosniff",
+      });
+      response.end(body);
       return;
     }
 

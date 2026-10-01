@@ -34,6 +34,9 @@ First public version, planned as 0.1.0.
 
 ### Dashboard and API
 
+- "Download all as CSV" on the Blocks and miner pages: every block with its time, height, hash, status,
+  reward in XEL and the round's effort, for a spreadsheet or tax records. Spreadsheet formula characters in
+  worker names are neutralised.
 - Accessibility and phone pass: secondary text, status colours and buttons now meet 4.5:1 contrast in
   light and dark, text buttons and links are at least 24 px to tap, every page has a top-level
   heading for screen readers, and the daemon setting fields have names.

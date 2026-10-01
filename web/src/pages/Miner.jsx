@@ -75,7 +75,8 @@ export default function Miner({ address, back = true }) {
       </Card>
 
       <WorkersCard address={address} workers={m?.workers} onChanged={miner.reload} />
-      <Card title="Blocks">{blocks.data && <BlocksTable blocks={blockList} showMiner={false} />}</Card>
+      <Card title="Blocks"
+        action={<a href={`/api/v1/blocks.csv?address=${encoded}`} download className="inline-flex min-h-6 items-center text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">Download all as CSV</a>}>{blocks.data && <BlocksTable blocks={blockList} showMiner={false} />}</Card>
     </div>
   );
 }

@@ -106,7 +106,7 @@ holds no funds, ever.
   itself, rejected shares by reason, and a clean list that hides rigs that went away.
 - **A notice, and an optional chime,** when one of your miners finds a block.
 - **Blocks** with their final status, reward and the effort of the round that found them, a link
-  to each in the official block explorer, and the total rewards found so far.
+  to each in the official block explorer, the total rewards found so far, and a CSV download.
 - **Light, dark or system theme**, and a layout that works on a phone.
 
 ### Nodes that look after themselves

@@ -85,7 +85,8 @@ function Blocks() {
       <Card title="Rewards over time" subtitle="Running total found, against what the work done should have found">
         <RewardsChart rewardPerBlock={Number(overview.data?.node?.miner_reward) || null} />
       </Card>
-      <Card title="Blocks" subtitle="Most recent 200">{blocks.data && <BlocksTable blocks={blocks.data.blocks} />}</Card>
+      <Card title="Blocks" subtitle="Most recent 200"
+        action={<a href="/api/v1/blocks.csv" download className="inline-flex min-h-6 items-center text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">Download all as CSV</a>}>{blocks.data && <BlocksTable blocks={blocks.data.blocks} />}</Card>
     </div>
   );
 }
