@@ -168,7 +168,7 @@ export default function AlertSettings({ token, onUnauthorized }) {
 
           <div className="flex flex-wrap items-center gap-3">
             <button type="submit" disabled={disabled}
-              className="rounded-md bg-series-1 px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40">
+              className="rounded-md bg-action px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40">
               {busy ? "Working..." : "Save"}
             </button>
             <button type="button" disabled={disabled || !anySet} onClick={() => void sendTest()}

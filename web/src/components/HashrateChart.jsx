@@ -199,7 +199,7 @@ export default function HashrateChart({ points: loaded, dimmed = false, range, o
         )}
       </div>
       <button type="button" onClick={() => setShowTable((v) => !v)}
-        className="mt-2 text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">
+        className="inline-flex min-h-6 items-center mt-2 text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">
         {showTable ? "Hide table" : "Show as table"}
       </button>
       {showTable && (

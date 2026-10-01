@@ -281,7 +281,7 @@ export default function UpgradeCard({ nodes, upgrade, token, locked, onUnauthori
           <div className="flex flex-wrap items-center gap-2">
             {behind.length > 0 && !choice && (
               <button type="button" disabled={running} onClick={() => void start(/** @type {string} */ (latest))}
-                className="rounded-md bg-series-1 px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40">
+                className="rounded-md bg-action px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40">
                 Update {nodes.length > 1 ? "all nodes" : "the node"} to {latest}
               </button>
             )}

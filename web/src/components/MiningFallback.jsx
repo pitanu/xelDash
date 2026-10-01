@@ -62,7 +62,7 @@ export default function MiningFallback({ token, onUnauthorized }) {
           <button type="button" disabled={locked || busy} onClick={() => void toggle(!data.enabled)}
             className={data.enabled
               ? "rounded-md border border-line px-3 py-1.5 text-sm text-ink hover:bg-wash disabled:opacity-40"
-              : "rounded-md bg-series-1 px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40"}>
+              : "rounded-md bg-action px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40"}>
             {data.enabled ? "Turn off" : "Turn on"}
           </button>
         </div>

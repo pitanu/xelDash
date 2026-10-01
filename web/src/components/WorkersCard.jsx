@@ -29,7 +29,7 @@ export default function WorkersCard({ address, workers, onChanged, title = "Work
   return (
     <Card title={title} subtitle="Workers without shares for 7 days are left out."
       action={workers && workers.length > 0 && (
-        <button type="button" onClick={() => setEditing((v) => !v)} className="text-xs text-ink-2 hover:text-ink hover:underline">
+        <button type="button" onClick={() => setEditing((v) => !v)} className="inline-flex min-h-6 items-center text-xs text-ink-2 hover:text-ink hover:underline">
           {editing ? "Done" : "Remove workers"}
         </button>
       )}>

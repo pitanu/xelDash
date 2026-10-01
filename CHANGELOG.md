@@ -34,6 +34,9 @@ First public version, planned as 0.1.0.
 
 ### Dashboard and API
 
+- Accessibility and phone pass: secondary text, status colours and buttons now meet 4.5:1 contrast in
+  light and dark, text buttons and links are at least 24 px to tap, every page has a top-level
+  heading for screen readers, and the daemon setting fields have names.
 - A "Rewards over time" chart (running total found against what the work done should have found)
   and the rewards totals on the Blocks, miner and worker pages.
 - A "Block found" notice at the top of the dashboard when your miners find a block, an optional

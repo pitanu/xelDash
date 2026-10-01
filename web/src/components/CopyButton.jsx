@@ -35,7 +35,7 @@ export default function CopyButton({ text, label = "Copy" }) {
   }
   return (
     <button type="button" onClick={() => void copy()}
-      className="shrink-0 rounded-md border border-line px-2 py-0.5 text-xs text-ink-2 hover:bg-wash hover:text-ink">
+      className="min-h-6 shrink-0 rounded-md border border-line px-2 py-0.5 text-xs text-ink-2 hover:bg-wash hover:text-ink">
       {state === "copied" ? "Copied" : state === "failed" ? "Select and copy" : label}
     </button>
   );

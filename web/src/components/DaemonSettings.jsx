@@ -33,18 +33,18 @@ function Control({ s, value, locked, placeholder, set }) {
     <div className="flex items-center gap-2">
       {s.valueName === null ? (
         <label className="flex items-center gap-2 text-sm text-ink">
-          <input type="checkbox" disabled={locked} checked={value === true}
+          <input type="checkbox" aria-label={s.flag} disabled={locked} checked={value === true}
             onChange={(e) => set(s.flag, e.target.checked ? true : null)} />
           {value === true ? "On" : "Off"}
         </label>
       ) : s.choices.length > 0 ? (
-        <select disabled={locked} value={typeof value === "string" ? value : ""} onChange={(e) => set(s.flag, e.target.value || null)}
+        <select aria-label={s.flag} disabled={locked} value={typeof value === "string" ? value : ""} onChange={(e) => set(s.flag, e.target.value || null)}
           className="w-full rounded-md border border-line bg-page px-2 py-1.5 text-sm text-ink">
           <option value="">Default{s.default ? ` (${s.default})` : ""}</option>
           {s.choices.map((/** @type {string} */ c) => <option key={c} value={c}>{c}</option>)}
         </select>
       ) : (
-        <input type={s.secret ? "password" : "text"} disabled={locked} autoComplete="off"
+        <input type={s.secret ? "password" : "text"} aria-label={s.flag} disabled={locked} autoComplete="off"
           value={value === UNCHANGED_SECRET ? "" : typeof value === "string" ? value : ""}
           placeholder={value === UNCHANGED_SECRET ? "Saved (hidden)" : s.default ? `Default: ${s.default}` : placeholder ?? "Not set"}
           onChange={(e) => set(s.flag, e.target.value || (value === UNCHANGED_SECRET ? UNCHANGED_SECRET : null))}
@@ -52,7 +52,7 @@ function Control({ s, value, locked, placeholder, set }) {
       )}
       {changed && !locked && (
         <button type="button" onClick={() => set(s.flag, null)} title="Back to the default"
-          className="text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">Reset</button>
+          className="inline-flex min-h-6 items-center text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">Reset</button>
       )}
     </div>
   );
@@ -298,7 +298,7 @@ export default function DaemonSettings({ token, onUnauthorized, node = "daemon" 
         })}
 
         <details open={Boolean(query) || changedOnly} className="rounded-md border border-line">
-          <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-ink">
+          <summary className="min-h-6 cursor-pointer select-none px-3 py-2 text-sm font-semibold text-ink">
             All daemon options <span className="font-normal text-muted">· {data.schema.length} from the installed daemon{changedFromDefault ? ` · ${changedFromDefault} changed` : ""}</span>
           </summary>
           <div className="space-y-3 border-t border-line p-3">
@@ -316,7 +316,7 @@ export default function DaemonSettings({ token, onUnauthorized, node = "daemon" 
             {groups.length === 0 && <p className="text-sm text-muted">No options match.</p>}
             {groups.map(([group, items]) => (
               <details key={group} open={Boolean(query) || changedOnly} className="rounded-md border border-line">
-                <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-ink">
+                <summary className="min-h-6 cursor-pointer select-none px-3 py-2 text-sm font-semibold text-ink">
                   {group} <span className="font-normal text-muted">· {items.length}{items.some((s) => s.flag in draft) ? ` · ${items.filter((s) => s.flag in draft).length} changed` : ""}</span>
                 </summary>
                 <ul className="divide-y divide-line">
@@ -336,7 +336,7 @@ export default function DaemonSettings({ token, onUnauthorized, node = "daemon" 
                           <p className="mt-0.5 text-xs text-ink-2">{firstLine}</p>
                           {s.note && <p className="mt-0.5 text-xs text-serious">{s.note}</p>}
                           {rest.length > 0 && (
-                            <button type="button" onClick={() => setExpanded(open ? null : s.flag)} className="text-xs text-muted underline decoration-line underline-offset-2">
+                            <button type="button" onClick={() => setExpanded(open ? null : s.flag)} className="inline-flex min-h-6 items-center text-xs text-muted underline decoration-line underline-offset-2">
                               {open ? "Less" : "More"}
                             </button>
                           )}
@@ -365,7 +365,7 @@ export default function DaemonSettings({ token, onUnauthorized, node = "daemon" 
               <button type="button" disabled={busy} onClick={() => void discard()}
                 className="rounded-md border border-line px-3 py-1.5 text-sm text-ink hover:bg-wash disabled:opacity-40">Discard</button>
               <button type="button" disabled={busy || syncConflict} onClick={() => void save(true)}
-                className="rounded-md bg-series-1 px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40">
+                className="rounded-md bg-action px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40">
                 Save and restart node
               </button>
             </span>

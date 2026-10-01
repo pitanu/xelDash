@@ -7,16 +7,17 @@
   --surface: #fcfcfb;
   --ink: #0b0b0b;
   --ink-2: #52514e;
-  --muted: #898781;
+  --muted: #6b6963;
   --grid: #e1e0d9;
   --axis: #c3c2b7;
   --border: rgba(11, 11, 11, 0.1);
   --wash: rgba(11, 11, 11, 0.04);
   --series-1: #2a78d6;
-  --good: #0ca30c;
+  --action: #2060b8;
+  --good: #0b7a0b;
   --warning: #fab219;
-  --serious: #ec835a;
-  --critical: #d03b3b;
+  --serious: #a8431a;
+  --critical: #c33232;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -32,6 +33,9 @@
     --border: rgba(255, 255, 255, 0.1);
     --wash: rgba(255, 255, 255, 0.05);
     --series-1: #3987e5;
+    --good: #0ca30c;
+    --serious: #ec835a;
+    --critical: #f07a7a;
   }
 }
 
@@ -47,6 +51,9 @@
   --border: rgba(255, 255, 255, 0.1);
   --wash: rgba(255, 255, 255, 0.05);
   --series-1: #3987e5;
+  --good: #0ca30c;
+  --serious: #ec835a;
+  --critical: #f07a7a;
 }
 
 @theme inline {
@@ -60,6 +67,7 @@
   --color-line: var(--border);
   --color-wash: var(--wash);
   --color-series-1: var(--series-1);
+  --color-action: var(--action);
   --color-good: var(--good);
   --color-warning: var(--warning);
   --color-serious: var(--serious);
@@ -84,3 +92,8 @@ body {
 }
 @keyframes block-banner-in { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: none; } }
 @keyframes block-new-flash { from { background-color: color-mix(in srgb, var(--good) 28%, transparent); } to { background-color: transparent; } }
+
+/* Checkboxes and radio buttons: a comfortable box, and a label row that is at least 24px tall, so
+   the whole row is an easy target on a phone. */
+input[type="checkbox"], input[type="radio"] { width: 1.125rem; height: 1.125rem; flex-shrink: 0; }
+label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) { display: flex; align-items: center; gap: 0.5rem; min-height: 1.5rem; }

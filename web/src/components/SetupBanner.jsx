@@ -11,7 +11,7 @@ export default function SetupBanner() {
         <span className="block text-sm font-semibold text-ink">Finish setting up xelDash ({setup.done} of 4 steps done)</span>
         <span className="mt-0.5 block text-sm text-ink-2">Next: {next.title.toLowerCase()}. {next.headline}.</span>
       </span>
-      <span className="shrink-0 rounded-md bg-series-1 px-3 py-1.5 text-sm font-semibold text-white">Continue</span>
+      <span className="shrink-0 rounded-md bg-action px-3 py-1.5 text-sm font-semibold text-white">Continue</span>
     </a>
   );
 }

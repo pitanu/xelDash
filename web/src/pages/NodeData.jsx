@@ -61,7 +61,7 @@ function Button({ children, onClick, disabled = false, primary = false, classNam
   return (
     <button type="button" onClick={onClick} disabled={disabled}
       className={`rounded-md px-3 py-1.5 text-sm disabled:opacity-40 ${primary
-        ? "bg-series-1 font-semibold text-white hover:opacity-90"
+        ? "bg-action font-semibold text-white hover:opacity-90"
         : "border border-line text-ink hover:bg-wash"} ${className}`}>
       {children}
     </button>

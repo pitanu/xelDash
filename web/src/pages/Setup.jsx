@@ -100,7 +100,7 @@ function AddressForm({ current, network, onSaved }) {
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <code className="min-w-0 break-all rounded bg-wash px-2 py-1 text-xs text-ink" title={current}>{current}</code>
         <CopyButton text={current} />
-        <button type="button" onClick={() => setEditing(true)} className="text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">Change</button>
+        <button type="button" onClick={() => setEditing(true)} className="inline-flex min-h-6 items-center text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">Change</button>
       </div>
     );
   }
@@ -112,7 +112,7 @@ function AddressForm({ current, network, onSaved }) {
           placeholder={`${prefix}:...`} aria-label="Your XELIS address" disabled={!admin.token}
           className="min-w-0 flex-1 rounded-md border border-line bg-page px-3 py-1.5 font-mono text-sm text-ink disabled:opacity-50" />
         <button type="submit" disabled={!admin.token || !value.trim() || busy}
-          className="rounded-md bg-series-1 px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40">
+          className="rounded-md bg-action px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40">
           {busy ? "Checking..." : "Save address"}
         </button>
         {current && <button type="button" onClick={() => { setEditing(false); setError(null); }} className="text-sm text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">Cancel</button>}
@@ -218,7 +218,7 @@ function ConnectPanel({ info }) {
           </div>
         </div>
         <details className="text-sm text-ink-2">
-          <summary className="cursor-pointer select-none font-medium text-ink">It does not connect. What now?</summary>
+          <summary className="min-h-6 cursor-pointer select-none py-1 font-medium text-ink">It does not connect. What now?</summary>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
             <li>Check the pool address and port exactly as shown above, and that step 1 is done (a green check).</li>
             <li>On another computer, use this computer's network address instead of <code>localhost</code>, and allow network access (see above).</li>

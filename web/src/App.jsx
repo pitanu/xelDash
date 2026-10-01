@@ -70,12 +70,16 @@ function useHashRoute() {
   return hash.replace(/^#/, "").split("?")[0] || "/";
 }
 
+// Pages that show their own top-level heading; the others get one for screen readers.
+const PAGES_WITH_OWN_HEADING = ["/miners", "/miner", "/nodes", "/node-data", "/settings", "/setup"];
+const PAGE_NAMES = /** @type {Record<string, string>} */ ({ "/": "Overview", "/blocks": "Blocks", "/health": "Health" });
+
 function Blocks() {
   const blocks = usePolled("/api/v1/blocks?limit=200");
   const overview = usePolled("/api/v1/overview");
   return (
     <div className="space-y-4">
-      <a href="#/" className="text-xs text-ink-2 hover:text-ink hover:underline">← Overview</a>
+      <a href="#/" className="inline-flex min-h-6 items-center text-xs text-ink-2 hover:text-ink hover:underline">← Overview</a>
       <RewardsSummary totals={blocks.data?.totals} />
       <Card title="Rewards over time" subtitle="Running total found, against what the work done should have found">
         <RewardsChart rewardPerBlock={Number(overview.data?.node?.miner_reward) || null} />
@@ -158,7 +162,10 @@ export default function App() {
         </div>
       </header>
       <BlockBanner />
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">{page}</main>
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        {!PAGES_WITH_OWN_HEADING.some((p) => route === p || route.startsWith(`${p}/`)) && <h1 className="sr-only">{PAGE_NAMES[route] ?? "Page not found"}</h1>}
+        {page}
+      </main>
     </div>
   );
 }

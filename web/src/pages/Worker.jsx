@@ -32,7 +32,7 @@ export default function Worker({ address, name }) {
   return (
     <div className="space-y-6">
       <div>
-        <a href={`#/miner/${address}`} className="text-xs text-ink-2 hover:text-ink hover:underline" title={address}>
+        <a href={`#/miner/${address}`} className="inline-flex min-h-6 items-center text-xs text-ink-2 hover:text-ink hover:underline" title={address}>
           ← {shorten(address, 10)}
         </a>
         <h1 className="mt-1 break-all text-lg font-semibold text-ink">{name}</h1>

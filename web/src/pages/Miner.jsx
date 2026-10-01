@@ -42,7 +42,7 @@ export default function Miner({ address, back = true }) {
   return (
     <div className="space-y-6">
       <div>
-        {back && <a href="#/miners" className="text-xs text-ink-2 hover:text-ink hover:underline">← Miners</a>}
+        {back && <a href="#/miners" className="inline-flex min-h-6 items-center text-xs text-ink-2 hover:text-ink hover:underline">← Miners</a>}
         <h1 className="mt-1 break-all text-lg font-semibold text-ink">{address}</h1>
         {m && <p className="text-xs text-muted">First seen {formatAgo(m.firstSeen)} · last seen {formatAgo(m.lastSeen)}</p>}
       </div>
