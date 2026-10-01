@@ -27,7 +27,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/overview-dark.png">
-    <img alt="The xelDash overview: hashrate, expected time to a block, effort and a hashrate chart" src="docs/images/overview-light.png" width="900">
+    <img alt="The xelDash overview: hashrate, expected time to a block, effort, a hashrate chart and a shares chart" src="docs/images/overview-light.png" width="900">
   </picture>
 </p>
 
