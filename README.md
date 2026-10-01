@@ -152,6 +152,22 @@ See [Security](docs/SECURITY.md) for what is protected and what is not.
   <tr>
     <td width="50%">
       <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/blocks-dark.png">
+        <img alt="The Blocks page: total rewards found, and a chart of rewards found against rewards expected from the work done" src="docs/images/blocks-light.png">
+      </picture>
+      <p align="center"><sub><b>Blocks:</b> rewards found, and how that compares with the work done</sub></p>
+    </td>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/alerts-dark.png">
+        <img alt="The alert settings: Discord, Telegram and webhook addresses, the alert types and a test message button" src="docs/images/alerts-light.png">
+      </picture>
+      <p align="center"><sub><b>Alerts:</b> set up from the dashboard, with a test message</sub></p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/nodes-dark.png">
         <img alt="The Nodes page: daemon versions, scheduled switches, restart and copy controls" src="docs/images/nodes-light.png">
       </picture>
@@ -160,9 +176,9 @@ See [Security](docs/SECURITY.md) for what is protected and what is not.
     <td width="50%">
       <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/health-dark.png">
-        <img alt="The Health page: both nodes and the official fallback in sync, node details and recent events" src="docs/images/health-light.png">
+        <img alt="The Health page: both nodes and the official fallback in sync" src="docs/images/health-light.png">
       </picture>
-      <p align="center"><sub><b>Health:</b> every node, mining status, recent events</sub></p>
+      <p align="center"><sub><b>Health:</b> every node and the mining status</sub></p>
     </td>
   </tr>
 </table>
