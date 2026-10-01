@@ -104,6 +104,14 @@ docker compose exec -T postgres pg_restore -U xeldash -d restore_test /tmp/resto
 docker compose exec -T postgres dropdb -U xeldash restore_test
 ```
 
+## Updating xelDash
+
+The dashboard shows a notice under the header when a newer xelDash has been released (it asks GitHub for the
+project's tags every six hours; `XELDASH_VERSION_CHECK=off` stops that). To update, run `xeldash update`
+(`./xeldash.sh update`) in the xelDash folder; it pulls the new version and restarts the services, and your
+data and settings are kept. Pre-releases do not trigger the notice. If you run a fork, set `XELDASH_UPDATE_REPO`
+to `owner/name`. The running version is shown at the foot of every page.
+
 ## Which networks may connect
 
 `XELDASH_ALLOWED_NETWORKS` in `.env` decides who may use Stratum, getwork and the dashboard:

@@ -109,7 +109,7 @@ check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
 - **The wallet link is only a link.** The setup page points to the official web wallet at
   wallet.xelis.io. xelDash never sees a recovery phrase, and cannot move coins.
 - **Outbound requests.** Besides the XELIS network, xelDash contacts: GitHub (latest release,
-  every 6 hours; `XELDASH_VERSION_CHECK=off`), CoinGecko (XEL price, only while a viewer has
+  every 6 hours, and xelDash's own tags to tell when a new version is out; `XELDASH_VERSION_CHECK=off`), CoinGecko (XEL price, only while a viewer has
   it on; `XELDASH_PRICE=off`), node.xelis.io (snapshots when asked, and the official node
   fallback when on). Browsers only ever talk to the dashboard.
 - **node-admin and the daemon run as root** inside their containers, because they own the

@@ -11,6 +11,7 @@ import Health from "./pages/Health.jsx";
 import NodeData from "./pages/NodeData.jsx";
 import Settings from "./pages/Settings.jsx";
 import BlockBanner from "./components/BlockBanner.jsx";
+import UpdateNotice, { VersionFooter } from "./components/UpdateNotice.jsx";
 import { ThemeButton } from "./components/ThemeSetting.jsx";
 import { formatMoney, usePrice } from "./price.js";
 import { consumeTokenFromUrl } from "./session-token.js";
@@ -161,11 +162,13 @@ export default function App() {
           </div>
         </div>
       </header>
+      <UpdateNotice />
       <BlockBanner />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         {!PAGES_WITH_OWN_HEADING.some((p) => route === p || route.startsWith(`${p}/`)) && <h1 className="sr-only">{PAGE_NAMES[route] ?? "Page not found"}</h1>}
         {page}
       </main>
+      <VersionFooter />
     </div>
   );
 }

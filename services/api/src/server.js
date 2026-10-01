@@ -9,6 +9,7 @@ import { callAnyNode, fallbackUrl, rpcUrlsFromEnv } from "./nodes.js";
 import { getConnectInfo } from "./connect.js";
 import { CURRENCIES, getPrice } from "./price.js";
 import { getStatus } from "./status.js";
+import { updateStatus } from "./update.js";
 
 const port = Number.parseInt(process.env.API_PORT ?? "8081", 10);
 const host = process.env.API_HOST ?? "0.0.0.0";
@@ -260,6 +261,11 @@ const server = createServer(async (request, response) => {
         getBlockTotals(pool, { address, worker }),
       ]);
       sendJson(response, 200, { blocks: list.map((b) => ({ ...b, effort: efforts.get(b.hash) ?? null })), totals });
+      return;
+    }
+
+    if (pathname === "/api/v1/version") {
+      sendJson(response, 200, await updateStatus());
       return;
     }
 
