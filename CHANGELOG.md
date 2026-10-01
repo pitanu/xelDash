@@ -110,6 +110,8 @@ First public version, planned as 0.1.0.
 
 ### Operations
 
+- A "Mining availability" card on the Health page: the share of the last day, week or month miners could be
+  given work, and the pauses behind the rest.
 - A notice when a newer xelDash is released, with how to update, and the running version at the foot
   of every page.
 - A low-disk warning on the Overview and Health pages, and a `disk_low` alert, when the nodes' disk has

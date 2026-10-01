@@ -16,6 +16,8 @@ LISTEN/NOTIFY relayed to browsers), and alerts (`src/alerts.js`).
   (`src/release.js`, from GitHub every 6 hours; `XELDASH_VERSION_CHECK=off`).
 - **Price** (`src/price.js`): XEL in eleven currencies from CoinGecko, fetched by the server
   every 5 minutes while a viewer has it on, mainnet only; `XELDASH_PRICE=off` disables it.
+- **Mining availability** (`/api/v1/uptime`, `src/uptime.js`): the share of a window in which work could be
+  issued, from the recorded pause and resume events.
 - **Blocks CSV** (`/api/v1/blocks.csv`, `src/csv.js`): every block as a spreadsheet file, optionally for one miner
   or worker; cells that would run as a formula are prefixed with an apostrophe.
 - **Rewards history** (`/api/v1/rewards`, `src/luck.js`): rewards found per day beside the work done per day,

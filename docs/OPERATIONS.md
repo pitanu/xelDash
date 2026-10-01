@@ -104,6 +104,13 @@ docker compose exec -T postgres pg_restore -U xeldash -d restore_test /tmp/resto
 docker compose exec -T postgres dropdb -U xeldash restore_test
 ```
 
+## Mining availability
+
+The Health page shows how much of the last day, week or month your miners could be given work. A pause is a
+time when no node was ready (syncing or not responding), recorded as `node_syncing` or `node_unreachable`
+events and ended by `node_ready`; switching to your other node is not a pause. The count starts when xelDash
+first recorded anything, and the few seconds a restart of the mining server takes are not counted.
+
 ## Updating xelDash
 
 The dashboard shows a notice under the header when a newer xelDash has been released (it asks GitHub for the

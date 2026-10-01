@@ -11,6 +11,7 @@ import { CURRENCIES, getPrice } from "./price.js";
 import { atomicToXel, toCsv } from "./csv.js";
 import { getStatus } from "./status.js";
 import { updateStatus } from "./update.js";
+import { getUptime } from "./uptime.js";
 
 const port = Number.parseInt(process.env.API_PORT ?? "8081", 10);
 const host = process.env.API_HOST ?? "0.0.0.0";
@@ -286,6 +287,11 @@ const server = createServer(async (request, response) => {
         getBlockTotals(pool, { address, worker }),
       ]);
       sendJson(response, 200, { blocks: list.map((b) => ({ ...b, effort: efforts.get(b.hash) ?? null })), totals });
+      return;
+    }
+
+    if (pathname === "/api/v1/uptime") {
+      sendJson(response, 200, await getUptime(pool, { range: searchParams.get("range") ?? "7d" }));
       return;
     }
 
