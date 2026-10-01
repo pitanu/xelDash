@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { MiningFallback } from "./fallback.js";
 import { AlertSettingsProblem, AlertSettings } from "./alert-settings.js";
+import { streamBackup } from "./backup.js";
 import { DiskWatch } from "./disk-watch.js";
 import { AddressProblem, MiningAddress } from "./mining-address.js";
 import { closeEvents, hideWorker, recordEvent } from "./events.js";
@@ -209,6 +210,10 @@ const server = createServer(async (request, response) => {
     // Lets the dashboard check a token when it is entered, not on the first change.
     if (request.method === "POST" && path === "/token/check") {
       send(response, 200, { ok: true });
+      return;
+    }
+    if (request.method === "GET" && path === "/backup") {
+      await streamBackup(response, { onFinished: (bytes) => recordEvent("backup_downloaded", { bytes }) });
       return;
     }
     if (request.method === "POST" && ["/control/stop", "/control/start", "/control/restart"].includes(path)) {

@@ -96,7 +96,7 @@ check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
   page after a change.
 - **Daemon upgrades from the dashboard run binaries from the XELIS GitHub releases.** They
   are checked against the release's checksums and GitHub's digest, but not a PGP signature
-  (the signing key is not published). Anyone with the admin token can switch versions.
+  (the signing key is not published). Anyone with the admin token can switch versions, and download a backup of the statistics (miner addresses and IP addresses).
 - **The official node fallback trusts node.xelis.io while it is in use.** It is off by
   default. When on and none of your nodes can issue work, that server provides block
   templates. The key rewards are paid to comes from your own node whenever it answers, but

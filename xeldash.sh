@@ -6,6 +6,8 @@
 #   ./xeldash.sh start | stop | restart | status | logs [service] | open | token
 #   ./xeldash.sh lan on|off|status    let other computers on your network use xelDash
 #   ./xeldash.sh update     get the newest xelDash and restart it
+#   ./xeldash.sh backup     save a copy of your statistics to the backups folder
+#   ./xeldash.sh restore FILE   put a backup back (replaces the current statistics)
 #
 # Options for install (all optional; without them it asks):
 #   --address xel:...   your wallet address (or add it later in the dashboard)
@@ -284,7 +286,48 @@ cmd_update() {
   ok "xelDash is updated and running. Your settings and data were kept."
 }
 
-usage() { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; }
+# MSYS_NO_PATHCONV stops Git Bash on Windows from rewriting the /tmp paths; it does nothing elsewhere.
+# Backups hold the statistics (miners, workers, blocks), not the blockchain or your wallet.
+backup_dir() { local d; d="$(get_env XELDASH_BACKUP_DIR)"; printf '%s' "${d:-./backups}"; }
+db_user() { local u; u="$(get_env POSTGRES_USER)"; printf '%s' "${u:-xeldash}"; }
+db_name() { local d; d="$(get_env POSTGRES_DB)"; printf '%s' "${d:-xeldash}"; }
+
+cmd_backup() {
+  [ -f .env ] || die "xelDash is not set up yet. Run ./xeldash.sh first."
+  check_docker
+  local dir file; dir="$(backup_dir)"; mkdir -p "$dir"
+  file="$dir/xeldash-$(date -u +%Y%m%dT%H%M%SZ).dump"
+  # Dumped inside the database container and copied out, so no tool is needed on this computer.
+  MSYS_NO_PATHCONV=1 docker compose exec -T postgres pg_dump -U "$(db_user)" --format=custom --file=/tmp/xeldash-backup.dump "$(db_name)" \
+    || die "The backup failed. Is xelDash running? Start it with: ./xeldash.sh start"
+  MSYS_NO_PATHCONV=1 docker compose cp postgres:/tmp/xeldash-backup.dump "$file" || die "Could not copy the backup out of the database container."
+  MSYS_NO_PATHCONV=1 docker compose exec -T postgres rm -f /tmp/xeldash-backup.dump || true
+  chmod 600 "$file" 2>/dev/null || true
+  ok "Backup saved: $file"
+  say "It holds miner addresses and IP addresses: keep it private, and copy it off this computer too."
+}
+
+cmd_restore() {
+  local file="${1:-}" yes="${2:-}"
+  [ -n "$file" ] || die "Say which backup to restore: ./xeldash.sh restore backups/xeldash-....dump"
+  [ -f "$file" ] || die "No such file: $file"
+  [ -f .env ] || die "xelDash is not set up yet. Run ./xeldash.sh first."
+  check_docker
+  if [ "$yes" != "--yes" ]; then
+    warn "This replaces your current statistics (miners, workers, blocks, events) with the ones in the backup."
+    read -r -p "Type yes to continue: " reply || reply=""
+    [ "$reply" = yes ] || die "Cancelled. Nothing was changed."
+  fi
+  docker compose stop stratum api
+  MSYS_NO_PATHCONV=1 docker compose cp "$file" postgres:/tmp/xeldash-restore.dump
+  MSYS_NO_PATHCONV=1 docker compose exec -T postgres pg_restore -U "$(db_user)" -d "$(db_name)" --clean --if-exists /tmp/xeldash-restore.dump \
+    || warn "pg_restore reported problems (some can be harmless). Check the dashboard."
+  MSYS_NO_PATHCONV=1 docker compose exec -T postgres rm -f /tmp/xeldash-restore.dump || true
+  compose_up
+  ok "Backup restored and xelDash is running."
+}
+
+usage() { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; }
 
 case "${1:-}" in
   "")       if [ -f .env ]; then check_docker; docker compose ps; say ""; say "Dashboard: http://localhost:$(web_port)   (more: ./xeldash.sh help)"; else cmd_install; fi ;;
@@ -298,6 +341,8 @@ case "${1:-}" in
   token)    t="$(get_env XELDASH_ADMIN_TOKEN)"; [ -n "$t" ] && say "$t" || die "No admin password is set in .env." ;;
   lan)      shift; cmd_lan "$@" ;;
   update)   cmd_update ;;
+  backup)   cmd_backup ;;
+  restore)  shift; cmd_restore "$@" ;;
   help|-h|--help) usage ;;
   *)        say "Unknown command: $1"; usage; exit 1 ;;
 esac

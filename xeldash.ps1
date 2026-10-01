@@ -6,6 +6,8 @@
 #   .\xeldash.cmd start | stop | restart | status | logs [service] | open | token
 #   .\xeldash.cmd lan on|off|status    let other computers on your network use xelDash
 #   .\xeldash.cmd update     get the newest xelDash and restart it
+#   .\xeldash.cmd backup     save a copy of your statistics to the backups folder
+#   .\xeldash.cmd restore FILE   put a backup back (replaces the current statistics)
 #
 # Options for install (all optional; without them it asks):
 #   --address xel:...   your wallet address (or add it later in the dashboard)
@@ -372,8 +374,51 @@ function Invoke-Update {
     Ok "xelDash is updated and running. Your settings and data were kept."
 }
 
+# Backups hold the statistics (miners, workers, blocks), not the blockchain or your wallet.
+function Get-BackupDir { $d = Get-EnvValue "XELDASH_BACKUP_DIR"; if ($d) { $d } else { ".\backups" } }
+function Get-DbUser { $u = Get-EnvValue "POSTGRES_USER"; if ($u) { $u } else { "xeldash" } }
+function Get-DbName { $n = Get-EnvValue "POSTGRES_DB"; if ($n) { $n } else { "xeldash" } }
+
+function Invoke-Backup {
+    if (-not (Test-Path -LiteralPath $envPath)) { Die "xelDash is not set up yet. Double-click xeldash.cmd first." }
+    Assert-Docker
+    $dir = Get-BackupDir
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    $file = Join-Path $dir ("xeldash-" + (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ") + ".dump")
+    # Dumped inside the database container and copied out: a PowerShell redirect would damage the binary file.
+    docker compose exec -T postgres pg_dump -U (Get-DbUser) --format=custom --file=/tmp/xeldash-backup.dump (Get-DbName)
+    if ($LASTEXITCODE -ne 0) { Die "The backup failed. Is xelDash running? Start it with: xeldash start" }
+    docker compose cp postgres:/tmp/xeldash-backup.dump $file
+    if ($LASTEXITCODE -ne 0) { Die "Could not copy the backup out of the database container." }
+    docker compose exec -T postgres rm -f /tmp/xeldash-backup.dump | Out-Null
+    Ok "Backup saved: $file"
+    Say "It holds miner addresses and IP addresses: keep it private, and copy it off this computer too."
+}
+
+function Invoke-Restore([string[]]$Arguments) {
+    $file = if ($Arguments.Count -ge 1) { $Arguments[0] } else { "" }
+    if (-not $file) { Die "Say which backup to restore: xeldash restore backups\xeldash-....dump" }
+    if (-not (Test-Path -LiteralPath $file)) { Die "No such file: $file" }
+    if (-not (Test-Path -LiteralPath $envPath)) { Die "xelDash is not set up yet. Double-click xeldash.cmd first." }
+    Assert-Docker
+    if (-not ($Arguments -contains "--yes")) {
+        Warn "This replaces your current statistics (miners, workers, blocks, events) with the ones in the backup."
+        $reply = Read-Host "Type yes to continue"
+        if ($reply -ne "yes") { Die "Cancelled. Nothing was changed." }
+    }
+    $full = (Resolve-Path -LiteralPath $file).Path
+    docker compose stop stratum api
+    docker compose cp $full postgres:/tmp/xeldash-restore.dump
+    if ($LASTEXITCODE -ne 0) { Die "Could not copy the backup into the database container." }
+    docker compose exec -T postgres pg_restore -U (Get-DbUser) -d (Get-DbName) --clean --if-exists /tmp/xeldash-restore.dump
+    if ($LASTEXITCODE -ne 0) { Warn "pg_restore reported problems (some can be harmless). Check the dashboard." }
+    docker compose exec -T postgres rm -f /tmp/xeldash-restore.dump | Out-Null
+    Invoke-ComposeUp
+    Ok "Backup restored and xelDash is running."
+}
+
 function Show-Usage {
-    Get-Content -LiteralPath $PSCommandPath -TotalCount 16 | Select-Object -Skip 1 | ForEach-Object { Say ($_ -replace '^# ?', '') }
+    Get-Content -LiteralPath $PSCommandPath -TotalCount 18 | Select-Object -Skip 1 | ForEach-Object { Say ($_ -replace '^# ?', '') }
 }
 
 # ---------------------------------------------------------------- dispatch
@@ -407,6 +452,8 @@ switch ($cmd) {
     "lan" { Invoke-Lan $rest }
     "firewall" { Invoke-Firewall $rest }
     "update" { Invoke-Update }
+    "backup" { Invoke-Backup }
+    "restore" { Invoke-Restore $rest }
     { $_ -in @("help", "-h", "--help") } { Show-Usage }
     default { Say "Unknown command: $cmd"; Show-Usage; exit 1 }
 }

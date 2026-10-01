@@ -69,6 +69,19 @@ never replaces a good backup. Watch it with `docker compose logs backup`.
 Copy the dumps somewhere off the machine. Backups on the same disk do not survive a disk
 failure.
 
+### From the dashboard or the launcher
+
+On **Settings**, unlock with the admin token and press **Download a backup**: the browser saves a dump of the
+statistics (miners, workers, blocks, events). Or, on the computer running xelDash:
+
+```sh
+xeldash backup                      # Windows: xeldash backup   Linux/macOS: ./xeldash.sh backup
+```
+
+which writes `xeldash-<time>.dump` into `./backups` (or `XELDASH_BACKUP_DIR`). A backup holds miner
+addresses and IP addresses: keep it private. It does not include the blockchain (any node can download that
+again) or any wallet, and it does not need the `backup` service.
+
 ### Manual
 
 ```sh
@@ -85,7 +98,16 @@ and blocks, which grow slowly.
 
 ## Restore
 
-Restoring replaces the current database. Stop the services that write to it first:
+The easy way, on the computer running xelDash (it asks you to type `yes`, because it replaces the current
+statistics):
+
+```sh
+xeldash restore backups/xeldash-20261001T190812Z.dump
+```
+
+It stops Stratum and the API, restores the file, and starts everything again; `migrate` then applies any
+migrations newer than the backup. By hand, it is the same steps. Restoring replaces the current database, so
+stop the services that write to it first:
 
 ```sh
 docker compose stop stratum api

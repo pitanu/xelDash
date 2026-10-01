@@ -132,7 +132,8 @@ holds no funds, ever.
 - **Connection help:** when a miner cannot connect (wrong address, wrong network, not on your
   network), the dashboard says why and what to change.
 - **Events** for everything that happens to your nodes, on the dashboard.
-- **Optional daily database backups.**
+- **Backups** from the dashboard or the launcher (`xeldash backup`, `xeldash restore`), and optional daily
+  automatic ones.
 
 ### Safe by default
 

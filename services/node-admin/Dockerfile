@@ -1,6 +1,7 @@
 FROM node:22-alpine
 # Info-ZIP unzip handles ZIP64 archives (the official snapshot is over 4 GB) and checks CRCs.
-RUN apk add --no-cache unzip
+# pg_dump (postgresql-client) makes the dashboard's "Download a backup".
+RUN apk add --no-cache unzip postgresql-client
 WORKDIR /app
 COPY package.json ./package.json
 COPY package-lock.json ./package-lock.json

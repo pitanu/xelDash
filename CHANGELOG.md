@@ -110,6 +110,8 @@ First public version, planned as 0.1.0.
 
 ### Operations
 
+- Backups from the dashboard (Settings, "Download a backup") and from the launcher (`xeldash backup` and
+  `xeldash restore FILE`), with no extra tools or services needed.
 - A "Mining availability" card on the Health page: the share of the last day, week or month miners could be
   given work, and the pauses behind the rest.
 - A notice when a newer xelDash is released, with how to update, and the running version at the foot
