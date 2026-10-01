@@ -110,3 +110,43 @@ export async function getBlockEfforts(pool, { address = null } = {}) {
   );
   return new Map(result.rows.map((row) => [row.hash, num(row.effort)]));
 }
+
+const REWARD_RANGES = /** @type {Record<string, number>} */ ({ "30d": 30, "90d": 90, "1y": 365 });
+
+/**
+ * Rewards found per day, next to the work done per day (as blocks it was expected to find), for
+ * the rewards chart. Only main-chain and side blocks count as rewards; effort is tracked from
+ * trackedSince, so days before that have no expected work.
+ * @param {PgPool} pool @param {{ address?: string | null, range?: string }} [filter]
+ */
+export async function getRewardsHistory(pool, { address = null, range = "90d" } = {}) {
+  const days = REWARD_RANGES[range] ?? REWARD_RANGES["90d"];
+  const result = await pool.query(
+    `WITH ${STATS},
+     paid AS (
+       SELECT date_trunc('day', b.found_at) AS day, count(*) AS blocks,
+              COALESCE(sum(b.reward) FILTER (WHERE b.status IN ('main-chain', 'side')), 0) AS reward
+       FROM blocks b LEFT JOIN miners m ON m.id = b.miner_id
+       WHERE b.status <> 'rejected' AND ($1::text IS NULL OR m.address = $1)
+       GROUP BY 1
+     ),
+     work AS (SELECT date_trunc('day', bucket) AS day, sum(sum_effort) AS expected FROM mine GROUP BY 1),
+     span AS (
+       SELECT generate_series(date_trunc('day', now()) - ($2::int * interval '1 day'), date_trunc('day', now()), interval '1 day') AS day
+     )
+     SELECT s.day, COALESCE(p.blocks, 0)::int AS blocks, COALESCE(p.reward, 0)::text AS reward,
+            COALESCE(w.expected, 0)::text AS expected
+     FROM span s LEFT JOIN paid p ON p.day = s.day LEFT JOIN work w ON w.day = s.day
+     ORDER BY s.day`,
+    [address, days],
+  );
+  return {
+    range: REWARD_RANGES[range] ? range : "90d",
+    points: result.rows.map((row) => ({
+      day: row.day.toISOString(),
+      blocks: row.blocks,
+      reward: row.reward,
+      expectedBlocks: Number(row.expected),
+    })),
+  };
+}

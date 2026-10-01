@@ -4,6 +4,8 @@ import { EarningsText, dailyEarnings } from "../components/Earnings.jsx";
 import HashrateChart from "../components/HashrateChart.jsx";
 import SharesChart from "../components/SharesChart.jsx";
 import LuckCard from "../components/LuckCard.jsx";
+import RewardsChart from "../components/RewardsChart.jsx";
+import RewardsSummary from "../components/RewardsSummary.jsx";
 import { BlocksTable, Card, StatTile } from "../components/ui.jsx";
 import WorkersCard from "../components/WorkersCard.jsx";
 import { formatAgo, formatHashrate, formatInteger, formatBucket } from "../format.js";
@@ -57,13 +59,18 @@ export default function Miner({ address, back = true }) {
           detail={`${blockList.filter((b) => b.status === "main-chain").length} main chain`} />
       </div>
 
+      <RewardsSummary totals={blocks.data?.totals} />
+      <Card title="Rewards over time" subtitle="Running total found, against what the work done should have found">
+        <RewardsChart address={address} rewardPerBlock={Number(overview.data?.node?.miner_reward) || null} />
+      </Card>
+
       <LuckCard luck={m?.luck} />
 
       <Card title="Hashrate" subtitle={history.data ? `${formatBucket(history.data.bucketSeconds)} buckets` : undefined}>
         <HashrateChart points={history.data?.points ?? null} dimmed={history.loading} range={range} onRangeChange={setRange} />
       </Card>
 
-      <Card title="Shares" subtitle="Accepted and rejected shares per bucket, for the range chosen above">
+      <Card title="Shares" subtitle="Accepted, stale and invalid shares per bucket, for the range chosen above">
         <SharesChart points={history.data?.points ?? null} dimmed={history.loading} />
       </Card>
 

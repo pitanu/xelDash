@@ -16,6 +16,8 @@ LISTEN/NOTIFY relayed to browsers), and alerts (`src/alerts.js`).
   (`src/release.js`, from GitHub every 6 hours; `XELDASH_VERSION_CHECK=off`).
 - **Price** (`src/price.js`): XEL in eleven currencies from CoinGecko, fetched by the server
   every 5 minutes while a viewer has it on, mainnet only; `XELDASH_PRICE=off` disables it.
+- **Rewards history** (`/api/v1/rewards`, `src/luck.js`): rewards found per day beside the work done per day,
+  for the rewards chart.
 - **Connection problems** (`/api/v1/problems`): rejected connections and logins of the last 24 hours,
   grouped by cause, address and IP.
 - **Connect info** (`src/connect.js`, `/api/v1/connect`): the published Stratum, TLS and getwork ports, this

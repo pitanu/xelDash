@@ -34,6 +34,8 @@ First public version, planned as 0.1.0.
 
 ### Dashboard and API
 
+- A "Rewards over time" chart (running total found against what the work done should have found)
+  and the rewards totals on the Blocks, miner and worker pages.
 - A "Block found" notice at the top of the dashboard when your miners find a block, an optional
   chime (off by default, set per browser on the Settings page), and a flash on the new row. Motion
   is skipped when the system asks for less. Block alerts link to the block in the explorer.

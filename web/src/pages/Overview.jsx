@@ -63,7 +63,7 @@ export default function Overview() {
         <HashrateChart points={history.data?.points ?? null} dimmed={history.loading} range={range} onRangeChange={setRange} />
       </Card>
 
-      <Card title="Shares" subtitle="Accepted and rejected shares per bucket, for the range chosen above">
+      <Card title="Shares" subtitle="Accepted, stale and invalid shares per bucket, for the range chosen above">
         <SharesChart points={history.data?.points ?? null} dimmed={history.loading} />
       </Card>
 

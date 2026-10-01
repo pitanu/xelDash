@@ -166,7 +166,7 @@ versions, the fallback) needs `XELDASH_ADMIN_TOKEN`. Nothing can control Docker.
 - REST endpoints (all `GET`; `address` must be a valid `xel:`/`xet:` address; `worker` needs
   `address`): `/api/v1/overview`, `/api/v1/status`, `/api/v1/hashrate`, `/api/v1/miners`,
   `/api/v1/miners/{address}`, `/api/v1/miners/{address}/workers/{name}`, `/api/v1/blocks`,
-  `/api/v1/events`, `/api/v1/problems`, `/api/v1/price`, `/api/v1/connect`. The overview, miner and blocks responses include effort
+  `/api/v1/events`, `/api/v1/rewards`, `/api/v1/problems`, `/api/v1/price`, `/api/v1/connect`. The overview, miner and blocks responses include effort
   and luck. node-admin serves `/api/v1/node/*` (see services/node-admin/README.md).
 - Alerts to Discord, Telegram or a JSON webhook: blocks found, side and final, mining paused,
   resumed or switched, workers offline, node updates. Set up on the Settings page, with a test message. See [OPERATIONS.md](OPERATIONS.md#alerts).
