@@ -34,6 +34,9 @@ First public version, planned as 0.1.0.
 
 ### Dashboard and API
 
+- A "Block found" notice at the top of the dashboard when your miners find a block, an optional
+  chime (off by default, set per browser on the Settings page), and a flash on the new row. Motion
+  is skipped when the system asks for less. Block alerts link to the block in the explorer.
 - The Blocks page shows the total rewards found, split into main-chain and side blocks.
 - Block heights link to the official block explorer.
 - An alert (and event) when one of your blocks becomes a side block, before it is final.

@@ -4,6 +4,10 @@ const MAX_QUEUE = 20;
 const FINAL_BATCH_MS = 5_000;
 const XEL_DECIMALS = 8;
 const EVENT_TYPES = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "node_update"];
+const EXPLORERS = /** @type {Record<string, string>} */ ({
+  mainnet: "https://explorer.xelis.io",
+  testnet: "https://testnet-explorer.xelis.io",
+});
 const TRIGGERS = /** @type {Record<string, string>} */ ({ automatic: " (automatic update)", scheduled: " (at the scheduled height)" });
 
 /** @param {unknown} error */
@@ -26,7 +30,8 @@ function shortAddress(address) {
 
 /**
  * @typedef {{ discordWebhookUrl: string | null, telegramBotToken: string | null, telegramChatId: string | null,
- *   webhookUrl: string | null, events: Set<string>, workerOfflineMinutes: number, dashboardUrl: string | null }} AlertConfig
+ *   webhookUrl: string | null, events: Set<string>, workerOfflineMinutes: number, dashboardUrl: string | null,
+ *   explorerUrl: string | null }} AlertConfig
  */
 
 /** @param {Partial<Record<string, string | undefined>>} env @returns {AlertConfig} */
@@ -46,6 +51,8 @@ export function alertConfigFromEnv(env) {
     events,
     workerOfflineMinutes: minutes,
     dashboardUrl: value("ALERT_DASHBOARD_URL"),
+    // The official block explorer for this network (devnet has none), for links to found blocks.
+    explorerUrl: EXPLORERS[value("XELIS_NETWORK") ?? ""] ?? null,
   };
   if (Boolean(config.telegramBotToken) !== Boolean(config.telegramChatId)) {
     throw new Error("Set both ALERT_TELEGRAM_BOT_TOKEN and ALERT_TELEGRAM_CHAT_ID for Telegram alerts");
@@ -74,6 +81,7 @@ export async function loadAlertConfig(env, file) {
     ALERT_WEBHOOK_URL: text(saved.webhookUrl),
     ALERT_WORKER_OFFLINE_MINUTES: String(saved.workerOfflineMinutes ?? 10),
     ALERT_DASHBOARD_URL: text(saved.dashboardUrl),
+    XELIS_NETWORK: env.XELIS_NETWORK,
   });
   // An empty list means "nothing" here, not "everything" as it does in .env.
   if (Array.isArray(saved.events)) config.events = new Set(saved.events.filter((/** @type {string} */ e) => EVENT_TYPES.includes(e)));
@@ -212,6 +220,7 @@ export function startAlerts({ pool, config, logger = console }) {
   if (channels.length === 0) return null;
   logger.info?.(`Alerts enabled: ${channels.map((c) => c.name).join(", ")} (${[...config.events].join(", ")})`);
 
+  const explorer = (/** @type {string | undefined} */ hash) => (config.explorerUrl && hash ? `\n${config.explorerUrl}/block/${hash}` : "");
   const link = (/** @type {string} */ path) => (config.dashboardUrl ? `\n${config.dashboardUrl.replace(/\/$/, "")}/#${path}` : "");
   /** @param {Alert} alert */
   const send = (alert) => {
@@ -271,7 +280,7 @@ export function startAlerts({ pool, config, logger = console }) {
       )).rows[0];
       const who = [p.workerName, block?.address ? shortAddress(block.address) : null].filter(Boolean).join(" · ");
       send({ event: "block_found", data: { ...p, address: block?.address ?? null },
-        text: `⛏️ Block found at height ${p.height}${who ? ` by ${who}` : ""}. Waiting for it to become final.${link("/blocks")}` });
+        text: `⛏️ Block found at height ${p.height}${who ? ` by ${who}` : ""}. Waiting for it to become final.${explorer(p.hash)}${link("/blocks")}` });
     } else if (type === "block_rejected" && config.events.has("block_rejected")) {
       send({ event: "block_rejected", data: p,
         text: `⚠️ The node rejected a block candidate at height ${p.height}${p.workerName ? ` from ${p.workerName}` : ""}: ${p.error}` });

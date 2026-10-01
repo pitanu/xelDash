@@ -9,6 +9,7 @@ import Worker from "./pages/Worker.jsx";
 import Health from "./pages/Health.jsx";
 import NodeData from "./pages/NodeData.jsx";
 import Settings from "./pages/Settings.jsx";
+import BlockBanner from "./components/BlockBanner.jsx";
 import { ThemeButton } from "./components/ThemeSetting.jsx";
 import { formatMoney, usePrice } from "./price.js";
 import { consumeTokenFromUrl } from "./session-token.js";
@@ -169,6 +170,7 @@ export default function App() {
           </div>
         </div>
       </header>
+      <BlockBanner />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">{page}</main>
     </div>
   );

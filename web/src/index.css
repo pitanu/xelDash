@@ -75,3 +75,12 @@ body {
 .tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/* A found block: the notice slides in and its table row flashes once. Skipped for people who ask
+   their system for less motion; the notice and the highlighted row still appear. */
+@media (prefers-reduced-motion: no-preference) {
+  .block-banner { animation: block-banner-in 0.4s ease-out; }
+  .block-new { animation: block-new-flash 3s ease-out; }
+}
+@keyframes block-banner-in { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: none; } }
+@keyframes block-new-flash { from { background-color: color-mix(in srgb, var(--good) 28%, transparent); } to { background-color: transparent; } }

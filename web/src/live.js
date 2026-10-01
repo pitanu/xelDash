@@ -40,6 +40,7 @@ function connect() {
       return;
     }
     if (message.type === "block" || message.type === "event") update({ version: state.version + 1 });
+    if (message.type === "event" && message.eventType === "block_submitted") for (const listener of blockListeners) listener();
   };
   socket.onclose = () => {
     update({ status: "offline" });
@@ -64,4 +65,13 @@ export function subscribeLive(listener) {
 
 export function getLiveState() {
   return state;
+}
+
+/** @type {Set<() => void>} */
+const blockListeners = new Set();
+
+/** Called when one of our miners finds a block (not for every block on the network). @param {() => void} listener */
+export function subscribeBlockFound(listener) {
+  blockListeners.add(listener);
+  return () => blockListeners.delete(listener);
 }

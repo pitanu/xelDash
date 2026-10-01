@@ -126,7 +126,7 @@ export function BlocksTable({ blocks, showMiner = true }) {
       </thead>
       <tbody className="tabular">
         {blocks.map((b) => (
-          <tr key={b.hash} className="border-t border-line">
+          <tr key={b.hash} className={`border-t border-line ${Date.now() - Date.parse(b.foundAt) < 15_000 ? "block-new" : ""}`}>
             <td className={td}>
               {blockUrl(b.hash)
                 ? <a href={blockUrl(b.hash) ?? undefined} target="_blank" rel="noopener noreferrer" title="Open in the XELIS block explorer" className="hover:text-ink hover:underline">{formatInteger(b.height)}</a>
