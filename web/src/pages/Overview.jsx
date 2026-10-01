@@ -3,6 +3,7 @@ import { usePolled } from "../api.js";
 import { EarningsText } from "../components/Earnings.jsx";
 import HashrateChart from "../components/HashrateChart.jsx";
 import SharesChart from "../components/SharesChart.jsx";
+import DiskWarning from "../components/DiskWarning.jsx";
 import { EffortSummary } from "../components/LuckCard.jsx";
 import SetupBanner from "../components/SetupBanner.jsx";
 import { BlocksTable, Card, EventsList, HealthBadge, StatTile } from "../components/ui.jsx";
@@ -34,6 +35,7 @@ export default function Overview() {
   return (
     <div className="space-y-6">
       <SetupBanner />
+      <DiskWarning />
       {overview.error && !o && <p className="text-sm text-critical">Unable to reach the xelDash API.</p>}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="col-span-2">

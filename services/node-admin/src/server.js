@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { MiningFallback } from "./fallback.js";
 import { AlertSettingsProblem, AlertSettings } from "./alert-settings.js";
+import { DiskWatch } from "./disk-watch.js";
 import { AddressProblem, MiningAddress } from "./mining-address.js";
 import { closeEvents, hideWorker, recordEvent } from "./events.js";
 import { Node } from "./nodes.js";
@@ -41,6 +42,7 @@ const fallback = new MiningFallback({ configDir, network, env: process.env });
 for (const node of nodes) await node.snapshots.init().catch((error) => console.warn(`${node.id}: ${message(error)}`));
 const miningAddress = new MiningAddress({ configDir, network, env: process.env });
 const alertSettings = new AlertSettings({ configDir, env: process.env });
+const diskWatch = new DiskWatch({ nodes: () => nodes.filter((n) => n === primary || n.present), record: recordEvent, env: process.env });
 await fallback.init();
 await miningAddress.init();
 
@@ -137,6 +139,10 @@ const server = createServer(async (request, response) => {
         running: await nodeView(n.id),
       })));
       send(response, 200, { nodes: list, actionsEnabled: Boolean(adminToken), upgrade: upgrade.state });
+      return;
+    }
+    if (request.method === "GET" && path === "/disk") {
+      send(response, 200, await diskWatch.status());
       return;
     }
     if (request.method === "GET" && path === "/alerts") {
@@ -400,6 +406,7 @@ server.listen(port, "0.0.0.0", async () => {
   }
   autoUpdate.start();
   scheduled.start();
+  diskWatch.start();
   ready = true;
 });
 

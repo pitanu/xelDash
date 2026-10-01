@@ -107,6 +107,8 @@ First public version, planned as 0.1.0.
 
 ### Operations
 
+- A low-disk warning on the Overview and Health pages, and a `disk_low` alert, when the nodes' disk has
+  less free space than `XELDASH_DISK_WARN_GB` (default 20 GB).
 - Docker Compose stack; the daemon runs XELIS 1.25.0, which mainnet requires (1.24.0 or
   newer).
 - Daemon settings from the dashboard: every option of the installed XELIS daemon, checked by

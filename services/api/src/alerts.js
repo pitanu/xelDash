@@ -3,7 +3,7 @@ const SEND_INTERVAL_MS = 1_000;
 const MAX_QUEUE = 20;
 const FINAL_BATCH_MS = 5_000;
 const XEL_DECIMALS = 8;
-const EVENT_TYPES = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "node_update"];
+const EVENT_TYPES = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "node_update", "disk_low"];
 const EXPLORERS = /** @type {Record<string, string>} */ ({
   mainnet: "https://explorer.xelis.io",
   testnet: "https://testnet-explorer.xelis.io",
@@ -310,6 +310,12 @@ export function startAlerts({ pool, config, logger = console }) {
           : type === "node_update_done"
             ? `✅ ${p.switched?.length ? p.switched.join(" and ") : "The nodes"} now run${p.switched?.length === 1 ? "s" : ""} ${version}${why}.`
             : `❌ Switching ${p.node} to ${version} failed${why}: ${p.error}. Later nodes were left as they were.${link("/nodes")}` });
+    } else if (type === "disk_low" && config.events.has("disk_low")) {
+      const gb = (/** @type {number} */ bytes) => Math.round(bytes / 1e9);
+      send({ event: "disk_low", data: p,
+        text: p.level === "critical"
+          ? `🚨 Disk almost full: ${gb(p.freeBytes)} GB free of ${gb(p.totalBytes)} GB. The node stops when it is full. Free some space now (the Nodes page lists old copies you can delete).${link("/nodes")}`
+          : `💾 Disk space is low: ${gb(p.freeBytes)} GB free of ${gb(p.totalBytes)} GB. The chain keeps growing, and the node stops when the disk is full.${link("/nodes")}` });
     } else if (type === "chain_copy_failed" && config.events.has("node_update")) {
       send({ event: "node_update", data: p, text: `❌ Copying chain data from ${p.from} to ${p.to} failed: ${p.error}${link("/nodes")}` });
     } else if (type === "node_ready" && config.events.has("mining_paused")) {

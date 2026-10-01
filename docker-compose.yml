@@ -62,6 +62,8 @@ services:
       # the redundant profile). The dashboard switch overrides it after the first start.
       XELIS_AUTO_UPDATE: ${XELIS_AUTO_UPDATE:-false}
       XELIS_AUTO_UPDATE_DELAY_HOURS: ${XELIS_AUTO_UPDATE_DELAY_HOURS:-24}
+      # Warn (on the dashboard and as an alert) when the nodes' disk has less free space than this.
+      XELDASH_DISK_WARN_GB: ${XELDASH_DISK_WARN_GB:-20}
       # The address to mine to, chosen on the dashboard's setup page; this is its first value.
       XELIS_DEFAULT_ADDRESS: ${XELIS_DEFAULT_ADDRESS:-}
       # Node actions (version switches, stops, copies) are recorded as events for the

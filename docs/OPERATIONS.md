@@ -24,6 +24,9 @@ Events:
 
 - `block_found`: a block candidate was accepted by the node.
 - `block_rejected`: the node refused a block candidate.
+- `disk_low`: the disk the nodes use has less free space than `XELDASH_DISK_WARN_GB` (default 20 GB), or
+  less than 5 GB. A full disk stops a node and can force a long resync. The dashboard shows the same warning
+  on the Overview and Health pages. Checked every 10 minutes, repeated at most once a day.
 - `block_side`: one of your blocks lost the race for its height and is a side block for now. Side
   blocks are paid too, with a reduced reward, once final; this comes well before that.
 - `block_final`: a block reached the stable height, as main chain, side or orphaned, with its

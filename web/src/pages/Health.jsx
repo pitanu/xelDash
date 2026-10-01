@@ -1,6 +1,7 @@
 import { usePolled } from "../api.js";
 import { Card, EventsList, HealthBadge } from "../components/ui.jsx";
 import { formatAgo, formatCompact, formatDuration, formatInteger, formatTime } from "../format.js";
+import DiskWarning from "../components/DiskWarning.jsx";
 import ProblemsCard from "../components/ProblemsCard.jsx";
 
 /** @param {{ label: string, children: React.ReactNode, detail?: React.ReactNode }} props */
@@ -117,6 +118,7 @@ export default function Health() {
         </Card>
       )}
 
+      <DiskWarning />
       <ProblemsCard network={node?.network ?? "mainnet"} />
 
       <div className="grid gap-6 lg:grid-cols-2">
