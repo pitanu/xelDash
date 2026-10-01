@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { createReadStream, createWriteStream, existsSync } from "node:fs";
-import { lstat, mkdir, readdir, readFile, rename, rm, stat, statfs, writeFile } from "node:fs/promises";
+import { diskSpace } from "./disk.js";
+import { lstat, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { recordEvent } from "./events.js";
@@ -174,9 +175,9 @@ export class SnapshotManager {
     return true;
   }
 
+  /** Free space that matters for this node: the computer's drive under Docker Desktop, else the volume's disk. */
   async disk() {
-    const s = await statfs(this.dataDir);
-    return { free: s.bavail * s.bsize, total: s.blocks * s.bsize };
+    return diskSpace(this.dataDir);
   }
 
   /** Size and date of the official snapshot, cached for ten minutes. */

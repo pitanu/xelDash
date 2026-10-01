@@ -25,7 +25,11 @@ Events:
 - `block_found`: a block candidate was accepted by the node.
 - `block_rejected`: the node refused a block candidate.
 - `disk_low`: the disk the nodes use has less free space than `XELDASH_DISK_WARN_GB` (default 20 GB), or
-  less than 5 GB. A full disk stops a node and can force a long resync. The dashboard shows the same warning
+  less than 5 GB. Sizes are counted the way Windows Explorer, Finder and `df` count them. Under Docker Desktop
+  the nodes' data sits in a virtual disk that reports its own size, so xelDash also reads the free space of your
+  computer's drive (through a read-only folder, `docker/hostdisk`, on the same drive as the xelDash folder) and
+  uses the smaller of the two. If Docker's data is on a different drive from the xelDash folder, check that
+  drive yourself. A full disk stops a node and can force a long resync. The dashboard shows the same warning
   on the Overview and Health pages. Checked every 10 minutes, repeated at most once a day.
 - `block_side`: one of your blocks lost the race for its height and is a side block for now. Side
   blocks are paid too, with a reduced reward, once final; this comes well before that.

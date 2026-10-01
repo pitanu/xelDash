@@ -39,6 +39,7 @@ public node as a last-resort work source when the fallback is on.
 Containers sit on three Compose networks: `edge` (dashboard and proxy), `node` (the daemons) and
 `data`, which is internal (no route out). Only the API, Stratum, node-admin and the migration and
 backup jobs join `data`, so the database is unreachable from the web container and from outside.
+node-admin also mounts `docker/hostdisk` read-only, only to read the free space of the computer's drive.
 
 | Service      | Responsibility | Exposed to host? |
 |--------------|----------------|------------------|

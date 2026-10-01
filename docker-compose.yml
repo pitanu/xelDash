@@ -83,6 +83,9 @@ services:
       # daemon2's data (redundant profile), so its snapshots and settings can be managed too.
       - xelis-data-2:/data2
       - xeldash-config:/config
+      # A folder on the computer's own drive, read-only, to read that drive's free space (Docker Desktop's
+      # virtual disk reports its own size). Nothing is read from it.
+      - ./docker/hostdisk:/hostdisk:ro
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8095/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 5s

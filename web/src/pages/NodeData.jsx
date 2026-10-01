@@ -3,7 +3,7 @@ import { AdminUnlock, useAdminToken } from "../components/AdminUnlock.jsx";
 import { Card, HealthBadge, Segmented } from "../components/ui.jsx";
 import { nodeQuery, useNodes } from "../nodes.js";
 import UpgradeCard from "../components/UpgradeCard.jsx";
-import { formatAgo, formatBytes, formatTime } from "../format.js";
+import { formatAgo, formatBytes, formatDiskBytes, formatTime } from "../format.js";
 
 /** Snapshot service status of one node, polled every second while something is running. @param {string} node */
 function useSnapshotStatus(node) {
@@ -157,8 +157,11 @@ function SnapshotsPanel({ node, admin }) {
         </div>
         <div className="min-w-0 rounded-lg border border-line bg-surface p-3 sm:p-4">
           <div className="text-xs text-ink-2">Free disk space</div>
-          <div className="mt-1 text-2xl font-semibold text-ink">{formatBytes(s.disk.free)}</div>
-          <div className="mt-1 text-xs text-muted">of {formatBytes(s.disk.total)}</div>
+          <div className="mt-1 text-2xl font-semibold text-ink">{formatDiskBytes(s.disk.free)}</div>
+          <div className="mt-1 text-xs text-muted">
+            of {formatDiskBytes(s.disk.total)}
+            {s.disk.source === "computer" ? " on your computer's drive" : s.disk.virtualized ? " in Docker's disk (your drive may have less)" : ""}
+          </div>
         </div>
         <div className="col-span-2 min-w-0 rounded-lg border border-line bg-surface p-3 sm:p-4">
           <div className="text-xs text-ink-2">Official snapshot</div>
