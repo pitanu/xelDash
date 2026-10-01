@@ -92,6 +92,9 @@ shares accepted? Does `address.worker` in the user field work?
 
 - [ ] Push a `v0.1.0-rc.1` tag and check the release workflow, including the arm64 build.
 - [ ] A fresh install using the published images pulls them instead of building.
+- [ ] The published images are public: GitHub creates container packages as private, so set each
+      one (api, stratum, web, node-admin, daemon) to public, then confirm a pull works while logged out.
+- [ ] A release candidate tag (for example `v0.1.0-rc.1`) does not take the `latest` tag.
 - [ ] Enable GitHub private vulnerability reporting (the security policy points to it).
 - [ ] Confirm CI passes on the default branch.
 
