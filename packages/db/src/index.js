@@ -200,12 +200,15 @@ export async function recordBlock(pool, block) {
   );
 }
 
-/** @param {PgPool} pool @param {string} type @param {Record<string, unknown>} [payload] */
-export async function recordServiceEvent(pool, type, payload = {}) {
+/**
+ * @param {PgPool} pool @param {string} type @param {Record<string, unknown>} [payload]
+ * @param {Date | string | null} [createdAt] When it happened, if it is being recorded late.
+ */
+export async function recordServiceEvent(pool, type, payload = {}, createdAt = null) {
   if (typeof type !== "string" || type.length === 0) throw new TypeError("Event type is required");
   await pool.query(
-    "INSERT INTO service_events (type, payload) VALUES ($1, $2::jsonb)",
-    [type, JSON.stringify(payload)],
+    "INSERT INTO service_events (type, payload, created_at) VALUES ($1, $2::jsonb, COALESCE($3::timestamptz, now()))",
+    [type, JSON.stringify(payload), createdAt],
   );
 }
 

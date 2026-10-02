@@ -36,7 +36,7 @@ export function requestedDifficulty(password) {
 const MAX_FUTURE_TIMESTAMP_MS = 30_000;
 /** A TCP socket, or the getwork WebSocket adapter. @typedef {{ remoteAddress?: string, destroyed: boolean, write: (data: string) => unknown }} StratumSocket */
 /** @typedef {import("./protocol.js").StratumRequest} StratumRequest */
-/** @typedef {{ minerId: string | bigint, workerId: string | bigint, address: string, publicKey: string }} MiningIdentity */
+/** @typedef {{ minerId: string | bigint | null, workerId: string | bigint | null, address: string, publicKey: string, provisional?: boolean }} MiningIdentity */
 /** @typedef {{ error?: { code: number, message: string, data?: unknown }, accepted?: boolean, block?: { hash: string, accepted: boolean, error: string | null } | null, stale?: boolean }} ShareResult */
 /** @typedef {import("./job-provider.js").MiningJob} MiningJob */
 
@@ -253,7 +253,8 @@ export class StratumSession {
       if (!(error instanceof DaemonRpcError)) throw error;
       identity = null;
     }
-    if (!identity?.workerId || !identity?.publicKey) {
+    // A worker first seen while the database is unreachable has no id yet (provisional); that is fine.
+    if (!identity?.publicKey || (identity.workerId == null && !identity.provisional)) {
       this.onSubmission(false);
       this.onProblem({ reason: "invalid_address", address, worker: workerName });
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, "Address is invalid or unauthorized"));

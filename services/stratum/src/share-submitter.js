@@ -1,5 +1,4 @@
 import { blake3 } from "@noble/hashes/blake3.js";
-import { recordBlock, recordServiceEvent, recordShare } from "@xeldash/db";
 import { hashMinerWorkAsync } from "@xeldash/xelis-hash";
 import { STRATUM_ERRORS } from "./protocol.js";
 
@@ -26,52 +25,14 @@ function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
-const RETRY_MS = 10_000;
-// Enough for any outage: a solo miner finds a block every few hours at best.
-const MAX_PENDING = 100;
-
 /**
- * @param {{ daemon: import("./node-pool.js").NodePool, pool: import("pg").Pool, logger?: Pick<Console, "warn" | "info">, retryMs?: number }} dependencies
+ * @param {{ daemon: import("./node-pool.js").NodePool, store: import("./store.js").DurableStore, logger?: Pick<Console, "warn" | "info"> }} dependencies
  */
-export function createShareSubmitter({ daemon, pool, logger = console, retryMs = RETRY_MS }) {
+export function createShareSubmitter({ daemon, store, logger = console }) {
   /**
-   * Blocks the daemon accepted but the database could not record (it was down). They are recorded
-   * as soon as it is back, with the time they were found, so the dashboard, the alerts and the
-   * block tracker see them. Kept in memory only: if Stratum itself restarts before the database
-   * returns, the record is lost (the block is on the chain and pays the miner either way).
-   * @type {{ block: import("@xeldash/db").BlockInput, event: { type: string, payload: Record<string, unknown> }, blockRecorded: boolean }[]}
-   */
-  const unrecorded = [];
-  /** @type {ReturnType<typeof setTimeout> | null} */
-  let retryTimer = null;
-
-  /** @param {(typeof unrecorded)[number]} entry */
-  async function persistBlock(entry) {
-    if (!entry.blockRecorded) {
-      await recordBlock(pool, entry.block);
-      entry.blockRecorded = true;
-    }
-    await recordServiceEvent(pool, entry.event.type, entry.event.payload);
-  }
-
-  async function retryUnrecorded() {
-    retryTimer = null;
-    while (unrecorded.length > 0) {
-      try {
-        await persistBlock(unrecorded[0]);
-      } catch {
-        break;
-      }
-      const done = /** @type {(typeof unrecorded)[number]} */ (unrecorded.shift());
-      logger.info?.("Recorded a block that was found while the database was unavailable", { hash: done.block.hash, height: done.block.height });
-    }
-    if (unrecorded.length > 0) retryTimer = setTimeout(retryUnrecorded, retryMs).unref();
-  }
-
-  /**
-   * Submit first, then persist: a database outage must never keep a solved block from the
-   * daemon. Recording failures are logged and do not affect the miner's share response.
-   * @param {{ worker: { minerId?: string | bigint, workerId: string | bigint }, workerName: string, job: import("./job-provider.js").MiningJob, minerWork: Buffer }} input
+   * Submit first, then record: a database outage must never keep a solved block from the daemon.
+   * The store keeps what it cannot record yet and records it when the database is back.
+   * @param {{ worker: { minerId?: string | bigint | null, workerId: string | bigint | null, address: string }, workerName: string, job: import("./job-provider.js").MiningJob, minerWork: Buffer }} input
    */
   async function submitBlockCandidate({ worker, workerName, job, minerWork }) {
     const hash = blockHashFromMinerWork(minerWork);
@@ -94,20 +55,20 @@ export function createShareSubmitter({ daemon, pool, logger = console, retryMs =
       logger.info?.("Block candidate accepted by the daemon", { hash, height: job.height, workerName });
     }
 
-    const entry = {
-      block: { hash, height: job.height, minerId: worker.minerId ?? null, workerId: worker.workerId, status, foundAt: new Date() },
-      event: {
-        type: failure ? "block_rejected" : "block_submitted",
-        payload: { hash, height: job.height, jobId: job.jobId, workerName, ...(failure ? { error: failure } : {}) },
-      },
-      blockRecorded: false,
-    };
     try {
-      await persistBlock(entry);
+      await store.recordBlock(
+        { hash, height: job.height, minerId: worker.minerId ?? null, workerId: worker.workerId, status, foundAt: new Date() },
+        { address: worker.address, name: workerName },
+      );
+      await store.recordServiceEvent(failure ? "block_rejected" : "block_submitted", {
+        hash,
+        height: job.height,
+        jobId: job.jobId,
+        workerName,
+        ...(failure ? { error: failure } : {}),
+      });
     } catch (error) {
-      logger.warn?.("Failed to record a submitted block candidate; it will be recorded when the database is back", { hash, error: errorMessage(error) });
-      if (unrecorded.length < MAX_PENDING) unrecorded.push(entry);
-      retryTimer ??= setTimeout(retryUnrecorded, retryMs).unref();
+      logger.warn?.("Failed to record a submitted block candidate", { hash, error: errorMessage(error) });
     }
     return { hash, accepted: failure === null, error: failure };
   }
@@ -116,7 +77,7 @@ export function createShareSubmitter({ daemon, pool, logger = console, retryMs =
    * Stratum sends a nonce and the work is rebuilt from the job. Getwork miners send their full
    * MinerWork (they also change the timestamp and thread id), which the caller has already
    * checked against the job; `nonce` is then the dedupe key.
-   * @param {{ worker: { minerId?: string | bigint, workerId: string | bigint }, workerName: string, job: import("./job-provider.js").MiningJob, nonce: string, minerWork?: Buffer | null, algorithm: string | null }} input
+   * @param {{ worker: { minerId?: string | bigint | null, workerId: string | bigint | null, address: string }, workerName: string, job: import("./job-provider.js").MiningJob, nonce: string, minerWork?: Buffer | null, algorithm: string | null }} input
    */
   return async ({ worker, workerName, job, nonce, minerWork: submittedWork = null, algorithm }) => {
     if (algorithm !== "xel/v3" || job.algorithm !== "xel/v3") {
@@ -132,7 +93,7 @@ export function createShareSubmitter({ daemon, pool, logger = console, retryMs =
 
     const block = meetsNetworkTarget ? await submitBlockCandidate({ worker, workerName, job, minerWork }) : null;
 
-    const persisted = await recordShare(pool, {
+    const persisted = await store.recordShare({
       workerId: worker.workerId,
       jobId: job.jobId,
       nonce,
@@ -140,7 +101,7 @@ export function createShareSubmitter({ daemon, pool, logger = console, retryMs =
       networkDifficulty: job.networkDifficulty,
       accepted: meetsShareTarget,
       rejectReason: meetsShareTarget ? null : "low_difficulty",
-    });
+    }, { address: worker.address, name: workerName });
     if (persisted.duplicate) {
       return { error: { code: STRATUM_ERRORS.DUPLICATE_SHARE, message: "Duplicate share" } };
     }

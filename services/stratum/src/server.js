@@ -1,7 +1,7 @@
 import { createServer } from "node:net";
 import { createServer as createTlsServer } from "node:tls";
 import {
-  createPool, listActiveBans, notifyLive, recordBan, recordReportedHashrate, recordServiceEvent, recordShare,
+  createPool, listActiveBans, notifyLive,
   retentionConfigFromEnv, runRetention,
 } from "@xeldash/db";
 import { createWorkerAuthorizer } from "./authorize-worker.js";
@@ -9,7 +9,9 @@ import { BlockTracker } from "./block-tracker.js";
 import { ChainWatcher } from "./chain-watcher.js";
 import { watchDefaultAddress } from "./default-address.js";
 import { watchFallbackConfig } from "./fallback-config.js";
+import { DurableStore } from "./store.js";
 import { startGetworkServer } from "./getwork.js";
+import { startHealthServer } from "./health.js";
 import { readDefaultGateway } from "./gateway.js";
 import { IpGuard, MessageRateLimiter, ipGuardConfigFromEnv, normalizeIp } from "./ip-guard.js";
 import { MiningJobProvider } from "./job-provider.js";
@@ -64,9 +66,18 @@ const pool = createPool();
 // One or more XELIS nodes, in priority order (XELIS_RPC_URLS). Work comes from the first one
 // that is in sync; see node-pool.js.
 const nodes = new NodePool({ urls: rpcUrlsFromEnv(process.env), onActiveChange: handleActiveChange });
-const authorizeAddress = createWorkerAuthorizer({ daemon: nodes, pool });
+// Everything recorded goes through the store, which keeps a journal file while the database cannot be
+// reached, so mining never waits for it (see store.js). The journal lives on its own volume.
+const journalMegabytes = Number(process.env.STRATUM_JOURNAL_MAX_MB ?? 200);
+const store = new DurableStore({
+  pool,
+  dir: process.env.STRATUM_JOURNAL_DIR || null,
+  ...(Number.isFinite(journalMegabytes) && journalMegabytes > 0 ? { maxBytes: journalMegabytes * 1048576 } : {}),
+});
+await store.init();
+const authorizeAddress = createWorkerAuthorizer({ daemon: nodes, store });
 const jobProvider = new MiningJobProvider({ nodes });
-const submitShare = createShareSubmitter({ daemon: nodes, pool });
+const submitShare = createShareSubmitter({ daemon: nodes, store });
 /** @type {Map<{ remoteAddress?: string, destroy: () => void }, StratumSession>} */
 const sessions = new Map();
 // Why a connection or login was turned away, recorded for the dashboard's connection help. The
@@ -85,7 +96,7 @@ function reportProblem(type, payload) {
     for (const [k, at] of problemSeen) if (now - at >= PROBLEM_INTERVAL_MS) problemSeen.delete(k);
   }
   const masked = payload.ip === dockerGateway;
-  recordServiceEvent(pool, type, { ...payload, ...(masked ? { masked: true } : {}) })
+  store.recordServiceEvent(type, { ...payload, ...(masked ? { masked: true } : {}) })
     .catch((error) => console.warn("Failed to record a connection problem:", error instanceof Error ? error.message : String(error)));
 }
 
@@ -95,8 +106,8 @@ const ipGuard = new IpGuard(ipGuardConfig, {
     for (const socket of sessions.keys()) {
       if (normalizeIp(socket.remoteAddress) === ip) socket.destroy();
     }
-    recordBan(pool, { ip, reason, until })
-      .then(() => recordServiceEvent(pool, "ip_banned", { ip, reason, until: until.toISOString() }))
+    store.recordBan({ ip, reason, until })
+      .then(() => store.recordServiceEvent("ip_banned", { ip, reason, until: until.toISOString() }))
       .catch((error) => console.warn("Failed to record ban:", error instanceof Error ? error.message : String(error)));
   },
 });
@@ -184,16 +195,16 @@ function newSession(socket, ip, onAuthorized = () => {}) {
     onAuthorized,
     onSubmission: (valid) => ipGuard.record(ip, valid),
     staleGraceMs,
-    onStale: ({ worker, jobId, nonce, difficulty }) => {
-      recordShare(pool, { workerId: worker.workerId, jobId, nonce, difficulty: String(difficulty), accepted: false, rejectReason: "stale" })
+    onStale: ({ worker, workerName, jobId, nonce, difficulty }) => {
+      store.recordShare({ workerId: worker.workerId, jobId, nonce, difficulty: String(difficulty), accepted: false, rejectReason: "stale" }, { address: worker.address, name: workerName })
         .catch((error) => console.warn("Failed to record a stale share:", error instanceof Error ? error.message : String(error)));
     },
-    onHashrate: ({ worker, hashrate }) => {
-      const key = String(worker.workerId);
+    onHashrate: ({ worker, workerName, hashrate }) => {
+      const key = `${worker.address}/${workerName}`;
       const now = Date.now();
       if (now - (hashrateWrites.get(key) ?? 0) < HASHRATE_WRITE_INTERVAL_MS) return;
       hashrateWrites.set(key, now);
-      recordReportedHashrate(pool, worker.workerId, hashrate)
+      store.recordReportedHashrate(worker.workerId, hashrate)
         .catch((error) => console.warn("Failed to record reported hashrate:", error instanceof Error ? error.message : String(error)));
     },
     canMine: () => (nodes.ready ? null : nodes.reason),
@@ -277,7 +288,7 @@ let nodesStarted = false;
  */
 function handleActiveChange(active, previous) {
   /** @param {string} type @param {Record<string, unknown>} payload */
-  const record = (type, payload) => recordServiceEvent(pool, type, payload)
+  const record = (type, payload) => store.recordServiceEvent(type, payload)
     .catch((error) => console.warn("Failed to record node state:", error instanceof Error ? error.message : String(error)));
   const states = Object.fromEntries(nodes.nodes.map((node) => [node.label, node.monitor.state]));
   if (!active) {
@@ -333,7 +344,7 @@ server.listen(port, host, () => {
   console.info(`xelDash Stratum server listening on ${host}:${port}`);
   console.info(`Vardiff: start ${vardiff.startDifficulty}, min ${vardiff.minDifficulty}, one share per ${vardiff.targetShareSeconds}s`);
   // The dashboard reads the latest start event as Stratum's uptime.
-  recordServiceEvent(pool, "stratum_started", {
+  store.recordServiceEvent("stratum_started", {
     port,
     tlsPort: tls?.port ?? null,
     node: nodes.active?.label ?? null,
@@ -359,6 +370,13 @@ const getwork = getworkEnabled
     onRefused: (ip, reason) => reportProblem("connection_refused", { ip, reason }) })
   : null;
 
+// Whether this server can give miners work right now; see health.js.
+const health = startHealthServer({
+  port: Number(process.env.STRATUM_HEALTH_PORT ?? 8096),
+  // Mining does not need the database (see store.js), so only a ready node matters here.
+  check: async () => (nodes.ready ? null : nodes.reason ?? "no node is ready"),
+});
+
 let shuttingDown = false;
 async function shutdown() {
   if (shuttingDown) return;
@@ -371,6 +389,8 @@ async function shutdown() {
     new Promise((resolve) => server.close(resolve)),
     tlsServer ? new Promise((resolve) => tlsServer.close(resolve)) : null,
     getwork?.close(),
+    health.close(),
+    store.stop(),
   ]);
   for (const [socket, session] of sessions) {
     session.close();

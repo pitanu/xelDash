@@ -74,6 +74,15 @@ shares accepted? Does `address.worker` in the user field work?
       arrive well before the block is final. This has not been seen against a real daemon yet, so
       note whether it fires. If only the later "final as a side block" alert arrives, report it.
 
+## 5b. Database outage
+
+- [ ] With a rig mining, stop PostgreSQL (`docker compose stop postgres`) for a minute: the rig stays connected and
+      keeps finding shares, and the dashboard shows "Dashboard offline: the database is not reachable. Mining continues."
+- [ ] Start it again: within seconds the dashboard recovers, the shares and blocks from the outage are in the
+      statistics, and `docker compose exec stratum ls /spool` shows no journal left.
+- [ ] Restart the mining server (`docker compose restart stratum`) in the middle of an outage: the rig reconnects and
+      keeps mining, and everything is recorded once the database is back.
+
 ## 6. Nodes and upgrades
 
 - [ ] Add a second local node, then a rolling update to a newer version. Mining continues.

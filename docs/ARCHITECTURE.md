@@ -125,6 +125,9 @@ Notes:
 - Effort (`sum_effort`, migration 005): each accepted share adds share difficulty ÷ network
   difficulty at the time, so luck and round effort survive the raw-share retention.
 - `stale` (migration 007) counts the rejected shares that were stale, found just after the network moved on.
+- Stratum writes through a store (`services/stratum/src/store.js`). When the database cannot be reached, records go to a
+  journal file on the `xeldash-spool` volume and are injected in order, with their original times, when it answers;
+  workers are keyed by address and name in the journal, since a new worker has no id yet.
 - Every `service_events` insert is announced on the `xeldash_live` channel for live updates.
 - Retention periods are set with `RETENTION_*`. There is no partitioning at this size.
 - There are no balance, payout or wallet tables: rewards go straight to each miner's address.

@@ -132,18 +132,24 @@ docker compose exec -T postgres dropdb -U xeldash restore_test
 
 ## If the database goes down
 
-Tested by stopping PostgreSQL while a miner kept mining. Mining does not need the database to find a block:
-a solved block goes to your node first, and its reward is paid whatever happens afterwards. While the
-database is down:
+Mining does not depend on the database. Tested by stopping PostgreSQL while a miner kept mining, and by
+restarting the mining server in the middle of the outage:
 
-- miners are disconnected and reconnect on their own when it is back (logins need the database);
-- the dashboard still loads, but its data returns "503" until the database is back;
-- a block found in those seconds is kept in memory and recorded as soon as the database returns, with the
-  time it was found. If the mining server itself restarts before the database is back, that one record is
-  lost (the block is still on the chain and paid);
-- shares in flight are not recorded, so the statistics have a small gap.
+- **Miners are not disconnected.** Rigs keep mining, and a block found during the outage is submitted to your
+  node first, as always, so its reward is safe.
+- **Nothing is lost.** The mining server keeps what it cannot record in a journal file (a JSON-lines file on its
+  own Docker volume, `xeldash-spool`) and, as soon as the database answers, records it in order and with the
+  original times: shares, blocks, events and bans. It checks every few seconds and needs no action from you.
+  The journal survives a restart of the mining server and of the computer.
+- **Logins keep working** for rigs seen before (the mining server remembers them, also on disk). A rig seen for
+  the first time during an outage is created in the database when it returns.
+- **The dashboard says so.** While the database is unreachable the dashboard shows "Dashboard offline: the
+  database is not reachable. Mining continues." and catches up by itself.
 
-Nothing needs restarting.
+Limits: the journal is capped at `STRATUM_JOURNAL_MAX_MB` (200 MB by default, many days of shares even for a large
+farm). Past that, shares (statistics only) are dropped, never blocks or events. A share repeated
+during an outage is caught in memory, so a restart in the middle of an outage can let one duplicate through. The
+journal holds miner addresses and IP addresses; it is readable only by the mining server.
 
 ## Mining availability
 

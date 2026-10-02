@@ -45,6 +45,8 @@ COPY services/stratum/src services/stratum/src
 COPY --from=hash-build /tmp/index.node packages/xelis-hash/index.node
 
 ENV NODE_ENV=production
+# Records kept while the database cannot be reached (see store.js); a volume is mounted here.
+RUN mkdir -p /spool && chown node:node /spool
 # The optional TLS key in docker/stratum-tls must be readable by this user (uid 1000).
 USER node
 CMD ["npm", "run", "start", "--workspace", "@xeldash/stratum"]

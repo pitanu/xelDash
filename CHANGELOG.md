@@ -11,8 +11,9 @@ First public version, planned as 0.1.0.
 
 ### Mining
 
-- A database outage no longer restarts the mining server or the API, and a block found while the database
-  is down is recorded when it returns (with its original time).
+- Mining no longer depends on the database. When it cannot be reached, miners stay connected and keep mining,
+  and shares, blocks, events and bans are kept in a journal file and recorded, in order and with their original
+  times, when it is back. A database outage no longer restarts the mining server or the API.
 - Stratum server for XELIS (`xel/v3`) with per-address work: rewards go straight to each
   miner's address, and xelDash holds no funds.
 - Share validation with the official XELIS Hash V3 code (native addon), hashed on a thread
@@ -36,6 +37,8 @@ First public version, planned as 0.1.0.
 
 ### Dashboard and API
 
+- A "Dashboard offline" notice when the database or the server cannot be reached; it says mining continues when
+  only the database is down, and goes away by itself.
 - "Download all as CSV" on the Blocks and miner pages: every block with its time, height, hash, status,
   reward in XEL and the round's effort, for a spreadsheet or tax records. Spreadsheet formula characters in
   worker names are neutralised.

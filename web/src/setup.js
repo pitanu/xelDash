@@ -142,12 +142,15 @@ export function useSetup({ intervalMs = 5_000 } = {}) {
 
   const steps = [network, addressStep, minerStep, shareStep];
   const loaded = Boolean(status.data || status.error) && Boolean(miners.data || miners.error);
+  // The miner list comes from the database: while it cannot be read, "no miner yet" would be a guess.
+  const unavailable = Boolean(miners.error && !miners.data);
   return {
     steps,
     done: steps.filter((step) => step.state === "done").length,
     // Set up once the node works and a miner has connected; the address is recommended, not required.
     complete: networkReady && everConnected,
     loaded,
+    unavailable,
     connect: connect.data,
     reloadConnect: connect.reload,
     networkReady,
