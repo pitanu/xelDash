@@ -65,7 +65,7 @@ export const GUIDE = [
         flag: "auto-prune-keep-n-blocks",
         title: "Prune old blocks",
         explain: "Deletes old blocks as new ones arrive, keeping only this many below the tip, to save disk space: on mainnet about 4 GB of the node's 10 GB, however many you keep. Empty keeps the full history.",
-        tip: "Keep at least 17,280 blocks (about a day). It prunes when the chain height reaches a multiple of this number, which can take hours, and the space only comes back after the node is restarted once more. Mining works as normal, but a pruned node cannot help other nodes sync old blocks, and pruning cannot be undone without a new snapshot.",
+        tip: "We recommend 120,000 blocks (about a week). It prunes when the chain height reaches a multiple of this number, so the first prune can be days away, and the space only comes back after the node is restarted once more. Mining works as normal, but a pruned node cannot help other nodes sync old blocks, and pruning cannot be undone without a new snapshot.",
         placeholder: "Keep everything",
       },
       {

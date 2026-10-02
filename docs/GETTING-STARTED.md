@@ -128,8 +128,9 @@ network, not the internet. See [Security](SECURITY.md).
   40 GB free for a little while (it downloads the blockchain and unpacks it before deleting the download). If you have
   less, it offers a slower start that needs about 25 GB: your node then syncs from other nodes, which takes much longer
   but never needs both copies. Below 25 GB it stops and asks you to free some space.
-- **I want the node to use less disk space.** On **Settings**, set "Prune old blocks" to at least 17,280. It cuts the node's data from
-  about 10.6 GB to about 6 GB, but only after the node has pruned (it can take hours) and been restarted once more. It
+- **I want the node to use less disk space.** On **Settings**, set "Prune old blocks" to 120,000 (about a week of blocks). It cuts the node's
+  data from about 10.6 GB to about 6 GB, but only after the node has pruned (the first time can take up to a week) and been
+  restarted once more. It
   cannot be undone without a new snapshot. Details are in [Operations](OPERATIONS.md#pruning-old-blocks-saving-disk-space).
 - **The snapshot is slow or stuck.** It is a 9 GB download; a slow connection takes a while. It
   resumes if interrupted. The **Nodes** page shows the details.

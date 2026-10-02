@@ -61,13 +61,16 @@ copy of the mainnet chain (block height 7.93 million, from the official snapshot
 
 - **It saves about 4.4 GB, and it hardly matters how many blocks you keep** (from a thousand to over a hundred thousand gave
   the same size, give or take 0.2 GB). What stays is mostly the current state of the chain, which cannot be pruned. So do not
-  keep too few: **keep at least 17,280 blocks (one day)**; it costs almost nothing in space and keeps xelDash able to look up
-  your recent blocks after a long stop.
+  keep too few: **we recommend 120,000 blocks, about seven days** (6.9 days at one block per 5 seconds). It costs almost nothing in
+  space, and it keeps xelDash able to look up your recent blocks even after a long stop. 120,000 is just above the largest size
+  that was measured (108,172), so about 6.2 GB is expected; it was not run separately.
 - **The space comes back only after the node restarts.** Right after a prune the folder was still 10.3 to 10.8 GB; after a restart
   it dropped to about 6 GB and stayed there.
-- **It prunes only when the chain height is an exact multiple of the number you set.** With 1,000 that is every 83 minutes;
-  with 20,000 it can be many hours before the first prune. So: set it, apply (the node restarts), wait for the first prune
-  (the node's log says "Auto pruning chain"), then restart the node once more to get the space back.
+- **It prunes only when the chain height is an exact multiple of the number you set.** With 1,000 that is every 83 minutes. With
+  **120,000 the first prune can be up to about seven days away** (whenever the height next reaches a multiple of 120,000), and
+  then it prunes about once a week; between prunes the node holds between 120,000 and 240,000 blocks. So: set it, apply (the node
+  restarts), wait for the first prune (the node's log says "Auto pruning chain"), then restart the node once more to get the space
+  back. To see it work sooner, try a small number such as 1,000 first.
 - **While it prunes** (about 11 minutes in the test) the node was using about 1.6 GB of memory when sampled right after (the exact peak was not
   recorded), and its folder grew by up to about 2 GB before shrinking. Plan for that headroom on a small computer.
 - **It does not lower the 40 GB needed for the first start**: pruning starts after the node has its data. Pruning while syncing
