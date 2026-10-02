@@ -217,7 +217,8 @@ management. Details are in the [architecture guide](docs/ARCHITECTURE.md).
 
 ## Quick start
 
-1. Install **Docker Desktop** (Windows or macOS) or Docker Engine (Linux).
+1. Check the [system requirements](docs/REQUIREMENTS.md) (about 40 GB of free disk, 4 GB of memory) and install **Docker Desktop**
+   (Windows or macOS) or Docker Engine (Linux).
 2. Download xelDash (**Code → Download ZIP**) and unzip it.
 3. **Windows:** double-click `xeldash.cmd`. **macOS and Linux:** run `./xeldash.sh` in a terminal.
 
@@ -243,6 +244,7 @@ Everything else lives in [docs/](docs/README.md):
 
 | | |
 |---|---|
+| [System requirements](docs/REQUIREMENTS.md) | Disk, memory, processor and network, minimum and recommended |
 | [Getting started](docs/GETTING-STARTED.md) | Install, configure, first run |
 | [Connecting miners](docs/MINERS.md) | Settings for Rigel, SRBMiner, `xelis_miner` and others |
 | [Operations](docs/OPERATIONS.md) | Alerts, backups, HTTPS, snapshots, second node, upgrades |

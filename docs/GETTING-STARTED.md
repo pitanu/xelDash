@@ -10,8 +10,10 @@ it all. Rewards for blocks you find go straight to your own wallet: xelDash neve
 
 ## What you need
 
-- **A computer that can stay on:** Windows 10 or 11, macOS, or Linux. About 25 GB of free disk
-  space for the blockchain, and a normal internet connection.
+- **A computer that can stay on:** Windows 10 or 11, macOS, or Linux, with 2 or more processor cores, 4 GB of
+  memory (8 GB is better), and **at least 40 GB of free disk space** (an SSD is best; the blockchain is about
+  11 GB and needs about twice that while it is first downloaded). A normal internet connection. The full list is
+  on the [system requirements](REQUIREMENTS.md) page.
 - **Docker.** It is a free program that runs xelDash's parts in the background so you do not
   have to install each one. See the next section.
 - **A XELIS wallet address**, to receive rewards. You can get one after installing; see

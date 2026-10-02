@@ -24,6 +24,19 @@ XELIS nodes or wallets.
 - [ ] `xeldash stop`, then `xeldash start` again: everything comes back, and the address is kept.
 - [ ] `xeldash update` works, and mining continues afterwards.
 
+## 1b. The minimum hardware
+
+The requirements page (docs/REQUIREMENTS.md) lists minimums that were reasoned from measurements on a fast desktop, not
+proven on a small computer. Please confirm or correct them:
+
+- [ ] A first start on a computer with **2 cores, 4 GB of memory and about 40 GB free** (a virtual machine is fine):
+      the snapshot downloads and unpacks, the node syncs, and the dashboard stays usable. Note the peak memory of the
+      node during the unpack (`docker stats`) and the lowest free disk space reached.
+- [ ] The same on a hard disk instead of an SSD: how long the sync takes to catch up, and whether mining ever pauses.
+- [ ] A Raspberry Pi 4 or 5 (64-bit OS, 8 GB, SSD): do the images start, and does a rig get shares accepted?
+- [ ] macOS with Docker Desktop (Intel or Apple Silicon): install, mine, and the free-space figure on the Nodes page.
+- [ ] Correct the numbers in REQUIREMENTS.md wherever the result differs.
+
 ## 2. Local network only
 
 - [ ] From another computer or phone on the same Wi-Fi, open the dashboard and connect a miner

@@ -115,6 +115,8 @@ First public version, planned as 0.1.0.
 
 ### Operations
 
+- A system requirements page (minimum and recommended: disk, memory, processor, network, operating systems), with the
+  figures measured on the running mainnet stack and what has not been measured yet marked.
 - Redundancy between two Linux servers (`xeldash cluster setup` and `cluster join`): they share one address, held by
   whichever can mine, so mining carries on when one loses power or restarts. The second server has no database;
   it records through the main server (a new `/api/v1/ingest` endpoint, migration 008) and keeps a journal while it
