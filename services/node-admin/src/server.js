@@ -3,6 +3,7 @@ import { MiningFallback } from "./fallback.js";
 import { AlertSettingsProblem, AlertSettings } from "./alert-settings.js";
 import { streamBackup } from "./backup.js";
 import { ClusterWatch } from "./cluster.js";
+import { StandbyAlerts } from "./standby.js";
 import { DiskWatch } from "./disk-watch.js";
 import { AddressProblem, MiningAddress } from "./mining-address.js";
 import { closeEvents, hideWorker, recordEvent } from "./events.js";
@@ -44,7 +45,14 @@ const fallback = new MiningFallback({ configDir, network, env: process.env });
 for (const node of nodes) await node.snapshots.init().catch((error) => console.warn(`${node.id}: ${message(error)}`));
 const miningAddress = new MiningAddress({ configDir, network, env: process.env });
 const alertSettings = new AlertSettings({ configDir, env: process.env });
-const clusterWatch = new ClusterWatch({ configDir, record: recordEvent });
+// The second server of a cluster has no database: it copies the main server's alert settings and sends its own failover alert.
+const standbyAlerts = process.env.XELDASH_PRIMARY_URL && process.env.XELDASH_CLUSTER_SECRET
+  ? new StandbyAlerts({ alertSettings, primaryUrl: process.env.XELDASH_PRIMARY_URL, secret: process.env.XELDASH_CLUSTER_SECRET, serverName: process.env.XELDASH_SERVER_NAME })
+  : null;
+const clusterWatch = new ClusterWatch({
+  configDir,
+  record: standbyAlerts ? (type, payload) => void standbyAlerts.onClusterChange(type, payload).catch(() => {}) : recordEvent,
+});
 const diskWatch = new DiskWatch({ nodes: () => nodes.filter((n) => n === primary || n.present), record: recordEvent, env: process.env });
 await fallback.init();
 await miningAddress.init();
@@ -419,6 +427,7 @@ server.listen(port, "0.0.0.0", async () => {
   scheduled.start();
   diskWatch.start();
   clusterWatch.start();
+  standbyAlerts?.start();
   ready = true;
 });
 

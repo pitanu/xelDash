@@ -419,19 +419,24 @@ A server that comes back stands by; it does not take the address back, so there 
 records (shares, blocks, events), and sends it to the main server when it returns; nothing is lost and the
 statistics catch up. Its page at its own address (or the shared address) shows a "Dashboard offline" notice saying
 mining continues, with how many rigs are connected and how many records are waiting. When the main server is back
-that page shows its dashboard again by itself. The standby has no database, so **no statistics and no alerts are
-available while the main server is down**; they resume when it returns. Alerts (type "A server takes over the shared
-address") are sent by the main server, so they report what it sees itself: that it cannot mine and gave the address
-up, or that it is back and standing by. When the whole main server is down, nothing is running to send an alert, so
-you hear about it when it returns. (A basic alert sent from the standby is not built yet.)
+that page shows its dashboard again by itself. The standby has no database, so **no statistics are available while the main
+server is down**; they resume when it returns.
+
+**Alerts.** The standby keeps a copy of the main server's alert settings (it asks for them every minute, with the cluster
+secret). If it takes over the shared address while the main server cannot be reached, it sends the failover alert itself
+(type "A server takes over the shared address"): "Failover: the main server is not answering, so the standby server now holds
+the shared address", or "the standby cannot mine and the main server is not answering". When the main server is reachable the
+standby stays quiet, because the main server reports its own changes (that it cannot mine and gave the address up, or that it is
+back and standing by); so you hear about each failover once. Only the failover and "cannot mine" alerts are sent from the standby:
+block alerts and the rest need the database and resume with the main server.
 
 **Limits to know**
 
 - Both servers need to reach each other over the network; the standby sends its records to the main server's
   dashboard address, so keep the main server's address stable (give it a fixed address in your router).
-- The standby's default wallet address is the one in the code. A rig that sends its own address (most do) is not
-  affected; if you change the default address on the main server, change `XELIS_DEFAULT_ADDRESS` in the standby's
-  `.env` too and run `docker compose up -d` there.
+- The standby follows the main server's default wallet address (the one for rigs that send none): it asks for it every
+  30 seconds and keeps a copy on its own volume, so changing it on the dashboard needs nothing on the second server. If the
+  main server has never been reachable since the standby started, it uses the address from the cluster code.
 - This is protection against one server failing, not against both, or against the router or the network.
 - Each server runs and syncs its own node. The standby's node needs the same disk space as the main one.
 - Remove a cluster with `./xeldash.sh cluster off` on the main server, and delete the standby.

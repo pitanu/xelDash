@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 import { createPool } from "@xeldash/db";
 import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, getBlockTotals, listBlocks, listEvents, listMiners, listProblems } from "./queries.js";
-import { watchAlerts } from "./alerts.js";
+import { loadAlertConfig, watchAlerts } from "./alerts.js";
 import { startLiveUpdates } from "./live.js";
 import { getBlockEfforts, getLuck, getMedianBlockEffort, getRewardsHistory } from "./luck.js";
 import { callAnyNode, fallbackUrl, rpcUrlsFromEnv } from "./nodes.js";
@@ -161,7 +161,12 @@ const server = createServer(async (request, response) => {
   // A standby server's batches (a POST) and its readiness check; see ingest.js.
   if (url.pathname.startsWith("/api/v1/ingest")) {
     try {
-      if (await handleIngest({ request, response, pathname: url.pathname, pool, secret: process.env.XELDASH_CLUSTER_SECRET, send: sendJson })) return;
+      if (await handleIngest({ request, response, pathname: url.pathname, pool, secret: process.env.XELDASH_CLUSTER_SECRET, send: sendJson,
+        alerts: async () => {
+          const c = await loadAlertConfig(process.env, join(process.env.CONFIG_DIR ?? "/config", "alerts.json"));
+          return { discordWebhookUrl: c.discordWebhookUrl, telegramBotToken: c.telegramBotToken, telegramChatId: c.telegramChatId,
+            webhookUrl: c.webhookUrl, dashboardUrl: c.dashboardUrl, events: [...c.events], workerOfflineMinutes: c.workerOfflineMinutes };
+        } })) return;
     } catch (error) {
       console.error("Ingest failed:", error instanceof Error ? error.message : String(error));
       sendJson(response, 503, { error: "dependency_unavailable" });

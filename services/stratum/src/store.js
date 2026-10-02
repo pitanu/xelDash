@@ -62,7 +62,8 @@ export class DurableStore {
   /**
    * @param {{ pool: import("pg").Pool | null, dir?: string | null, db?: typeof defaultDb, maxBytes?: number,
    *   logger?: Pick<Console, "info" | "warn">, probeMs?: number,
-   *   remote?: { url: string, secret: string, instance: string, batch?: number, flushMs?: number, fetch?: typeof fetch } | null }} options
+   *   remote?: { url: string, secret: string, instance: string, batch?: number, flushMs?: number, fetch?: typeof fetch,
+   *     onPing?: (body: any) => void, pingMs?: number } | null }} options
    *   `dir` null keeps no journal on disk (writes during an outage are dropped, as before).
    *   `remote` sends the journal to another server's ingest endpoint instead of writing to a database.
    */
@@ -96,6 +97,8 @@ export class DurableStore {
     this.cacheDirty = false;
     /** @type {ReturnType<typeof setTimeout> | null} */
     this.cacheTimer = null;
+    /** @type {ReturnType<typeof setInterval> | null} */
+    this.pingTimer = null;
   }
 
   get pending() {
@@ -108,6 +111,12 @@ export class DurableStore {
 
   /** Load the journal and the workers seen before; start replaying if the last run left records behind. */
   async init() {
+    // A standby asks the main server now and then, even with nothing to send: its answer carries settings (the default address).
+    if (this.remote?.onPing) {
+      this.pingTimer = setInterval(() => void this.#probe().catch(() => {}), this.remote.pingMs ?? 30_000);
+      this.pingTimer.unref();
+      void this.#probe().catch(() => {});
+    }
     if (!this.dir) return;
     await mkdir(this.dir, { recursive: true });
     try {
@@ -137,6 +146,7 @@ export class DurableStore {
 
   async stop() {
     this.stopped = true;
+    if (this.pingTimer) clearInterval(this.pingTimer);
     if (this.cacheTimer) clearTimeout(this.cacheTimer);
     await this.#saveCache();
     await this.chain;
@@ -326,6 +336,7 @@ export class DurableStore {
           headers: { "x-cluster-secret": this.remote.secret }, signal: AbortSignal.timeout(3_000),
         });
         if (response.status === 401) this.#warnOnce("The main server refused the cluster secret; check XELDASH_CLUSTER_SECRET on both servers");
+        if (response.ok && this.remote.onPing) this.remote.onPing(await response.json().catch(() => null));
         return response.ok;
       } catch {
         return false;

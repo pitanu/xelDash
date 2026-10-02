@@ -1,3 +1,4 @@
+import { rename, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { createServer as createTlsServer } from "node:tls";
 import {
@@ -73,11 +74,28 @@ const pool = ingestUrl ? null : createPool();
 const nodes = new NodePool({ urls: rpcUrlsFromEnv(process.env), onActiveChange: handleActiveChange });
 // Everything recorded goes through the store, which keeps a journal file while the database cannot be
 // reached, so mining never waits for it (see store.js). The journal lives on its own volume.
+// A standby mines to the address the main server mines to when a rig sends none. The main server says which in its readiness
+// reply; it is kept in a file on the standby's own volume, which the default-address watcher above already reads.
+const ADDRESS_FORMAT = /^(xel|xet):[a-z0-9]{30,120}$/;
+let followedAddress = "";
+/** @param {{ miningAddress?: unknown } | null} body */
+function followMainAddress(body) {
+  const address = typeof body?.miningAddress === "string" ? body.miningAddress : "";
+  if (!ADDRESS_FORMAT.test(address) || address === followedAddress) return;
+  followedAddress = address;
+  const file = process.env.XELDASH_MINING_ADDRESS_FILE;
+  if (!file) return;
+  const tmp = `${file}.tmp`;
+  writeFile(tmp, JSON.stringify({ address, source: "main server", updatedAt: new Date().toISOString() }), { mode: 0o600 })
+    .then(() => rename(tmp, file))
+    .then(() => console.info("Following the main server's default mining address"))
+    .catch((error) => console.warn("Could not save the main server's default address:", error instanceof Error ? error.message : String(error)));
+}
 const journalMegabytes = Number(process.env.STRATUM_JOURNAL_MAX_MB ?? 200);
 const instanceName = process.env.STRATUM_INSTANCE || process.env.XELDASH_SERVER_NAME || (await import("node:os")).hostname();
 const store = new DurableStore({
   pool,
-  remote: ingestUrl ? { url: ingestUrl, secret: clusterSecret, instance: instanceName } : null,
+  remote: ingestUrl ? { url: ingestUrl, secret: clusterSecret, instance: instanceName, onPing: followMainAddress } : null,
   dir: process.env.STRATUM_JOURNAL_DIR || null,
   ...(Number.isFinite(journalMegabytes) && journalMegabytes > 0 ? { maxBytes: journalMegabytes * 1048576 } : {}),
 });

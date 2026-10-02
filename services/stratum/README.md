@@ -73,7 +73,8 @@ Blocks are submitted to the node first, so a database outage never costs a block
 journals every record and sends it, in numbered batches, to the main server's `/api/v1/ingest`, which applies each
 record once. The block tracker, retention and live notifications, which need the database, are left to the main
 server. This is the second server of a two-server cluster (`docker-compose.standby.yml`; see
-[docs/OPERATIONS.md](../../docs/OPERATIONS.md#redundancy-two-servers)). `STRATUM_INSTANCE` names the sender.
+[docs/OPERATIONS.md](../../docs/OPERATIONS.md#redundancy-two-servers)). `STRATUM_INSTANCE` names the sender. A standby also asks the main server's readiness endpoint every 30 seconds, and keeps the
+default mining address it reports in `XELDASH_MINING_ADDRESS_FILE` (on its own volume), where the default-address watcher reads it.
 
 **Health.** A small HTTP server on `STRATUM_HEALTH_PORT` (8096): `/healthz` answers 200 while a node is ready to issue work
 and 503 with the reason otherwise (the cluster's address manager asks it, so the shared address leaves a server that

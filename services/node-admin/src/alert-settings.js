@@ -146,15 +146,46 @@ export class AlertSettings {
    * @returns {Promise<{ channel: string, ok: boolean, error?: string }[]>}
    */
   async test() {
+    return this.#deliver("✅ xelDash test message. If you can read this, alerts reach you.", "test", null);
+  }
+
+  /**
+   * Send an alert to every place that is set up, if this kind of alert is switched on.
+   * @param {string} text @param {string} event @returns {Promise<{ channel: string, ok: boolean, error?: string }[]>}
+   */
+  async broadcast(text, event) {
+    return this.#deliver(text, event, event);
+  }
+
+  /**
+   * Replace the settings with another server's (the standby copies the main server's), checked like anything typed in.
+   * @param {any} settings
+   */
+  async importFrom(settings) {
+    if (!settings || typeof settings !== "object") throw new AlertSettingsProblem("No alert settings to import.");
+    const str = (/** @type {unknown} */ v) => (typeof v === "string" ? v : "");
+    await this.set({
+      discordWebhookUrl: str(settings.discordWebhookUrl),
+      telegramBotToken: str(settings.telegramBotToken),
+      telegramChatId: str(settings.telegramChatId),
+      webhookUrl: str(settings.webhookUrl),
+      dashboardUrl: str(settings.dashboardUrl),
+      events: Array.isArray(settings.events) ? settings.events : [],
+      ...(Number.isSafeInteger(settings.workerOfflineMinutes) ? { workerOfflineMinutes: settings.workerOfflineMinutes } : {}),
+    });
+  }
+
+  /** @param {string} text @param {string} event @param {string | null} onlyIfEnabled */
+  async #deliver(text, event, onlyIfEnabled) {
     const s = await this.read();
-    const text = "✅ xelDash test message. If you can read this, alerts reach you.";
+    if (onlyIfEnabled && !s.events.includes(onlyIfEnabled)) return [];
     /** @type {[string, () => Promise<void>][]} */
     const jobs = [];
     if (s.discordWebhookUrl) jobs.push(["Discord", () => postJson(s.discordWebhookUrl, { content: text, allowed_mentions: { parse: [] } })]);
     if (s.telegramBotToken && s.telegramChatId) {
       jobs.push(["Telegram", () => postJson(`https://api.telegram.org/bot${s.telegramBotToken}/sendMessage`, { chat_id: s.telegramChatId, text })]);
     }
-    if (s.webhookUrl) jobs.push(["Webhook", () => postJson(s.webhookUrl, { event: "test", text, sentAt: new Date().toISOString() })]);
+    if (s.webhookUrl) jobs.push(["Webhook", () => postJson(s.webhookUrl, { event, text, sentAt: new Date().toISOString() })]);
     return Promise.all(jobs.map(async ([channel, send]) => {
       try {
         await send();

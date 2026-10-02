@@ -122,6 +122,10 @@ check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
   configuration file. The address manager checks the same values again before it builds its configuration.
 - **`.env` is private on Linux and macOS.** The launcher creates it readable by its owner only (it holds the database password,
   the admin token and the cluster secret). On Windows it has the folder's normal permissions.
+- **The standby copies the alert settings.** To send the failover alert while the main server is away, the standby asks the main
+  server for its alert settings (webhook addresses, the Telegram token) over the ingest endpoint, with the cluster secret, and
+  keeps them in its config volume. They cross your network in plain HTTP, like the rest of the cluster traffic; the same trust as
+  the secret itself (see the next point), and a reason to use the HTTPS proxy profile if your network is shared.
 - **A redundancy cluster trusts your network.** The two servers share a secret (`XELDASH_CLUSTER_SECRET`, in both
   `.env` files; keep the cluster code private). The standby sends its records to the main server over plain HTTP,
   with the secret in a header, so anyone who can read traffic on your network can read it; and the address manager

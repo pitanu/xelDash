@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { ingestRecords } from "@xeldash/db";
 
 // Where a standby server (the second server of a redundancy cluster) sends what it recorded while it
@@ -8,6 +9,17 @@ import { ingestRecords } from "@xeldash/db";
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
 const MAX_RECORDS = 2_000;
 const MIN_SECRET_LENGTH = 16;
+
+/** The address xelDash mines to when a miner sends none: chosen on the dashboard (a file on the config volume), else from .env. */
+async function miningAddress() {
+  try {
+    const saved = JSON.parse(await readFile(process.env.XELDASH_MINING_ADDRESS_FILE ?? "/config/mining-address.json", "utf8"));
+    if (typeof saved?.address === "string" && saved.address) return saved.address;
+  } catch {
+    // Not chosen on the dashboard yet.
+  }
+  return (process.env.XELIS_DEFAULT_ADDRESS ?? "").trim();
+}
 
 /** @param {string} a @param {string} b */
 function same(a, b) {
@@ -33,11 +45,11 @@ async function readBody(request) {
  * Handles /api/v1/ingest (POST: a batch) and /api/v1/ingest/ping (GET: is the database ready for one).
  * Returns false when the request is not for this module.
  * @param {{ request: import("node:http").IncomingMessage, response: import("node:http").ServerResponse, pathname: string,
- *   pool: import("pg").Pool, secret: string | undefined, send: (response: import("node:http").ServerResponse, status: number, body: unknown) => void,
+ *   pool: import("pg").Pool, secret: string | undefined, alerts: () => Promise<Record<string, unknown>>, send: (response: import("node:http").ServerResponse, status: number, body: unknown) => void,
  *   logger?: Pick<Console, "info" | "warn"> }} context
  */
-export async function handleIngest({ request, response, pathname, pool, secret, send, logger = console }) {
-  if (pathname !== "/api/v1/ingest" && pathname !== "/api/v1/ingest/ping") return false;
+export async function handleIngest({ request, response, pathname, pool, secret, alerts, send, logger = console }) {
+  if (pathname !== "/api/v1/ingest" && pathname !== "/api/v1/ingest/ping" && pathname !== "/api/v1/ingest/alerts") return false;
   if (!secret || secret.length < MIN_SECRET_LENGTH) {
     send(response, 404, { error: "not_found" });
     return true;
@@ -49,7 +61,14 @@ export async function handleIngest({ request, response, pathname, pool, secret, 
   }
   if (pathname === "/api/v1/ingest/ping") {
     await pool.query("SELECT 1");
-    send(response, 200, { ok: true });
+    // The standby follows the main server's default address, so changing it on the dashboard needs nothing on the second server.
+    send(response, 200, { ok: true, miningAddress: await miningAddress() });
+    return true;
+  }
+  if (pathname === "/api/v1/ingest/alerts") {
+    // A standby keeps a copy so it can send the failover alert itself while this server is away. They are secrets (webhook
+    // addresses, a Telegram token) and travel over your network with the cluster secret: see docs/SECURITY.md.
+    send(response, 200, await alerts());
     return true;
   }
   if (request.method !== "POST") {

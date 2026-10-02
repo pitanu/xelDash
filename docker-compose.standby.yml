@@ -51,6 +51,10 @@ services:
       XELIS_SNAPSHOT_URL: ${XELIS_SNAPSHOT_URL:-}
       XELIS_SNAPSHOT_CHECKSUM_URL: ${XELIS_SNAPSHOT_CHECKSUM_URL:-}
       XELDASH_DISK_WARN_GB: ${XELDASH_DISK_WARN_GB:-20}
+      # Alerts: it copies the main server's settings and sends the failover alert itself while the main server is away.
+      XELDASH_PRIMARY_URL: ${XELDASH_PRIMARY_URL:?Run xeldash cluster join}
+      XELDASH_CLUSTER_SECRET: ${XELDASH_CLUSTER_SECRET:?Run xeldash cluster join}
+      XELDASH_SERVER_NAME: ${XELDASH_SERVER_NAME:-standby}
     volumes:
       - xelis-data:/data
       - xeldash-config:/config
@@ -79,6 +83,8 @@ services:
       XELDASH_CLUSTER_SECRET: ${XELDASH_CLUSTER_SECRET:?Run xeldash cluster join}
       STRATUM_INSTANCE: ${XELDASH_SERVER_NAME:-standby}
       STRATUM_JOURNAL_DIR: /spool
+      # The default address follows the main server's (kept here, on the standby's own volume).
+      XELDASH_MINING_ADDRESS_FILE: /spool/mining-address.json
       STRATUM_JOURNAL_MAX_MB: ${STRATUM_JOURNAL_MAX_MB:-200}
       STRATUM_START_DIFFICULTY: ${STRATUM_START_DIFFICULTY:-100000}
       STRATUM_MIN_DIFFICULTY: ${STRATUM_MIN_DIFFICULTY:-1000}

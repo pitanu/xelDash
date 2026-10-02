@@ -34,6 +34,7 @@ streaming uploads without buffering. Reads are open; every change needs
 | `GET/PUT /auto-update` | Optional automatic updates (off by default, two local nodes needed) |
 | `GET/PUT /fallback` | The official node fallback switch, read by Stratum and the API |
 | `GET /disk` | Free space on the disk(s) the nodes use, and the warning level (`XELDASH_DISK_WARN_GB`); a `disk_low` event is recorded when it runs low. Under Docker Desktop it reads the computer's drive through a read-only mount (`docker/hostdisk`), since the virtual disk reports its own size |
+| (standby only) | With `XELDASH_PRIMARY_URL` and `XELDASH_CLUSTER_SECRET` set (the second server of a cluster), `src/standby.js` copies the main server's alert settings every minute and, when this server takes over the shared address while the main server cannot be reached, sends the failover alert itself |
 | `GET /cluster` | This server's role in a two-server cluster (`MASTER`, `BACKUP`, `FAULT`), from the address manager's role file; changes are recorded as events, which become alerts. `{ "configured": false }` without a cluster |
 | `GET /backup` | Admin token. Streams a `pg_dump` of the statistics database as a download (the same file `xeldash backup` writes) |
 | `GET/PUT /alerts`, `POST /alerts/test` | Where alerts go (Discord, Telegram, webhook) and which ones, kept in `alerts.json` on the config volume, which the API watches. Secrets are shown only by their last four characters; the test sends one message to each place and says which arrived |

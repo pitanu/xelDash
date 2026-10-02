@@ -21,7 +21,9 @@ LISTEN/NOTIFY relayed to browsers), and alerts (`src/alerts.js`).
   watched and applied within seconds), else the `ALERT_*` values from `.env`.
 - **Ingest** (`src/ingest.js`, `POST /api/v1/ingest`, `GET /api/v1/ingest/ping`): where a standby server sends what it
   recorded, in batches, when the cluster has two servers. Needs `XELDASH_CLUSTER_SECRET` (the endpoints do not exist
-  without it); each record is applied once, by per-sender sequence number (`ingest_progress`, migration 008).
+  without it); each record is applied once, by per-sender sequence number (`ingest_progress`, migration 008), after its shape
+  is checked. The readiness reply also carries the default mining address, and `GET /api/v1/ingest/alerts` the alert
+  settings, for a standby to copy.
 - **Updates** (`src/update.js`, `/api/v1/version`): the running version and the newest tagged release of xelDash on
   GitHub (every 6 hours; `XELDASH_VERSION_CHECK=off`; `XELDASH_UPDATE_REPO` for a fork).
 - **Mining availability** (`/api/v1/uptime`, `src/uptime.js`): the share of a window in which work could be

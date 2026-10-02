@@ -121,6 +121,8 @@ First public version, planned as 0.1.0.
 
 ### Operations
 
+- In a two-server cluster the standby follows the main server's default wallet address, and sends the failover alert itself when the
+  main server cannot be reached (it keeps a copy of the main server's alert settings).
 - Pruning is documented with measured sizes (a mainnet node goes from about 10.6 GB to about 6 GB, whatever number of blocks is
   kept, and the space returns only after a restart), the Settings help for it says so, and on a pruned node a block the
   node no longer knows stays pending instead of being marked orphaned.

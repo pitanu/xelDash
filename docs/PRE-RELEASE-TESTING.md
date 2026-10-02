@@ -126,6 +126,10 @@ Only the failover logic has been tested so far, with containers on one machine; 
       and the Health page says "Cannot mine".
 - [ ] After the main server returns as standby, an alert "standing by again" arrives (alert type "A server takes over
       the shared address"); and when the main server's node is stopped, an alert says it cannot mine.
+- [ ] Change the default wallet address on the main server's Settings page: within a minute `docker compose exec stratum cat
+      /spool/mining-address.json` on the standby shows the new one.
+- [ ] With a real Discord or Telegram alert set up on the main server: switch the main server off. The standby sends one
+      failover alert within a minute or two, and none while the main server is on.
 - [ ] Both servers on a Raspberry Pi (arm64), if you have one.
 
 ## 6. Nodes and upgrades
