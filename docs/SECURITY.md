@@ -106,6 +106,13 @@ check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
   a router that is fine; on a computer with a public address, or if you forward xelDash's ports on
   your router, anyone on the internet could read the dashboard and use your mining server. Never
   forward its ports.
+- **A redundancy cluster trusts your network.** The two servers share a secret (`XELDASH_CLUSTER_SECRET`, in both
+  `.env` files; keep the cluster code private). The standby sends its records to the main server over plain HTTP,
+  with the secret in a header, so anyone who can read traffic on your network can read it; and the address manager
+  uses VRRP, which has no strong authentication, so a computer on your network can announce itself and take the
+  shared address (your rigs would then mine for it, not you, if it also ran Stratum with another address). Both are
+  the same trust as letting people on your network mine through xelDash at all. Use the HTTPS proxy profile for the
+  main server if your network is shared with people you do not trust.
 - **The wallet link is only a link.** The setup page points to the official web wallet at
   wallet.xelis.io. xelDash never sees a recovery phrase, and cannot move coins.
 - **Outbound requests.** Besides the XELIS network, xelDash contacts: GitHub (latest release,

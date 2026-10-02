@@ -89,6 +89,7 @@ cannot move your coins. If anything asks you for them, it is not xelDash.
 | Show the admin password | `xeldash token` | `./xeldash.sh token` |
 | Let other computers on your network use it | `xeldash lan on` | `./xeldash.sh lan on` |
 | Update xelDash | `xeldash update` | `./xeldash.sh update` |
+| Two Linux servers sharing one address (redundancy) | not on Windows | `./xeldash.sh cluster setup` |
 | Save a backup of your statistics | `xeldash backup` | `./xeldash.sh backup` |
 | Put a backup back | `xeldash restore FILE` | `./xeldash.sh restore FILE` |
 | See the logs | `xeldash logs` | `./xeldash.sh logs` |

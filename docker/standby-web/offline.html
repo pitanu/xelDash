@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>xelDash: dashboard offline</title>
+  <style>
+    :root { color-scheme: light dark; --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --line: rgba(11,11,11,.12); --good: #0b7a0b; --warn: #8a5a00; --bad: #c33232; }
+    @media (prefers-color-scheme: dark) { :root { --page: #0d0d0d; --surface: #1a1a19; --ink: #fff; --ink-2: #c3c2b7; --line: rgba(255,255,255,.14); --good: #3fbf3f; --warn: #fab219; --bad: #f07a7a; } }
+    body { margin: 0; background: var(--page); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 40rem; margin: 0 auto; padding: 2.5rem 1rem; }
+    h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+    p { margin: .6rem 0; color: var(--ink-2); }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: .6rem; padding: 1rem 1.2rem; margin: 1.2rem 0; }
+    .ok { color: var(--good); font-weight: 600; } .warn { color: var(--warn); font-weight: 600; } .bad { color: var(--bad); font-weight: 600; }
+    dl { display: grid; grid-template-columns: auto 1fr; gap: .3rem 1rem; margin: .5rem 0 0; } dt { color: var(--ink-2); } dd { margin: 0; font-variant-numeric: tabular-nums; }
+    small { color: var(--ink-2); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Dashboard offline</h1>
+  <p>The main xelDash server cannot be reached right now. It may be restarting, updating or switched off.</p>
+  <div class="card" role="status" aria-live="polite">
+    <p id="verdict" class="warn" style="margin-top:0">Checking this backup server...</p>
+    <p id="reassure"></p>
+    <dl id="facts" hidden>
+      <dt>Rigs connected here</dt><dd id="rigs">-</dd>
+      <dt>Waiting for the main server</dt><dd id="pending">-</dd>
+    </dl>
+  </div>
+  <p>This page reconnects by itself when the main server is back. You do not need to do anything.</p>
+  <p><small>You are looking at the backup server's page. Your statistics are on the main server and will catch up.</small></p>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  async function status() {
+    try {
+      const r = await fetch("/standby/status.json", { cache: "no-store" });
+      const s = await r.json();
+      const rigs = Number(s.rigs ?? 0);
+      const waiting = Number(s.journal?.pending ?? 0);
+      if (s.ok) {
+        $("verdict").className = "ok";
+        $("verdict").textContent = rigs > 0 ? "Mining continues on this backup server." : "This backup server is ready to mine.";
+        $("reassure").textContent = rigs > 0
+          ? "Your rigs are connected here and keep finding shares and blocks. Rewards are paid to your wallet address as always, and nothing is lost: this server keeps a record of everything and sends it to the main server when it returns."
+          : "This server is ready and will take over mining. Rigs connected to your shared address end up here automatically. Nothing is lost: this server keeps a record of everything it sees.";
+        $("facts").hidden = false;
+        $("rigs").textContent = String(rigs);
+        $("pending").textContent = waiting === 0 ? "nothing" : waiting + " record" + (waiting === 1 ? "" : "s");
+      } else {
+        $("verdict").className = "warn";
+        $("verdict").textContent = "This backup server is not ready to mine yet.";
+        $("reassure").textContent = "Reason: " + (s.reason || "starting up") + ". It will start mining as soon as it is ready.";
+        $("facts").hidden = true;
+      }
+    } catch {
+      $("verdict").className = "bad";
+      $("verdict").textContent = "Cannot read this backup server's status.";
+      $("reassure").textContent = "";
+      $("facts").hidden = true;
+    }
+  }
+  async function primary() {
+    try {
+      const r = await fetch("/standby/primary", { cache: "no-store" });
+      if (r.ok) location.reload();
+    } catch { /* still offline */ }
+  }
+  status(); setInterval(status, 3000); setInterval(primary, 5000);
+</script>
+</body>
+</html>

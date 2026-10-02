@@ -10,6 +10,7 @@ const EVENT_LABELS = /** @type {Record<string, string>} */ ({
   worker_offline: "A worker stops sending shares",
   node_update: "A node is updated",
   disk_low: "The disk is running low on space",
+  cluster: "A server takes over the shared address (redundancy)",
 });
 
 /**

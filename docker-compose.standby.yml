@@ -1,0 +1,143 @@
+name: xeldash-standby
+
+# The second server of a redundancy cluster (`xeldash cluster join`). It runs its own XELIS node and Stratum, but no
+# database and no dashboard of its own: it records through the main server (STRATUM_INGEST_URL), keeping a journal
+# file while the main server is away, and its web page shows the main server's dashboard, or an "offline" page that
+# says mining continues. The shared address (keepalived) moves here when the main server cannot mine.
+# Linux with Docker Engine only. See docs/OPERATIONS.md#redundancy-two-servers.
+
+services:
+  daemon:
+    image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/daemon:${XELDASH_VERSION:-local}
+    build:
+      context: docker/daemon
+      args:
+        XELIS_DAEMON_IMAGE: ${XELIS_DAEMON_IMAGE:-xelis/daemon:1.25.0}
+    command:
+      - --network=${XELIS_NETWORK:-mainnet}
+      - --rpc-bind-address=0.0.0.0:8080
+      - --dir-path=/root/.xelis/
+    restart: unless-stopped
+    environment:
+      XELIS_NETWORK: ${XELIS_NETWORK:-mainnet}
+    volumes:
+      - xelis-data:/root/.xelis
+    depends_on:
+      node-admin:
+        condition: service_healthy
+    ports:
+      - "${XELIS_P2P_BIND_IP:-127.0.0.1}:${XELIS_P2P_PORT:-2125}:2125"
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "busybox", "sh", "-c", "test -f /root/.xelis/.xeldash/BOOTSTRAPPING || test -f /root/.xelis/.xeldash/STOP || busybox wget -q -O - --header 'Content-Type: application/json' --post-data '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"get_version\"}' http://127.0.0.1:8080/json_rpc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Node administration: keeps the node's data volume in shape (the first-start snapshot, settings, upgrades).
+  # It has no database here, so it only logs what it would record as events.
+  node-admin:
+    image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/node-admin:${XELDASH_VERSION:-local}
+    build:
+      context: .
+      dockerfile: services/node-admin/Dockerfile
+    restart: unless-stopped
+    environment:
+      XELIS_NETWORK: ${XELIS_NETWORK:-mainnet}
+      XELDASH_ADMIN_TOKEN: ${XELDASH_ADMIN_TOKEN:-}
+      XELIS_SNAPSHOT_AUTO: ${XELIS_SNAPSHOT_AUTO:-true}
+      XELIS_SNAPSHOT_URL: ${XELIS_SNAPSHOT_URL:-}
+      XELIS_SNAPSHOT_CHECKSUM_URL: ${XELIS_SNAPSHOT_CHECKSUM_URL:-}
+      XELDASH_DISK_WARN_GB: ${XELDASH_DISK_WARN_GB:-20}
+    volumes:
+      - xelis-data:/data
+      - xeldash-config:/config
+      - ./docker/hostdisk:/hostdisk:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8095/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  stratum:
+    image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/stratum:${XELDASH_VERSION:-local}
+    build:
+      context: .
+      dockerfile: services/stratum/Dockerfile
+    restart: unless-stopped
+    environment:
+      XELIS_RPC_URLS: http://daemon:8080/json_rpc
+      STRATUM_HOST: 0.0.0.0
+      STRATUM_PORT: 3333
+      XELIS_DEFAULT_ADDRESS: ${XELIS_DEFAULT_ADDRESS:-}
+      XELDASH_ALLOWED_NETWORKS: ${XELDASH_ALLOWED_NETWORKS:-private}
+      # No database: everything is sent to the main server, and kept in a journal file while it is away.
+      STRATUM_INGEST_URL: ${XELDASH_PRIMARY_URL:?Run xeldash cluster join}
+      XELDASH_CLUSTER_SECRET: ${XELDASH_CLUSTER_SECRET:?Run xeldash cluster join}
+      STRATUM_INSTANCE: ${XELDASH_SERVER_NAME:-standby}
+      STRATUM_JOURNAL_DIR: /spool
+      STRATUM_JOURNAL_MAX_MB: ${STRATUM_JOURNAL_MAX_MB:-200}
+      STRATUM_START_DIFFICULTY: ${STRATUM_START_DIFFICULTY:-100000}
+      STRATUM_MIN_DIFFICULTY: ${STRATUM_MIN_DIFFICULTY:-1000}
+      STRATUM_TARGET_SHARE_SECONDS: ${STRATUM_TARGET_SHARE_SECONDS:-10}
+      STRATUM_STALE_GRACE_MS: ${STRATUM_STALE_GRACE_MS:-1500}
+      STRATUM_TLS_ENABLED: "false"
+    ports:
+      - "${XELDASH_STRATUM_BIND_IP:-0.0.0.0}:${XELDASH_STRATUM_PORT:-3333}:3333"
+      - "${XELDASH_STRATUM_BIND_IP:-0.0.0.0}:${XELDASH_GETWORK_PORT:-8090}:8090"
+      # Whether this server can give work right now; only on this computer, for the address manager.
+      - "127.0.0.1:${XELDASH_STRATUM_HEALTH_PORT:-8096}:8096"
+    volumes:
+      - xeldash-spool:/spool
+    depends_on:
+      daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "const n=require('node:net');const s=n.connect(3333,'127.0.0.1');s.once('connect',()=>{s.end();process.exit(0)});s.once('error',()=>process.exit(1));"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # The standby's web page: the main server's dashboard, or an "offline" page that says mining continues.
+  web:
+    image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/standby-web:${XELDASH_VERSION:-local}
+    build:
+      context: docker/standby-web
+    restart: unless-stopped
+    environment:
+      PRIMARY_URL: ${XELDASH_PRIMARY_URL:?Run xeldash cluster join}
+      STANDBY_STATUS_URL: http://stratum:8096
+    ports:
+      - "${XELDASH_WEB_BIND_IP:-0.0.0.0}:${XELDASH_WEB_PORT:-8088}:8080"
+    depends_on:
+      - stratum
+
+  # Holds the cluster's shared address while this server is the one that can mine.
+  keepalived:
+    image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/keepalived:${XELDASH_VERSION:-local}
+    build:
+      context: docker/keepalived
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_BROADCAST
+      - NET_RAW
+    environment:
+      XELDASH_VIP: ${XELDASH_VIP:?Run xeldash cluster join}
+      XELDASH_CLUSTER_ID: ${XELDASH_CLUSTER_ID:?Run xeldash cluster join}
+      XELDASH_VIP_INTERFACE: ${XELDASH_VIP_INTERFACE:-}
+      XELDASH_CLUSTER_PRIORITY: ${XELDASH_CLUSTER_PRIORITY:-100}
+      XELDASH_STRATUM_HEALTH_PORT: ${XELDASH_STRATUM_HEALTH_PORT:-8096}
+      XELDASH_SERVER_NAME: ${XELDASH_SERVER_NAME:-standby}
+    volumes:
+      - xeldash-config:/config
+
+volumes:
+  xelis-data:
+  xeldash-config:
+  xeldash-spool:

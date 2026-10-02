@@ -358,6 +358,59 @@ With a single node, Stratum pauses work and disconnects miners while the new dae
 and catches up, and resumes on its own once it is in sync. The Health page shows "Paused"
 meanwhile. To upgrade without stopping mining, run two nodes (next section).
 
+## Redundancy: two servers
+
+Two computers can share one address, so that mining carries on if one of them loses power, is switched off, or
+restarts to update. Your miners connect to the shared address only, and it is always held by a server that can
+mine. **Both servers must run Linux with Docker Engine** (a Raspberry Pi is fine) on the same home network.
+Docker Desktop on Windows and macOS runs containers in a virtual machine that cannot hold an address on your
+network, so a Windows or macOS computer can be your single server but not part of a cluster.
+
+| | Main server | Second server (standby) |
+|---|---|---|
+| Runs | everything: database, API, dashboard, node, Stratum | its own node, Stratum and the address manager; no database, no dashboard of its own |
+| Records | the one database | nothing locally: it sends what it records to the main server |
+| Dashboard | the real one | the main server's, or an "offline" page |
+
+**Set up**
+
+1. On your existing server: `./xeldash.sh cluster setup`. It suggests an unused address on your network for sharing,
+   starts the address manager, and prints a code.
+2. On the second Linux computer (xelDash downloaded, nothing else needed): `./xeldash.sh cluster join CODE`. It copies
+   the network and mining address from the code, starts its own node (the first time it downloads the blockchain,
+   about 10 GB), and stands by.
+3. Point **every miner at the shared address** (port 3333), once. That is the only address any miner needs.
+
+`./xeldash.sh cluster status` shows which server holds the address, and the Health page has a Redundancy card.
+
+**What happens when a server stops.** The other server claims the shared address within a few seconds (about 3 to 8 in
+tests) and your rigs reconnect to it by themselves, with rewards going to the same wallet address as before. A server
+whose node is not ready, or whose mining server is down, gives the address up in the same way even while powered on.
+A server that comes back stands by; it does not take the address back, so there is no second interruption.
+
+**While the main server is away**, the second server keeps mining and keeps a journal file of everything it
+records (shares, blocks, events), and sends it to the main server when it returns; nothing is lost and the
+statistics catch up. Its page at its own address (or the shared address) shows a "Dashboard offline" notice saying
+mining continues, with how many rigs are connected and how many records are waiting. When the main server is back
+that page shows its dashboard again by itself. The standby has no database, so **no statistics and no alerts are
+available while the main server is down**; they resume when it returns. Alerts (type "A server takes over the shared
+address") are sent by the main server, so they report what it sees itself: that it cannot mine and gave the address
+up, or that it is back and standing by. When the whole main server is down, nothing is running to send an alert, so
+you hear about it when it returns. (A basic alert sent from the standby is not built yet.)
+
+**Limits to know**
+
+- Both servers need to reach each other over the network; the standby sends its records to the main server's
+  dashboard address, so keep the main server's address stable (give it a fixed address in your router).
+- The standby's default wallet address is the one in the code. A rig that sends its own address (most do) is not
+  affected; if you change the default address on the main server, change `XELIS_DEFAULT_ADDRESS` in the standby's
+  `.env` too and run `docker compose up -d` there.
+- This is protection against one server failing, not against both, or against the router or the network.
+- Each server runs and syncs its own node. The standby's node needs the same disk space as the main one.
+- Remove a cluster with `./xeldash.sh cluster off` on the main server, and delete the standby.
+- A Windows computer as the main server with a Linux computer as a backup cannot share an address. That variant (a
+  Linux box in front that forwards to the Windows server first) is not built yet.
+
 ## Redundant nodes
 
 Stratum can mine through several XELIS nodes. It uses the first node in the list that is in

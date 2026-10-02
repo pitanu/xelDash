@@ -7,6 +7,7 @@
 #   ./xeldash.sh lan on|off|status    let other computers on your network use xelDash
 #   ./xeldash.sh update     get the newest xelDash and restart it
 #   ./xeldash.sh backup     save a copy of your statistics to the backups folder
+#   ./xeldash.sh cluster setup|join CODE|status|off   two Linux servers sharing one address, for redundancy
 #   ./xeldash.sh restore FILE   put a backup back (replaces the current statistics)
 #
 # Options for install (all optional; without them it asks):
@@ -327,7 +328,143 @@ cmd_restore() {
   ok "Backup restored and xelDash is running."
 }
 
-usage() { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; }
+# ---------------------------------------------------------------- cluster (two servers, Linux only)
+
+cluster_need_linux() {
+  [ "$(uname -s)" = Linux ] || die "Redundancy between two servers needs Linux with Docker Engine. Docker Desktop (Windows, macOS) cannot hold a shared address on your network. See docs/OPERATIONS.md#redundancy-two-servers"
+  if grep -qiE 'microsoft|linuxkit' /proc/sys/kernel/osrelease 2>/dev/null || docker info --format '{{.OperatingSystem}}' 2>/dev/null | grep -qi 'docker desktop'; then
+    die "This Docker runs in a virtual machine (Docker Desktop or WSL), which cannot hold a shared address on your network. Use Linux with Docker Engine. See docs/OPERATIONS.md#redundancy-two-servers"
+  fi
+}
+
+# The address of this computer with its prefix length, e.g. 192.168.1.10/24.
+lan_cidr() { ip -o -4 addr show scope global 2>/dev/null | awk -v ip="$1" 'index($4, ip "/") == 1 { print $4; exit }'; }
+
+# An address near the top of the home network that nothing answers on, to share between the two servers.
+suggest_vip() {
+  local base="${1%.*}" n
+  for n in 250 249 248 247 246 245 244 243 242 241 240; do
+    if ! ping -c1 -W1 "$base.$n" >/dev/null 2>&1 && ! ip neigh show "$base.$n" 2>/dev/null | grep -q lladdr; then printf '%s' "$base.$n"; return; fi
+  done
+}
+
+json_get() { sed -n 's/.*"'"$1"'":"\{0,1\}\([^",}]*\)"\{0,1\}.*/\1/p' | head -1; }
+
+cluster_setup() {
+  [ -f .env ] || die "xelDash is not set up yet. Run ./xeldash.sh first, then come back."
+  check_docker; cluster_need_linux
+  [ -z "$(get_env XELDASH_VIP)" ] || die "This server is already part of a cluster. Show it with: ./xeldash.sh cluster status"
+  local vip="" yes="" arg
+  for arg in "$@"; do case "$arg" in --yes) yes=1 ;; --vip=*) vip="${arg#--vip=}" ;; esac; done
+  local ip; ip="$(lan_ip)"
+  [ -n "$ip" ] && is_private_ip "$ip" || die "Could not find this server's address on your home network. Set it up with ./xeldash.sh lan on first."
+  local cidr prefix; cidr="$(lan_cidr "$ip")"; prefix="${cidr#*/}"; [ -n "$prefix" ] && [ "$prefix" != "$cidr" ] || prefix=24
+  if [ -z "$vip" ]; then
+    local guess; guess="$(suggest_vip "$ip")"
+    say ""
+    say "Your two servers will share one address, and your miners connect to it. It must be an unused address on your home network"
+    say "(outside your router's automatic range if you can; your router's settings show it)."
+    if [ -n "$yes" ]; then vip="$guess"; else read -r -p "Shared address [$guess]: " vip || vip=""; vip="${vip:-$guess}"; fi
+  fi
+  [[ "$vip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && is_private_ip "$vip" || die "That is not a home-network address: $vip"
+  [ "$vip" != "$ip" ] || die "The shared address must differ from this server's own address ($ip)."
+  ping -c1 -W1 "$vip" >/dev/null 2>&1 && die "Something already answers on $vip. Pick an address nothing uses."
+
+  local id secret name; id=$(( 1 + 0x$(random_hex 1) % 254 )); secret="$(random_hex 16)"; name="$(hostname)"
+  lan_on "$ip" >/dev/null || true
+  set_env XELDASH_CLUSTER_SECRET "$secret"
+  set_env XELDASH_CLUSTER_ID "$id"
+  set_env XELDASH_VIP "$vip/$prefix"
+  set_env XELDASH_SERVER_NAME "$name"
+  set_env XELDASH_PUBLIC_HOST "$vip"
+  set_env COMPOSE_FILE "docker-compose.yml:docker-compose.cluster.yml"
+  say "Starting the address manager..."
+  compose_up
+  # What the second server needs to know, as one code to paste.
+  local address network primary json code
+  address="$(curl -s -m 3 "http://127.0.0.1:$(web_port)/api/v1/node/mining-address" 2>/dev/null | json_get address)"
+  network="$(get_env XELIS_NETWORK)"; primary="http://$ip:$(web_port)"
+  json="$(printf '{"v":1,"vip":"%s/%s","id":%s,"secret":"%s","network":"%s","address":"%s","primary":"%s","name":"%s"}' "$vip" "$prefix" "$id" "$secret" "${network:-mainnet}" "$address" "$primary" "$name")"
+  code="xelcluster1:$(printf '%s' "$json" | base64 | tr -d '\n')"
+  ok "This server is set up. Miners should connect to $vip (port 3333). It is shared with your second server."
+  say ""
+  say "Now set up the second server (Linux, on the same network):"
+  say "  1. Download xelDash there, and run:   ${B}./xeldash.sh cluster join $code${N}"
+  say "  2. Wait for it to finish syncing its node (the first time it downloads the blockchain)."
+  say "Keep that code private: it holds the cluster secret. Show the cluster any time with: ./xeldash.sh cluster status"
+}
+
+cluster_join() {
+  local code="${1:-}"
+  [ -n "$code" ] || die "Say which cluster to join: ./xeldash.sh cluster join xelcluster1:..."
+  check_docker; cluster_need_linux
+  case "$code" in xelcluster1:*) ;; *) die "That is not a cluster code. It starts with xelcluster1:" ;; esac
+  local json; json="$(printf '%s' "${code#xelcluster1:}" | base64 -d 2>/dev/null)" || die "The cluster code is damaged. Copy it again in full."
+  local vip id secret network address primary name
+  vip="$(printf '%s' "$json" | json_get vip)"; id="$(printf '%s' "$json" | json_get id)"; secret="$(printf '%s' "$json" | json_get secret)"
+  network="$(printf '%s' "$json" | json_get network)"; address="$(printf '%s' "$json" | json_get address)"
+  primary="$(printf '%s' "$json" | json_get primary)"; name="$(printf '%s' "$json" | json_get name)"
+  [ -n "$vip" ] && [ -n "$id" ] && [ -n "$secret" ] && [ -n "$primary" ] || die "The cluster code is incomplete. Copy it again in full."
+  [ -f .env ] || cp .env.example .env
+  [ -z "$(get_env XELDASH_PRIMARY_URL)" ] || die "This server already joined a cluster."
+  set_env XELIS_NETWORK "${network:-mainnet}"
+  set_env XELIS_SNAPSHOT_AUTO true
+  set_env XELDASH_PRIMARY_URL "$primary"
+  set_env XELDASH_CLUSTER_SECRET "$secret"
+  set_env XELDASH_CLUSTER_ID "$id"
+  set_env XELDASH_VIP "$vip"
+  [ -z "$address" ] || set_env XELIS_DEFAULT_ADDRESS "$address"
+  set_env XELDASH_SERVER_NAME "$(hostname)"
+  [ -n "$(get_env XELDASH_ADMIN_TOKEN)" ] || set_env XELDASH_ADMIN_TOKEN "$(random_hex 24)"
+  set_env XELDASH_WEB_BIND_IP 0.0.0.0
+  set_env XELDASH_STRATUM_BIND_IP 0.0.0.0
+  set_env COMPOSE_FILE "docker-compose.standby.yml"
+  if ! curl -fs -m 5 -H "x-cluster-secret: $secret" "$primary/api/v1/ingest/ping" >/dev/null 2>&1; then
+    warn "The main server at $primary did not answer. Check that it is running and that the code is right. Continuing: this server keeps its records and sends them when the main server answers."
+  else
+    ok "The main server answers."
+  fi
+  say "Starting this server. The first time it downloads the blockchain (about 10 GB) and builds or pulls the images."
+  compose_up
+  ok "This server is the standby. It takes over the shared address by itself if the main server stops."
+  say "  Its page (the main dashboard, or an offline notice) is at http://$(lan_ip):$(web_port)"
+}
+
+cluster_status() {
+  [ -f .env ] || die "xelDash is not set up yet. Run ./xeldash.sh first."
+  [ -n "$(get_env XELDASH_VIP)" ] || { say "This server is not part of a cluster. Set one up with: ./xeldash.sh cluster setup"; return; }
+  check_docker
+  local role="standby server"; [ -z "$(get_env XELDASH_PRIMARY_URL)" ] && role="main server"
+  say "This is the $role. Shared address: $(get_env XELDASH_VIP)  (miners connect to its port 3333)"
+  local state; state="$(docker compose exec -T keepalived cat /config/cluster.json 2>/dev/null | json_get state)"
+  case "$state" in
+    MASTER) say "It holds the shared address now: your rigs mine on this server." ;;
+    BACKUP) say "It is standing by: your rigs mine on the other server." ;;
+    FAULT)  say "It cannot mine right now (its node is not ready), so it gave the address to the other server." ;;
+    *)      say "The address manager is not running. Start it with: ./xeldash.sh start" ;;
+  esac
+}
+
+cluster_off() {
+  [ -n "$(get_env XELDASH_VIP)" ] || die "This server is not part of a cluster."
+  [ -z "$(get_env XELDASH_PRIMARY_URL)" ] || die "This is the standby server. To remove it, run: docker compose down -v, and delete this folder. The main server keeps working on its own after ./xeldash.sh cluster off."
+  check_docker
+  set_env XELDASH_VIP ""; set_env XELDASH_CLUSTER_ID ""; set_env XELDASH_CLUSTER_SECRET ""; set_env COMPOSE_FILE ""
+  docker compose up -d --remove-orphans >/dev/null
+  ok "This server is on its own again. Point your miners back at this server's own address."
+}
+
+cmd_cluster() {
+  case "${1:-status}" in
+    setup)  shift; cluster_setup "$@" ;;
+    join)   shift; cluster_join "$@" ;;
+    status) cluster_status ;;
+    off)    cluster_off ;;
+    *)      die "Use: ./xeldash.sh cluster setup | join CODE | status | off" ;;
+  esac
+}
+
+usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; }
 
 case "${1:-}" in
   "")       if [ -f .env ]; then check_docker; docker compose ps; say ""; say "Dashboard: http://localhost:$(web_port)   (more: ./xeldash.sh help)"; else cmd_install; fi ;;
@@ -341,6 +478,7 @@ case "${1:-}" in
   token)    t="$(get_env XELDASH_ADMIN_TOKEN)"; [ -n "$t" ] && say "$t" || die "No admin password is set in .env." ;;
   lan)      shift; cmd_lan "$@" ;;
   update)   cmd_update ;;
+  cluster)  shift; cmd_cluster "$@" ;;
   backup)   cmd_backup ;;
   restore)  shift; cmd_restore "$@" ;;
   help|-h|--help) usage ;;

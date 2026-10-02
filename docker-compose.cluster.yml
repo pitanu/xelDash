@@ -1,0 +1,29 @@
+# Added to the main server by `xeldash cluster setup` (through COMPOSE_FILE in .env): the address manager
+# that holds the cluster's shared address, and Stratum's health port, which it asks. Linux with Docker Engine
+# only: Docker Desktop cannot claim an address on your network. See docs/OPERATIONS.md#redundancy-two-servers.
+services:
+  stratum:
+    ports:
+      # Whether this server can give work right now; only on this computer, for the address manager.
+      - "127.0.0.1:${XELDASH_STRATUM_HEALTH_PORT:-8096}:8096"
+
+  keepalived:
+    image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/keepalived:${XELDASH_VERSION:-local}
+    build:
+      context: docker/keepalived
+    restart: unless-stopped
+    # Host networking and these capabilities let it add the shared address to this computer's network card.
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_BROADCAST
+      - NET_RAW
+    environment:
+      XELDASH_VIP: ${XELDASH_VIP:?Run xeldash cluster setup}
+      XELDASH_CLUSTER_ID: ${XELDASH_CLUSTER_ID:?Run xeldash cluster setup}
+      XELDASH_VIP_INTERFACE: ${XELDASH_VIP_INTERFACE:-}
+      XELDASH_CLUSTER_PRIORITY: ${XELDASH_CLUSTER_PRIORITY:-100}
+      XELDASH_STRATUM_HEALTH_PORT: ${XELDASH_STRATUM_HEALTH_PORT:-8096}
+      XELDASH_SERVER_NAME: ${XELDASH_SERVER_NAME:-}
+    volumes:
+      - xeldash-config:/config

@@ -11,6 +11,7 @@ import Health from "./pages/Health.jsx";
 import NodeData from "./pages/NodeData.jsx";
 import Settings from "./pages/Settings.jsx";
 import BlockBanner from "./components/BlockBanner.jsx";
+import { ClusterBanner } from "./components/ClusterCard.jsx";
 import OfflineNotice from "./components/OfflineNotice.jsx";
 import UpdateNotice, { VersionFooter } from "./components/UpdateNotice.jsx";
 import { ThemeButton } from "./components/ThemeSetting.jsx";
@@ -165,6 +166,7 @@ export default function App() {
         </div>
       </header>
       <OfflineNotice />
+      <ClusterBanner />
       <UpdateNotice />
       <BlockBanner />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">

@@ -7,6 +7,7 @@
 #   .\xeldash.cmd lan on|off|status    let other computers on your network use xelDash
 #   .\xeldash.cmd update     get the newest xelDash and restart it
 #   .\xeldash.cmd backup     save a copy of your statistics to the backups folder
+#   .\xeldash.cmd cluster   two Linux servers sharing one address (not on Windows: see docs)
 #   .\xeldash.cmd restore FILE   put a backup back (replaces the current statistics)
 #
 # Options for install (all optional; without them it asks):
@@ -418,7 +419,7 @@ function Invoke-Restore([string[]]$Arguments) {
 }
 
 function Show-Usage {
-    Get-Content -LiteralPath $PSCommandPath -TotalCount 18 | Select-Object -Skip 1 | ForEach-Object { Say ($_ -replace '^# ?', '') }
+    Get-Content -LiteralPath $PSCommandPath -TotalCount 19 | Select-Object -Skip 1 | ForEach-Object { Say ($_ -replace '^# ?', '') }
 }
 
 # ---------------------------------------------------------------- dispatch
@@ -453,6 +454,10 @@ switch ($cmd) {
     "firewall" { Invoke-Firewall $rest }
     "update" { Invoke-Update }
     "backup" { Invoke-Backup }
+    "cluster" {
+        Say "Redundancy between two servers needs Linux with Docker Engine: Docker Desktop on Windows cannot hold a shared address on your network."
+        Say "A Windows computer can still be your main server; see docs/OPERATIONS.md#redundancy-two-servers for the options."
+    }
     "restore" { Invoke-Restore $rest }
     { $_ -in @("help", "-h", "--help") } { Show-Usage }
     default { Say "Unknown command: $cmd"; Show-Usage; exit 1 }

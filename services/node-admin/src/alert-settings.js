@@ -5,7 +5,7 @@ import { join } from "node:path";
 // reads it. ALERT_* in .env only supply the starting values. The webhook addresses and the
 // Telegram token are secrets: the dashboard is only ever shown that they are set, and the end of them.
 
-const EVENTS = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "node_update", "disk_low"];
+const EVENTS = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "node_update", "disk_low", "cluster"];
 const TELEGRAM_TOKEN = /^\d{5,15}:[A-Za-z0-9_-]{20,60}$/;
 const TELEGRAM_CHAT = /^(-?\d{1,20}|@[A-Za-z][A-Za-z0-9_]{3,31})$/;
 

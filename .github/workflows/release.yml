@@ -33,6 +33,13 @@ jobs:
           - image: daemon
             context: docker/daemon
             dockerfile: docker/daemon/Dockerfile
+          # The two-server cluster (Linux): the shared-address manager, and the standby server's web page.
+          - image: keepalived
+            context: docker/keepalived
+            dockerfile: docker/keepalived/Dockerfile
+          - image: standby-web
+            context: docker/standby-web
+            dockerfile: docker/standby-web/Dockerfile
     steps:
       - uses: actions/checkout@v7
       # arm64 stages run under emulation; the Rust addon cross-compiles natively instead.

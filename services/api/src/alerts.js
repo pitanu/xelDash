@@ -3,7 +3,7 @@ const SEND_INTERVAL_MS = 1_000;
 const MAX_QUEUE = 20;
 const FINAL_BATCH_MS = 5_000;
 const XEL_DECIMALS = 8;
-const EVENT_TYPES = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "node_update", "disk_low"];
+const EVENT_TYPES = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "node_update", "disk_low", "cluster"];
 const EXPLORERS = /** @type {Record<string, string>} */ ({
   mainnet: "https://explorer.xelis.io",
   testnet: "https://testnet-explorer.xelis.io",
@@ -310,6 +310,14 @@ export function startAlerts({ pool, config, logger = console }) {
           : type === "node_update_done"
             ? `✅ ${p.switched?.length ? p.switched.join(" and ") : "The nodes"} now run${p.switched?.length === 1 ? "s" : ""} ${version}${why}.`
             : `❌ Switching ${p.node} to ${version} failed${why}: ${p.error}. Later nodes were left as they were.${link("/nodes")}` });
+    } else if (type.startsWith("cluster_") && config.events.has("cluster")) {
+      const who = p.server ? ` (${p.server})` : "";
+      const text = type === "cluster_active"
+        ? `🔀 Failover: this server${who} now holds the shared address ${p.vip}. Your rigs are connected here and keep mining.`
+        : type === "cluster_fault"
+          ? `⚠️ This server${who} cannot mine, so it gave up the shared address ${p.vip} to the other server. Check its node.`
+          : `💤 This server${who} is standing by again. The other server holds the shared address.`;
+      send({ event: type, data: p, text: `${text}${link("/health")}` });
     } else if (type === "disk_low" && config.events.has("disk_low")) {
       const gb = (/** @type {number} */ bytes) => Math.round(bytes / 1e9);
       send({ event: "disk_low", data: p,

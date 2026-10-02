@@ -52,6 +52,24 @@ node-admin also mounts `docker/hostdisk` read-only, only to read the free space 
 | `postgres`, `migrate` | Storage and one-shot schema migrations | No |
 | `backup`     | Optional daily database dumps (profile `backup`) | No |
 
+### Two-server cluster (Linux)
+
+```
+ miners ──► shared address (VRRP, held by whichever server can mine)
+                │
+     main server ◄── ingest (batches, cluster secret) ◄── standby server
+     (database, API, dashboard,                           (node, Stratum, address manager,
+      node, Stratum, address manager)                      journal file; no database)
+```
+
+`keepalived` (host network, `docker/keepalived`) holds the shared address; it asks Stratum's health endpoint
+(`:8096/healthz`: a node is ready) and writes its role to `/config/cluster.json`, which node-admin watches and records
+as events. A standby has no database: its Stratum runs the store in remote mode (`services/stratum/src/store.js`),
+journaling every record and sending it in batches to `/api/v1/ingest` on the main server
+(`services/api/src/ingest.js`), which applies each record once (per-sender sequence numbers in `ingest_progress`).
+The standby's web page (`docker/standby-web`) proxies to the main dashboard, or shows an offline page. Compose files:
+`docker-compose.cluster.yml` (added on the main server) and `docker-compose.standby.yml` (the second server).
+
 ## 3. Mining protocols
 
 - **Stratum** follows the [official XELIS Stratum protocol](https://docs.xelis.io/developers-api/stratum)

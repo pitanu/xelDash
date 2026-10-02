@@ -132,6 +132,8 @@ holds no funds, ever.
 - **Connection help:** when a miner cannot connect (wrong address, wrong network, not on your
   network), the dashboard says why and what to change.
 - **Events** for everything that happens to your nodes, on the dashboard.
+- **Redundancy** between two Linux servers that share one address: if one loses power or restarts, the other
+  takes over within seconds and your miners need no change.
 - **Backups** from the dashboard or the launcher (`xeldash backup`, `xeldash restore`), and optional daily
   automatic ones.
 

@@ -83,6 +83,25 @@ shares accepted? Does `address.worker` in the user field work?
 - [ ] Restart the mining server (`docker compose restart stratum`) in the middle of an outage: the rig reconnects and
       keeps mining, and everything is recorded once the database is back.
 
+## 5c. Two-server cluster (needs two Linux computers with Docker Engine on the same network)
+
+Only the failover logic has been tested so far, with containers on one machine; none of this has run on real hardware.
+
+- [ ] `./xeldash.sh cluster setup` on the first server suggests a free address and prints a code; `cluster join CODE` on
+      the second works, and `cluster status` on both shows one as active and one as standing by.
+- [ ] A miner connected to the shared address mines on the active server. Switch that server off (power it off, not
+      `docker stop`): the miner reconnects to the other one within about ten seconds and keeps getting shares accepted.
+- [ ] The standby's page (its own address) shows "Dashboard offline ... mining continues" with the rig counted, while the
+      main server is off. Switch the main server back on: the page shows the real dashboard again by itself, the
+      journal drains (the "records waiting" number goes to nothing), and the blocks and shares from the outage appear in the statistics.
+- [ ] The returning server stays on standby (it does not take the address back).
+- [ ] Reboot the active server (not power off): same result. Reboot the standby: nothing happens to mining.
+- [ ] Stop the active server's node (`docker compose stop daemon`): it gives the address up, the other server takes it,
+      and the Health page says "Cannot mine".
+- [ ] After the main server returns as standby, an alert "standing by again" arrives (alert type "A server takes over
+      the shared address"); and when the main server's node is stopped, an alert says it cannot mine.
+- [ ] Both servers on a Raspberry Pi (arm64), if you have one.
+
 ## 6. Nodes and upgrades
 
 - [ ] Add a second local node, then a rolling update to a newer version. Mining continues.

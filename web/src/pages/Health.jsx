@@ -1,6 +1,7 @@
 import { usePolled } from "../api.js";
 import { Card, EventsList, HealthBadge } from "../components/ui.jsx";
 import { formatAgo, formatCompact, formatDuration, formatInteger, formatTime } from "../format.js";
+import ClusterCard from "../components/ClusterCard.jsx";
 import DiskWarning from "../components/DiskWarning.jsx";
 import ProblemsCard from "../components/ProblemsCard.jsx";
 import UptimeCard from "../components/UptimeCard.jsx";
@@ -120,6 +121,7 @@ export default function Health() {
       )}
 
       <DiskWarning />
+      <ClusterCard />
       <ProblemsCard network={node?.network ?? "mainnet"} />
       <UptimeCard />
 
