@@ -106,6 +106,10 @@ check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
   a router that is fine; on a computer with a public address, or if you forward xelDash's ports on
   your router, anyone on the internet could read the dashboard and use your mining server. Never
   forward its ports.
+- **Records kept during an outage are private.** While the database cannot be reached, Stratum keeps its journal (miner
+  addresses, IP addresses, shares) in a file readable only by the mining server, on a volume that is not published.
+- **The ingest endpoint exists only in a cluster.** `/api/v1/ingest` answers 404 unless `XELDASH_CLUSTER_SECRET` (at least 16
+  characters) is set, compares the secret in constant time, and takes at most 4 MB and 2000 records per request.
 - **A redundancy cluster trusts your network.** The two servers share a secret (`XELDASH_CLUSTER_SECRET`, in both
   `.env` files; keep the cluster code private). The standby sends its records to the main server over plain HTTP,
   with the secret in a header, so anyone who can read traffic on your network can read it; and the address manager
@@ -121,3 +125,6 @@ check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
   fallback when on). Browsers only ever talk to the dashboard.
 - **node-admin and the daemon run as root** inside their containers, because they own the
   node's data volume.
+- **The cluster's address manager is the one privileged container.** It exists only on Linux servers that set up a
+  cluster, and runs on the host network with `NET_ADMIN`, `NET_BROADCAST` and `NET_RAW` so it can add the shared
+  address to the network card. It has no Docker access, and mounts only the config volume.

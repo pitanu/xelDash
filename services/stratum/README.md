@@ -2,7 +2,7 @@
 
 The miner-facing side of xelDash: Stratum (port 3333, optional TLS on 3334) and getwork
 (port 8090), share validation, vardiff, block submission, node failover, the block tracker,
-and data retention. It listens on loopback by default; set `XELDASH_STRATUM_BIND_IP` to the
+data retention, and the durable store that keeps mining independent of the database. It listens on loopback by default; set `XELDASH_STRATUM_BIND_IP` to the
 host's LAN address to accept miners from the LAN.
 
 **Protocol.** Newline-delimited JSON-RPC (64 KiB line limit) following the
@@ -57,6 +57,28 @@ found" for every share. `GETWORK_ENABLED=false` turns it off.
 
 **TLS.** `STRATUM_TLS_ENABLED=true` with `cert.pem` and `key.pem` in `docker/stratum-tls/` adds
 `stratum+ssl` on port 3334. A missing certificate stops Stratum from starting.
+
+**Records and outages** (`src/store.js`). Everything Stratum records (workers, shares, blocks, events, bans)
+goes through one store. Normally a write goes straight to PostgreSQL. When the database cannot be reached the write is
+appended to a JSON-lines journal on its own volume (`STRATUM_JOURNAL_DIR`, `/spool` in Compose), a circuit breaker
+keeps miners from waiting on a dead database, and miners stay connected and keep mining. A background loop checks the
+database every few seconds and injects the journal in order with the original timestamps, then deletes it. Workers are
+named by address and name in the journal, since a worker first seen during an outage has no id yet; logins during an
+outage use a cache of the workers seen before (also kept on disk), and a new worker gets a provisional identity that
+is created when the database returns. The journal survives restarts, is capped at `STRATUM_JOURNAL_MAX_MB` (200; past
+that, shares are dropped, never blocks, events or bans), and a repeated share during an outage is caught in memory.
+Blocks are submitted to the node first, so a database outage never costs a block.
+
+**Standby mode.** With `STRATUM_INGEST_URL` (and `XELDASH_CLUSTER_SECRET`) set, Stratum has no database at all: the store
+journals every record and sends it, in numbered batches, to the main server's `/api/v1/ingest`, which applies each
+record once. The block tracker, retention and live notifications, which need the database, are left to the main
+server. This is the second server of a two-server cluster (`docker-compose.standby.yml`; see
+[docs/OPERATIONS.md](../../docs/OPERATIONS.md#redundancy-two-servers)). `STRATUM_INSTANCE` names the sender.
+
+**Health.** A small HTTP server on `STRATUM_HEALTH_PORT` (8096): `/healthz` answers 200 while a node is ready to issue work
+and 503 with the reason otherwise (the cluster's address manager asks it, so the shared address leaves a server that
+cannot mine); `/status` adds the instance, mode (`main` or `standby`), connected rigs and the journal's size, for the
+standby's offline page. It is published on this computer's loopback only, and only when the cluster is set up.
 
 **Retention.** Raw shares are kept 7 days and per-minute stats 90 days; hourly rollups are
 kept (`RETENTION_*`).

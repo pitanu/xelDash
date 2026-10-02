@@ -6,7 +6,7 @@
 |-------|-----|
 | [Getting started](GETTING-STARTED.md) | From nothing to mining, for complete beginners: Docker, the installer, your wallet address, the setup guide |
 | [Connecting miners](MINERS.md) | Pool URLs, difficulty, tested miners |
-| [Operations](OPERATIONS.md) | Alerts, backups and restores, HTTPS and login, node settings, snapshots, redundant nodes, daemon upgrades, the official node fallback |
+| [Operations](OPERATIONS.md) | Alerts, backups and restores, what happens when the database goes down, HTTPS and login, node settings, snapshots, two-server redundancy, redundant nodes, daemon upgrades, the official node fallback |
 | [Security](SECURITY.md) | What is protected, what the admin token can do, remaining risks |
 | [Devnet](DEVNET.md) | Trying xelDash without real coins, and how the mining path is verified |
 
@@ -21,9 +21,11 @@
 
 | README | Covers |
 |--------|--------|
-| [Stratum](../services/stratum/README.md) | Mining protocol, shares, difficulty, node failover, limits |
-| [API](../services/api/README.md) | Statistics, effort and luck, status, price |
+| [Stratum](../services/stratum/README.md) | Mining protocol, shares, difficulty, node failover, limits, the journal, standby mode |
+| [API](../services/api/README.md) | Statistics, effort and luck, status, price, alerts, ingest, updates |
 | [Node admin](../services/node-admin/README.md) | Endpoints for node settings, snapshots, control and versions |
 | [Daemon image](../docker/daemon/README.md) | The node container and its supervisor |
+| [Address manager](../docker/keepalived/README.md) | The cluster's shared-address container (keepalived) |
+| [Standby web](../docker/standby-web/README.md) | The second server's page: the main dashboard, or an offline notice |
 
 Contributing: [CONTRIBUTING.md](../CONTRIBUTING.md). Changes: [CHANGELOG.md](../CHANGELOG.md).

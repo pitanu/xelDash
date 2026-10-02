@@ -128,6 +128,10 @@ network, not the internet. See [Security](SECURITY.md).
 - **My miner will not connect.** The Health and Get started pages list connections that were
   turned away, with the reason and what to change. The Get started page also has a checklist under
   "It does not connect". Most often it is the wrong address for another computer, or network access is off.
+- **The dashboard says "Dashboard offline".** The page cannot reach its data. If it says the database is not reachable,
+  mining carries on: your rigs stay connected and everything is recorded when the database is back, with nothing to do.
+  If it says it cannot reach the xelDash server, the page reconnects by itself; if you run two servers, the other one keeps
+  mining and its own page says so.
 - **I want to start over.** Run `docker compose down -v` in the folder, then delete the folder.
   This deletes the blockchain copy and all statistics (not your wallet, which is separate).
 

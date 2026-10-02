@@ -123,6 +123,8 @@ holds no funds, ever.
   rolling back a node that does not stay up.
 - **Network upgrades on schedule:** switch at a specific block height for hard forks.
 - **Optional automatic updates** for setups with two local nodes.
+- **Mining does not depend on the database.** If it is down or restarting, rigs stay connected and keep mining, and
+  everything is recorded, in order, when it is back.
 
 ### Stay informed
 

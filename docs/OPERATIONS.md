@@ -31,6 +31,8 @@ Events:
   uses the smaller of the two. If Docker's data is on a different drive from the xelDash folder, check that
   drive yourself. A full disk stops a node and can force a long resync. The dashboard shows the same warning
   on the Overview and Health pages. Checked every 10 minutes, repeated at most once a day.
+- `cluster`: in a two-server cluster, this server took over the shared address, cannot mine and gave it up, or is
+  standing by again (see [Redundancy](#redundancy-two-servers)).
 - `block_side`: one of your blocks lost the race for its height and is a side block for now. Side
   blocks are paid too, with a reduced reward, once final; this comes well before that.
 - `block_final`: a block reached the stable height, as main chain, side or orphaned, with its

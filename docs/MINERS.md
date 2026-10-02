@@ -17,6 +17,13 @@ the dashboard, so name each rig. Miners that have a single "user" or "wallet" fi
 `<host>` is the machine running xelDash. The miner's own address is what gets paid: xelDash
 never holds funds, so rewards go straight to the address in the miner's settings.
 
+## With two servers
+
+If you run a two-server cluster (`./xeldash.sh cluster setup`; see [Operations](OPERATIONS.md#redundancy-two-servers)), point
+every miner at the **shared address** the setup printed, not at either server's own address, and use the same settings
+as above. The shared address always leads to the server that can mine, so a rig needs no second pool entry and no change
+when a server fails or restarts. Rigs reconnect by themselves within seconds.
+
 ## Example: Rigel
 
 ```sh

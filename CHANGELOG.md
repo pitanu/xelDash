@@ -117,8 +117,10 @@ First public version, planned as 0.1.0.
 
 - Redundancy between two Linux servers (`xeldash cluster setup` and `cluster join`): they share one address, held by
   whichever can mine, so mining carries on when one loses power or restarts. The second server has no database;
-  it records through the main server and keeps a journal while it is away. Its page shows "Dashboard offline.
-  Mining continues." when the main dashboard cannot be reached. Docker Desktop (Windows, macOS) cannot be part of a cluster.
+  it records through the main server (a new `/api/v1/ingest` endpoint, migration 008) and keeps a journal while it
+  is away. Its page shows "Dashboard offline. Mining continues." when the main dashboard cannot be reached. New images
+  `keepalived` and `standby-web`, and new settings `XELDASH_CLUSTER_SECRET`, `XELDASH_VIP`, `XELDASH_CLUSTER_ID` and
+  `XELDASH_PRIMARY_URL` (written by the launcher). Docker Desktop (Windows, macOS) cannot be part of a cluster.
 - Backups from the dashboard (Settings, "Download a backup") and from the launcher (`xeldash backup` and
   `xeldash restore FILE`), with no extra tools or services needed.
 - A "Mining availability" card on the Health page: the share of the last day, week or month miners could be

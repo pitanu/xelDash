@@ -6,6 +6,10 @@ node only through files on that node's data volume (`<data>/.xeldash`), which th
 supervisor (`docker/daemon/entrypoint.sh`) acts on: extra daemon flags, restart and stop
 markers, staged snapshots, and downloaded release binaries. Nothing here can control Docker.
 
+It also reads and writes the shared config volume (the fallback switch, mining address and alert settings) and watches
+the role file the cluster's address manager writes there. On a standby server it runs without a database and only logs
+the events it would record.
+
 It is not published to the host: the dashboard's nginx proxies `/api/v1/node/` to it,
 streaming uploads without buffering. Reads are open; every change needs
 `XELDASH_ADMIN_TOKEN` in the `X-Admin-Token` header. Node-scoped endpoints take `?node=`
@@ -29,7 +33,8 @@ streaming uploads without buffering. Reads are open; every change needs
 | `GET/POST/DELETE /scheduled-upgrade` | A switch at a block height, for network upgrades |
 | `GET/PUT /auto-update` | Optional automatic updates (off by default, two local nodes needed) |
 | `GET/PUT /fallback` | The official node fallback switch, read by Stratum and the API |
-| `GET /disk` | Free space on the disk(s) the nodes use, and the warning level (`XELDASH_DISK_WARN_GB`); a `disk_low` event is recorded when it runs low |
+| `GET /disk` | Free space on the disk(s) the nodes use, and the warning level (`XELDASH_DISK_WARN_GB`); a `disk_low` event is recorded when it runs low. Under Docker Desktop it reads the computer's drive through a read-only mount (`docker/hostdisk`), since the virtual disk reports its own size |
+| `GET /cluster` | This server's role in a two-server cluster (`MASTER`, `BACKUP`, `FAULT`), from the address manager's role file; changes are recorded as events, which become alerts. `{ "configured": false }` without a cluster |
 | `GET /backup` | Admin token. Streams a `pg_dump` of the statistics database as a download (the same file `xeldash backup` writes) |
 | `GET/PUT /alerts`, `POST /alerts/test` | Where alerts go (Discord, Telegram, webhook) and which ones, kept in `alerts.json` on the config volume, which the API watches. Secrets are shown only by their last four characters; the test sends one message to each place and says which arrived |
 | `GET/PUT /mining-address` | The address xelDash mines to when a miner sends none: checked by your node (network, typos, not integrated), kept on the config volume, read by Stratum |

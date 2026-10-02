@@ -45,12 +45,14 @@ node-admin also mounts `docker/hostdisk` read-only, only to read the free space 
 |--------------|----------------|------------------|
 | `daemon`     | Official XELIS daemon (re-based image) under a small supervisor that applies settings, snapshots, stop and start, and release versions | P2P on loopback by default; RPC internal |
 | `daemon2`    | Optional second node for failover and one-at-a-time upgrades (profile `redundant`) | No |
-| `stratum`    | Miner connections, jobs, share validation, vardiff, block submission, node failover, retention | LAN (loopback by default) |
+| `stratum`    | Miner connections, jobs, share validation, vardiff, block submission, node failover, retention, and the journal that keeps mining going without the database | LAN (loopback by default) |
 | `api`        | Stats, health, live updates, alerts | LAN (loopback by default) |
 | `web`        | React dashboard behind nginx | LAN (loopback by default) |
 | `node-admin` | For each local node: settings, snapshots and copies, stop and start, version switches (now, at a height, or automatic); the fallback switch, the mining address and the alert settings (admin token) | No |
 | `postgres`, `migrate` | Storage and one-shot schema migrations | No |
 | `backup`     | Optional daily database dumps (profile `backup`) | No |
+| `keepalived` | Cluster only (Linux): holds the shared address of a two-server cluster, on host networking | Host network |
+| `web` (standby) | Cluster only: the second server's page, which proxies to the main dashboard or shows an offline page | LAN |
 
 ### Two-server cluster (Linux)
 
@@ -134,7 +136,8 @@ truth for columns, types and constraints; this section only summarizes them.
 | `worker_stats_1h` | Hourly rollup of the minute stats | Stratum's hourly retention job | Forever |
 | `blocks` | Block candidates with status, topoheight and miner reward | Stratum (submit and block tracker) | Forever |
 | `bans` | Stratum IP bans with reason and expiry | Stratum | Forever |
-| `service_events` | Blocks (submitted, side, final), bans, node switches and pauses, Stratum starts, rejected connections and logins | Stratum, node-admin | Forever |
+| `service_events` | Blocks (submitted, side, final), bans, node switches and pauses, Stratum starts, rejected connections and logins, failovers | Stratum, node-admin | Forever |
+| `ingest_progress` | The last sequence number applied from each standby server, so a resent batch is not counted twice | API (ingest) | Forever |
 
 Notes:
 
@@ -146,6 +149,8 @@ Notes:
 - Stratum writes through a store (`services/stratum/src/store.js`). When the database cannot be reached, records go to a
   journal file on the `xeldash-spool` volume and are injected in order, with their original times, when it answers;
   workers are keyed by address and name in the journal, since a new worker has no id yet.
+- `stale` and the journal above also explain a gap that is not one: a record written during an outage is stored with its
+  original time, so charts show no hole.
 - Every `service_events` insert is announced on the `xeldash_live` channel for live updates.
 - Retention periods are set with `RETENTION_*`. There is no partitioning at this size.
 - There are no balance, payout or wallet tables: rewards go straight to each miner's address.
@@ -182,20 +187,21 @@ versions, the fallback) needs `XELDASH_ADMIN_TOKEN`. Nothing can control Docker.
 
 - Pages: Overview (with a setup banner until a miner has connected), Get started (`#/setup`), Miners (with Miner and Worker pages), Blocks, Health (with connection problems), Nodes (stop and start,
   versions and upgrades, copies and snapshots) and Settings (display, the official node fallback,
-  alerts, each node's daemon settings). Light, dark or system theme and an optional XEL price, both
+  alerts, backups, each node's daemon settings). Light, dark or system theme and an optional XEL price, both
   per browser; phone-sized layouts; live updates over `/api/v1/live` with polling as the
   fallback.
 - REST endpoints (all `GET`; `address` must be a valid `xel:`/`xet:` address; `worker` needs
   `address`): `/api/v1/overview`, `/api/v1/status`, `/api/v1/hashrate`, `/api/v1/miners`,
   `/api/v1/miners/{address}`, `/api/v1/miners/{address}/workers/{name}`, `/api/v1/blocks`,
-  `/api/v1/blocks.csv`, `/api/v1/events`, `/api/v1/rewards`, `/api/v1/uptime`, `/api/v1/version`, `/api/v1/problems`, `/api/v1/price`, `/api/v1/connect`. The overview, miner and blocks responses include effort
+  `/api/v1/blocks.csv`, `/api/v1/events`, `/api/v1/rewards`, `/api/v1/uptime`, `/api/v1/version`, `/api/v1/problems`, `/api/v1/price`, `/api/v1/connect`. `POST /api/v1/ingest` (and its `/ping`) is not for the dashboard: it is where a standby server sends its records, behind the cluster secret. The overview, miner and blocks responses include effort
   and luck. node-admin serves `/api/v1/node/*` (see services/node-admin/README.md).
 - Alerts to Discord, Telegram or a JSON webhook: blocks found, side and final, mining paused,
-  resumed or switched, workers offline, node updates. Set up on the Settings page, with a test message. See [OPERATIONS.md](OPERATIONS.md#alerts).
+  resumed or switched, workers offline, node updates, low disk space, failovers between servers. Set up on the Settings page, with a test message. See [OPERATIONS.md](OPERATIONS.md#alerts).
 
 ## 9. Deployment and operations
 
-- One `docker-compose.yml` and `.env.example`. Images build locally by default, or are pulled
+- One `docker-compose.yml` and `.env.example`; `docker-compose.cluster.yml` is added on the main server of a two-server cluster and
+  `docker-compose.standby.yml` is the second server's own stack (selected through `COMPOSE_FILE` in `.env` by the launcher). Images build locally by default, or are pulled
   from GHCR (amd64 and arm64) by setting `XELDASH_VERSION`.
 - Healthchecks and `restart: unless-stopped` on every long-running service.
 - Daemon pinned with `XELIS_DAEMON_IMAGE`, or switched to official releases from the dashboard;
@@ -233,6 +239,9 @@ packages/
   xelis-hash/     XELIS Hash V3 native addon (Rust, napi-rs)
 docker/
   daemon/         daemon image wrapper and supervisor entrypoint
+  keepalived/     the cluster's shared-address manager (Alpine, keepalived)
+  standby-web/    the standby server's web page (nginx: main dashboard, or an offline page)
+  hostdisk/       a read-only mount that lets node-admin read the computer's drive's free space
   backup/         backup script
   stratum-tls/    optional Stratum TLS certificate
 docs/             guides, this document, security, devnet notes
@@ -249,5 +258,7 @@ docs/             guides, this document, security, devnet notes
    ([docker/daemon/README.md](../docker/daemon/README.md)); fixed upstream (f6ea12c), not yet
    released.
 4. **Few miners tested:** Rigel, xelis_miner and our own miner; others may differ in details.
-5. **Docker Desktop hides client addresses**, so the allowed-networks check cannot tell a LAN
+5. **A cluster needs two Linux servers.** Docker Desktop (Windows, macOS) cannot hold a shared address; a Windows or macOS
+   server can run alone, with the node-level redundancy of the `redundant` profile, but not as part of a cluster.
+6. **Docker Desktop hides client addresses**, so the allowed-networks check cannot tell a LAN
    computer from an internet one there; the Windows firewall rules and the router protect it.
