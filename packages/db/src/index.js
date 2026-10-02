@@ -254,6 +254,120 @@ export async function recordReportedHashrate(pool, workerId, hashrate) {
   await pool.query("UPDATE workers SET reported_hashrate = $2, reported_at = now() WHERE id = $1", [workerId, hashrate]);
 }
 
+/**
+ * @typedef {{ minerId: string | bigint | null, workerId: string | bigint | null }} WorkerIds
+ * @typedef {{ address: string, name: string }} WorkerKey
+ */
+
+/**
+ * Apply one record from a journal (what Stratum keeps while it cannot reach the database, or sends from a
+ * standby server) to the database. Workers are named by address and name, since a worker first seen while
+ * the database was out of reach has no id yet; `workers` caches the ids found along the way.
+ * @param {PgPool} pool @param {any} record
+ * @param {Map<string, WorkerIds>} workers
+ * @param {{ api?: { ensureWorker: typeof ensureWorker, recordShare: typeof recordShare, recordBlock: typeof recordBlock,
+ *   recordServiceEvent: typeof recordServiceEvent, recordBan: typeof recordBan }, remember?: (key: string, ids: WorkerIds) => void }} [options]
+ */
+export async function applyJournalRecord(pool, record, workers, { api = { ensureWorker, recordShare, recordBlock, recordServiceEvent, recordBan }, remember = () => {} } = {}) {
+  /** @param {WorkerKey} key @returns {Promise<WorkerIds>} */
+  async function resolve(key) {
+    const k = `${key.address}\n${key.name}`;
+    const known = workers.get(k);
+    if (known && known.workerId !== null && known.workerId !== undefined) return known;
+    const ids = await api.ensureWorker(pool, { address: key.address, name: key.name });
+    workers.set(k, ids);
+    remember(k, ids);
+    return ids;
+  }
+  switch (record?.t) {
+    case "worker": {
+      const ids = await api.ensureWorker(pool, { address: record.address, name: record.name, ip: record.ip });
+      const k = `${record.address}\n${record.name}`;
+      workers.set(k, ids);
+      remember(k, ids);
+      return;
+    }
+    case "share": {
+      const ids = await resolve(record.key);
+      if (ids.workerId === null) throw new TypeError("The worker could not be created");
+      await api.recordShare(pool, {
+        workerId: ids.workerId, jobId: record.jobId, nonce: record.nonce, difficulty: record.difficulty,
+        networkDifficulty: record.networkDifficulty, accepted: record.accepted, rejectReason: record.rejectReason, createdAt: record.at,
+      });
+      return;
+    }
+    case "block": {
+      const ids = record.key ? await resolve(record.key) : { minerId: null, workerId: null };
+      await api.recordBlock(pool, {
+        hash: record.hash, height: record.height, topoheight: record.topoheight, minerId: ids.minerId, workerId: ids.workerId,
+        status: record.status, foundAt: new Date(record.foundAt),
+      });
+      return;
+    }
+    case "event":
+      await api.recordServiceEvent(pool, record.type, record.payload, new Date(record.at));
+      return;
+    case "ban":
+      await api.recordBan(pool, { ip: record.ip, reason: record.reason, until: new Date(record.until) });
+      return;
+    default:
+      throw new TypeError(`Unknown journal record type: ${record?.t}`);
+  }
+}
+
+/** A record that can never be applied (bad data), as opposed to a database that cannot be reached. @param {any} error */
+function isPermanentRecordError(error) {
+  return error instanceof TypeError || /^(22|23)/.test(String(error?.code ?? ""));
+}
+
+/**
+ * Apply a batch sent by another server. Records with a sequence number at or below the last one applied for
+ * that server are skipped, so resending a batch is harmless. Stops at the first record the database cannot
+ * take for a reason other than the record itself (the sender then retries from where this stopped).
+ * @param {PgPool} pool @param {string} instance @param {any[]} records
+ * @returns {Promise<{ applied: number, skipped: number, rejected: number, lastSeq: number }>}
+ */
+export async function ingestRecords(pool, instance, records) {
+  if (typeof instance !== "string" || instance.length === 0 || instance.length > 128) throw new TypeError("instance is required");
+  const progress = await pool.query("SELECT last_seq FROM ingest_progress WHERE instance = $1", [instance]);
+  let last = progress.rows[0] ? Number(progress.rows[0].last_seq) : 0;
+  const start = last;
+  const workers = new Map();
+  let applied = 0;
+  let skipped = 0;
+  let rejected = 0;
+  try {
+    for (const record of records) {
+      const seq = Number(record?.s);
+      if (!Number.isFinite(seq) || seq <= 0) {
+        rejected += 1;
+        continue;
+      }
+      if (seq <= last) {
+        skipped += 1;
+        continue;
+      }
+      try {
+        await applyJournalRecord(pool, record, workers);
+        applied += 1;
+      } catch (error) {
+        if (!isPermanentRecordError(error)) throw error;
+        rejected += 1;
+      }
+      last = seq;
+    }
+  } finally {
+    if (last > start) {
+      await pool.query(
+        `INSERT INTO ingest_progress (instance, last_seq) VALUES ($1, $2)
+         ON CONFLICT (instance) DO UPDATE SET last_seq = GREATEST(ingest_progress.last_seq, EXCLUDED.last_seq), updated_at = now()`,
+        [instance, last],
+      ).catch(() => {});
+    }
+  }
+  return { applied, skipped, rejected, lastSeq: last };
+}
+
 /** Channel the API relays to live dashboards (see migration 002). */
 export const LIVE_CHANNEL = "xeldash_live";
 

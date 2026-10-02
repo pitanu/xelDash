@@ -62,15 +62,22 @@ const defaultAddress = watchDefaultAddress({
   fallback: process.env.XELIS_DEFAULT_ADDRESS ?? "",
 });
 await defaultAddress.ready;
-const pool = createPool();
+// A standby server (the second server of a redundancy cluster) has no database: with STRATUM_INGEST_URL set it
+// sends everything it records to the main server instead (see store.js).
+const ingestUrl = (process.env.STRATUM_INGEST_URL ?? "").replace(/\/$/, "");
+const clusterSecret = process.env.XELDASH_CLUSTER_SECRET ?? "";
+if (ingestUrl && clusterSecret.length < 16) throw new Error("STRATUM_INGEST_URL needs XELDASH_CLUSTER_SECRET (at least 16 characters)");
+const pool = ingestUrl ? null : createPool();
 // One or more XELIS nodes, in priority order (XELIS_RPC_URLS). Work comes from the first one
 // that is in sync; see node-pool.js.
 const nodes = new NodePool({ urls: rpcUrlsFromEnv(process.env), onActiveChange: handleActiveChange });
 // Everything recorded goes through the store, which keeps a journal file while the database cannot be
 // reached, so mining never waits for it (see store.js). The journal lives on its own volume.
 const journalMegabytes = Number(process.env.STRATUM_JOURNAL_MAX_MB ?? 200);
+const instanceName = process.env.STRATUM_INSTANCE || process.env.XELDASH_SERVER_NAME || (await import("node:os")).hostname();
 const store = new DurableStore({
   pool,
+  remote: ingestUrl ? { url: ingestUrl, secret: clusterSecret, instance: instanceName } : null,
   dir: process.env.STRATUM_JOURNAL_DIR || null,
   ...(Number.isFinite(journalMegabytes) && journalMegabytes > 0 ? { maxBytes: journalMegabytes * 1048576 } : {}),
 });
@@ -111,7 +118,7 @@ const ipGuard = new IpGuard(ipGuardConfig, {
       .catch((error) => console.warn("Failed to record ban:", error instanceof Error ? error.message : String(error)));
   },
 });
-listActiveBans(pool)
+(pool ? listActiveBans(pool) : Promise.resolve([]))
   .then((bans) => ipGuard.loadBans(bans))
   .catch((error) => console.warn("Failed to load bans:", error instanceof Error ? error.message : String(error)));
 setInterval(() => ipGuard.prune(), 60_000).unref();
@@ -123,6 +130,7 @@ async function retentionPass() {
   if (retentionRunning) return;
   retentionRunning = true;
   try {
+    if (!pool) return;
     const result = await runRetention(pool, retention);
     if (result.shares > 0 || result.minuteStats > 0) console.info("Retention pass", result);
   } catch (error) {
@@ -133,8 +141,9 @@ async function retentionPass() {
 }
 setTimeout(retentionPass, 60_000).unref();
 setInterval(retentionPass, 3_600_000).unref();
-const blockTracker = new BlockTracker({ daemon: nodes, pool });
-blockTracker.start();
+// Finishing submitted blocks needs the database; a standby leaves it to the main server, which records them.
+const blockTracker = pool ? new BlockTracker({ daemon: nodes, pool }) : null;
+blockTracker?.start();
 
 // Push fresh work to every session as soon as any node sees a new block. Per-session polling
 // (STRATUM_JOB_REFRESH_MS) stays as the fallback and picks up template changes. A new block
@@ -145,11 +154,11 @@ const announcedBlocks = new Set();
 /** @param {{ hash?: string, height?: number }} block */
 function handleNewBlock(block) {
   for (const session of sessions.values()) void session.refreshJob();
-  blockTracker.check();
+  blockTracker?.check();
   if (!block.hash || announcedBlocks.has(block.hash)) return;
   announcedBlocks.add(block.hash);
   if (announcedBlocks.size > 256) announcedBlocks.delete(/** @type {string} */ (announcedBlocks.values().next().value));
-  notifyLive(pool, { type: "block", height: block.height ?? null, hash: block.hash }).catch(() => {});
+  if (pool) notifyLive(pool, { type: "block", height: block.height ?? null, hash: block.hash }).catch(() => {});
 }
 /** @type {Map<import("./node-pool.js").PoolNode, ChainWatcher>} */
 const chainWatchers = new Map();
@@ -375,6 +384,7 @@ const health = startHealthServer({
   port: Number(process.env.STRATUM_HEALTH_PORT ?? 8096),
   // Mining does not need the database (see store.js), so only a ready node matters here.
   check: async () => (nodes.ready ? null : nodes.reason ?? "no node is ready"),
+  status: () => ({ instance: instanceName, mode: ingestUrl ? "standby" : "main", rigs: sessions.size, journal: store.status() }),
 });
 
 let shuttingDown = false;
@@ -397,8 +407,8 @@ async function shutdown() {
     socket.destroy();
   }
   await closed;
-  await blockTracker.stop();
-  await pool.end();
+  await blockTracker?.stop();
+  await pool?.end();
 }
 
 process.once("SIGINT", shutdown);

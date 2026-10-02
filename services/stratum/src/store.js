@@ -3,6 +3,7 @@ import { appendFile, mkdir, readFile, rename, rm, stat, writeFile } from "node:f
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import * as defaultDb from "@xeldash/db";
+import { applyJournalRecord } from "@xeldash/db";
 
 // Everything Stratum records goes through here, so that mining does not depend on the database.
 //
@@ -11,6 +12,12 @@ import * as defaultDb from "@xeldash/db";
 // instead, miners keep mining, and a background loop injects the journal into the database, in
 // order and with the original timestamps, as soon as it answers again. Nothing is lost, including
 // blocks, which are submitted to the node before anything is recorded.
+//
+// A standby server (the second server of a redundancy cluster) has no database at all: in remote mode every
+// record goes to the journal and is sent, in batches, to the main server's ingest endpoint
+// (services/api/src/ingest.js), which records it. While the main server is down the journal just grows; when it
+// is back, the standby catches it up. Each record carries an increasing number, so a batch sent twice (the reply
+// was lost) is not counted twice.
 //
 // Workers are identified by address and name in the journal, not by database id, because a worker
 // first seen during an outage has no id yet; ids are resolved when the journal is replayed.
@@ -53,12 +60,16 @@ const keyOf = (address, name) => `${address}\n${name}`;
 
 export class DurableStore {
   /**
-   * @param {{ pool: import("pg").Pool, dir?: string | null, db?: typeof defaultDb, maxBytes?: number,
-   *   logger?: Pick<Console, "info" | "warn">, probeMs?: number }} options
+   * @param {{ pool: import("pg").Pool | null, dir?: string | null, db?: typeof defaultDb, maxBytes?: number,
+   *   logger?: Pick<Console, "info" | "warn">, probeMs?: number,
+   *   remote?: { url: string, secret: string, instance: string, batch?: number, flushMs?: number, fetch?: typeof fetch } | null }} options
    *   `dir` null keeps no journal on disk (writes during an outage are dropped, as before).
+   *   `remote` sends the journal to another server's ingest endpoint instead of writing to a database.
    */
-  constructor({ pool, dir = null, db = defaultDb, maxBytes = DEFAULT_MAX_BYTES, logger = console, probeMs = PROBE_MS }) {
-    this.pool = pool;
+  constructor({ pool, dir = null, db = defaultDb, maxBytes = DEFAULT_MAX_BYTES, logger = console, probeMs = PROBE_MS, remote = null }) {
+    this.pool = /** @type {import("pg").Pool} */ (pool);
+    this.remote = remote;
+    this.lastSeq = 0;
     this.dir = dir;
     this.db = db;
     this.maxBytes = maxBytes;
@@ -67,8 +78,8 @@ export class DurableStore {
     this.journalFile = dir ? join(dir, "journal.jsonl") : null;
     this.stateFile = dir ? join(dir, "journal.state") : null;
     this.workersFile = dir ? join(dir, "workers.json") : null;
-    /** True while writes go straight to the database. */
-    this.online = true;
+    /** True while writes go straight to the database (never in remote mode, where it means the main server answers). */
+    this.online = !remote;
     /** Records in the journal file, and how many of them are already in the database. */
     this.appended = 0;
     this.applied = 0;
@@ -92,7 +103,7 @@ export class DurableStore {
   }
 
   status() {
-    return { online: this.online, pending: this.pending, oldestAt: this.oldestAt, dropped: this.dropped };
+    return { online: this.online, pending: this.pending, oldestAt: this.oldestAt, dropped: this.dropped, remote: Boolean(this.remote) };
   }
 
   /** Load the journal and the workers seen before; start replaying if the last run left records behind. */
@@ -140,7 +151,7 @@ export class DurableStore {
    */
   async ensureWorker({ address, name = "default", ip = null }) {
     const key = keyOf(address, name);
-    if (this.online) {
+    if (this.online && !this.remote) {
       try {
         const ids = await this.db.ensureWorker(this.pool, { address, name, ip });
         this.#remember(key, ids);
@@ -161,7 +172,7 @@ export class DurableStore {
    */
   async recordShare(share, key) {
     const ids = share.workerId ?? this.cache.get(keyOf(key.address, key.name))?.workerId ?? null;
-    if (this.online && ids !== null) {
+    if (this.online && !this.remote && ids !== null) {
       try {
         return await this.db.recordShare(this.pool, { ...share, workerId: ids });
       } catch (error) {
@@ -188,7 +199,7 @@ export class DurableStore {
   async recordBlock(block, key) {
     const foundAt = block.foundAt ?? new Date();
     const ids = block.workerId !== undefined && block.workerId !== null ? block : null;
-    if (this.online && ids) {
+    if (this.online && !this.remote && ids) {
       try {
         await this.db.recordBlock(this.pool, { ...block, foundAt });
         return;
@@ -206,7 +217,7 @@ export class DurableStore {
   /** @param {string} type @param {Record<string, unknown>} [payload] */
   async recordServiceEvent(type, payload = {}) {
     const at = new Date();
-    if (this.online) {
+    if (this.online && !this.remote) {
       try {
         await this.db.recordServiceEvent(this.pool, type, payload, at);
         return;
@@ -220,7 +231,7 @@ export class DurableStore {
 
   /** @param {{ ip: string, reason: string, until: Date }} ban */
   async recordBan(ban) {
-    if (this.online) {
+    if (this.online && !this.remote) {
       try {
         await this.db.recordBan(this.pool, ban);
         return;
@@ -234,7 +245,7 @@ export class DurableStore {
 
   /** The miner-reported hashrate is a display value: it is not kept for later. @param {string | bigint | null} workerId @param {number} hashrate */
   async recordReportedHashrate(workerId, hashrate) {
-    if (!this.online || workerId === null) return;
+    if (!this.online || this.remote || workerId === null) return;
     try {
       await this.db.recordReportedHashrate(this.pool, workerId, hashrate);
     } catch (error) {
@@ -287,6 +298,8 @@ export class DurableStore {
    */
   #append(record, { keep = false } = {}) {
     if (!this.journalFile) return Promise.resolve();
+    this.lastSeq = Math.max(this.lastSeq + 1, Date.now() * 1000);
+    record.s = this.lastSeq;
     const line = `${JSON.stringify(record)}\n`;
     const task = this.chain.then(async () => {
       if (!keep && this.bytes + line.length > this.maxBytes) {
@@ -297,12 +310,24 @@ export class DurableStore {
       this.bytes += line.length;
       if (this.appended === this.applied) this.oldestAt = record.at;
       this.appended += 1;
+      if (this.remote && !this.replaying && !this.stopped) void this.#replayLoop();
     });
     this.chain = task.catch((error) => this.logger.warn?.("Could not write to the journal:", error instanceof Error ? error.message : String(error)));
     return this.chain;
   }
 
   async #probe() {
+    if (this.remote) {
+      try {
+        const response = await (this.remote.fetch ?? fetch)(`${this.remote.url}/api/v1/ingest/ping`, {
+          headers: { "x-cluster-secret": this.remote.secret }, signal: AbortSignal.timeout(3_000),
+        });
+        if (response.status === 401) this.#warnOnce("The main server refused the cluster secret; check XELDASH_CLUSTER_SECRET on both servers");
+        return response.ok;
+      } catch {
+        return false;
+      }
+    }
     try {
       await Promise.race([this.pool.query("SELECT 1"), sleep(2_000).then(() => { throw new Error("timeout"); })]);
       return true;
@@ -315,11 +340,14 @@ export class DurableStore {
     this.replaying = true;
     try {
       while (!this.stopped) {
+        if (this.remote && this.pending > 0) await sleep(this.remote.flushMs ?? 1_000);
         if (!(await this.#probe())) {
+          this.online = this.remote ? false : this.online;
           await sleep(this.probeMs);
           continue;
         }
-        if (await this.#drain()) break;
+        if (this.remote) this.online = true;
+        if (this.remote ? await this.#drainRemote() : await this.#drain()) break;
         await sleep(this.probeMs);
       }
     } finally {
@@ -359,7 +387,11 @@ export class DurableStore {
       }
       await this.#saveState();
     }
-    // Empty now, unless more arrived while replaying: clear the files under the append lock.
+    return this.#finishDrain();
+  }
+
+  /** Clear the journal once everything in it has been recorded, unless more arrived meanwhile. */
+  async #finishDrain() {
     let finished = false;
     await (this.chain = this.chain.then(async () => {
       if (this.applied !== this.appended) return;
@@ -373,7 +405,7 @@ export class DurableStore {
       this.online = true;
       finished = true;
     }));
-    if (finished) this.logger.info?.("All kept records are in the database; recording directly again");
+    if (finished) this.logger.info?.(this.remote ? "All kept records were sent to the main server" : "All kept records are in the database; recording directly again");
     return finished;
   }
 
@@ -382,49 +414,78 @@ export class DurableStore {
     await writeFile(this.stateFile, String(this.applied), { mode: 0o600 }).catch(() => {});
   }
 
-  /** @param {WorkerKey} key @returns {Promise<WorkerIds>} */
-  async #resolve(key) {
-    const k = keyOf(key.address, key.name);
-    const known = this.cache.get(k);
-    if (known?.workerId !== undefined && known.workerId !== null) return known;
-    const ids = await this.db.ensureWorker(this.pool, { address: key.address, name: key.name });
-    this.#remember(key, ids);
-    return ids;
+  #lastWarning = 0;
+
+  /** @param {string} text */
+  #warnOnce(text) {
+    if (Date.now() - this.#lastWarning < 60_000) return;
+    this.#lastWarning = Date.now();
+    this.logger.warn?.(text);
   }
 
-  /** @param {any} r */
-  async #apply(r) {
-    switch (r.t) {
-      case "worker": {
-        const ids = await this.db.ensureWorker(this.pool, { address: r.address, name: r.name, ip: r.ip });
-        this.#remember({ address: r.address, name: r.name }, ids);
-        return;
+  /** Send one batch to the main server. True when it was taken. @param {any[]} records */
+  async #post(records) {
+    const remote = /** @type {NonNullable<typeof this.remote>} */ (this.remote);
+    try {
+      const response = await (remote.fetch ?? fetch)(`${remote.url}/api/v1/ingest`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-cluster-secret": remote.secret },
+        body: JSON.stringify({ instance: remote.instance, records }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!response.ok) {
+        this.#warnOnce(`The main server did not take a batch (HTTP ${response.status}); it will be sent again`);
+        return false;
       }
-      case "share": {
-        const ids = await this.#resolve(r.key);
-        if (ids.workerId === null) throw new Error("The worker could not be created");
-        await this.db.recordShare(this.pool, {
-          workerId: ids.workerId, jobId: r.jobId, nonce: r.nonce, difficulty: r.difficulty, networkDifficulty: r.networkDifficulty,
-          accepted: r.accepted, rejectReason: r.rejectReason, createdAt: r.at,
-        });
-        return;
-      }
-      case "block": {
-        const ids = r.key ? await this.#resolve(r.key) : { minerId: null, workerId: null };
-        await this.db.recordBlock(this.pool, {
-          hash: r.hash, height: r.height, topoheight: r.topoheight, minerId: ids.minerId, workerId: ids.workerId, status: r.status, foundAt: new Date(r.foundAt),
-        });
-        return;
-      }
-      case "event":
-        await this.db.recordServiceEvent(this.pool, r.type, r.payload, new Date(r.at));
-        return;
-      case "ban":
-        await this.db.recordBan(this.pool, { ip: r.ip, reason: r.reason, until: new Date(r.until) });
-        return;
-      default:
-        this.logger.warn?.("Skipping an unknown journal record:", r.t);
+      return true;
+    } catch (error) {
+      this.#warnOnce(`Could not reach the main server: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
     }
+  }
+
+  /** Remote mode: send the journal in batches. True when it is empty. */
+  async #drainRemote() {
+    const size = this.remote?.batch ?? 500;
+    if (this.pending > 0 && this.journalFile) {
+      let index = 0;
+      /** @type {any[]} */
+      let batch = [];
+      let batchEnd = 0;
+      const lines = createInterface({ input: createReadStream(this.journalFile), crlfDelay: Infinity });
+      for await (const line of lines) {
+        if (!line.trim()) continue;
+        index += 1;
+        if (index <= this.applied) continue;
+        const record = safeParse(line);
+        if (!record) {
+          lines.close();
+          break;
+        }
+        batch.push(record);
+        batchEnd = index;
+        if (batch.length >= size) {
+          if (!(await this.#post(batch))) {
+            lines.close();
+            return false;
+          }
+          this.applied = batchEnd;
+          batch = [];
+          await this.#saveState();
+        }
+      }
+      if (batch.length > 0) {
+        if (!(await this.#post(batch))) return false;
+        this.applied = batchEnd;
+        await this.#saveState();
+      }
+    }
+    return this.#finishDrain();
+  }
+
+  /** @param {any} record */
+  async #apply(record) {
+    await applyJournalRecord(this.pool, record, this.cache, { api: this.db, remember: (key, ids) => this.#remember(key, ids) });
   }
 }
 

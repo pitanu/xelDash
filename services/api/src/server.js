@@ -9,6 +9,7 @@ import { callAnyNode, fallbackUrl, rpcUrlsFromEnv } from "./nodes.js";
 import { getConnectInfo } from "./connect.js";
 import { CURRENCIES, getPrice } from "./price.js";
 import { atomicToXel, toCsv } from "./csv.js";
+import { handleIngest } from "./ingest.js";
 import { getStatus } from "./status.js";
 import { updateStatus } from "./update.js";
 import { getUptime } from "./uptime.js";
@@ -149,17 +150,26 @@ function sendJson(response, statusCode, value) {
 }
 
 const server = createServer(async (request, response) => {
-  if (request.method !== "GET") {
-    sendJson(response, 405, { error: "method_not_allowed" });
-    return;
-  }
-
   /** @type {URL} */
   let url;
   try {
     url = new URL(request.url ?? "/", "http://localhost");
   } catch {
     sendJson(response, 400, { error: "bad_request" });
+    return;
+  }
+  // A standby server's batches (a POST) and its readiness check; see ingest.js.
+  if (url.pathname.startsWith("/api/v1/ingest")) {
+    try {
+      if (await handleIngest({ request, response, pathname: url.pathname, pool, secret: process.env.XELDASH_CLUSTER_SECRET, send: sendJson })) return;
+    } catch (error) {
+      console.error("Ingest failed:", error instanceof Error ? error.message : String(error));
+      sendJson(response, 503, { error: "dependency_unavailable" });
+      return;
+    }
+  }
+  if (request.method !== "GET") {
+    sendJson(response, 405, { error: "method_not_allowed" });
     return;
   }
   try {

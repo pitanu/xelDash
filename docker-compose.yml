@@ -180,6 +180,8 @@ services:
       UV_THREADPOOL_SIZE: 16
       # The released version in use, so the dashboard can tell when a newer one comes out.
       XELDASH_VERSION: ${XELDASH_VERSION:-}
+      # Shared with the standby server of a redundancy cluster (xeldash cluster setup), which sends its records here.
+      XELDASH_CLUSTER_SECRET: ${XELDASH_CLUSTER_SECRET:-}
       # Where to look for newer versions; set it if you run a fork.
       XELDASH_UPDATE_REPO: ${XELDASH_UPDATE_REPO:-}
       ALERT_DISCORD_WEBHOOK_URL: ${ALERT_DISCORD_WEBHOOK_URL:-}
