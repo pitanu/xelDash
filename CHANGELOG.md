@@ -97,6 +97,12 @@ First public version, planned as 0.1.0.
 
 ### Security
 
+- Review of the redundancy and outage code: a cluster code is validated field by field before use; the address manager checks its
+  configuration values and writes a safe role file; every record sent to the ingest endpoint is checked (including a sequence
+  number that could freeze later records); connection-problem events are shortened and rate-limited; the journal caps events and
+  bans at twice its size limit (blocks are always kept); the standby's offline page has security headers; `.env` is owner-only
+  on Linux and macOS.
+
 - Miners and the dashboard accept only private networks by default
   (`XELDASH_ALLOWED_NETWORKS`); the Windows launcher can add firewall rules that allow the local
   subnet and block the internet.

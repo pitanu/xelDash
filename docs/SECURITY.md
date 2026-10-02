@@ -109,7 +109,19 @@ check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
 - **Records kept during an outage are private.** While the database cannot be reached, Stratum keeps its journal (miner
   addresses, IP addresses, shares) in a file readable only by the mining server, on a volume that is not published.
 - **The ingest endpoint exists only in a cluster.** `/api/v1/ingest` answers 404 unless `XELDASH_CLUSTER_SECRET` (at least 16
-  characters) is set, compares the secret in constant time, and takes at most 4 MB and 2000 records per request.
+  characters) is set, checks the secret in constant time before it reads any body, and takes at most 4 MB and 2000 records per
+  request. Every record is checked before it is applied (types, lengths, a sequence number that cannot jump ahead and freeze
+  later records, payloads under 8 KB), and one that fails is counted and dropped, never stored.
+- **What a miner can make Stratum record is limited.** Connection-problem events cut the miner's address and worker text to 200
+  characters and are capped at 60 a minute in all. While the database is away, the journal keeps blocks always, but events and
+  bans only up to twice `STRATUM_JOURNAL_MAX_MB` and shares only up to `STRATUM_JOURNAL_MAX_MB`, so nothing a miner sends can fill the disk.
+- **A cluster code is checked before it is used.** `./xeldash.sh cluster join` accepts the shared address (a home-network
+  address), cluster number, secret (32 hex characters), network, wallet address, the main server (a home-network address or a
+  `.local`/`.lan`/`.home` name, as `http://host:port`) and server name only in their exact forms, and writes nothing to
+  `.env` otherwise, so a crafted code cannot send a standby's records and secret to another computer or add text to a
+  configuration file. The address manager checks the same values again before it builds its configuration.
+- **`.env` is private on Linux and macOS.** The launcher creates it readable by its owner only (it holds the database password,
+  the admin token and the cluster secret). On Windows it has the folder's normal permissions.
 - **A redundancy cluster trusts your network.** The two servers share a secret (`XELDASH_CLUSTER_SECRET`, in both
   `.env` files; keep the cluster code private). The standby sends its records to the main server over plain HTTP,
   with the secret in a header, so anyone who can read traffic on your network can read it; and the address manager
@@ -117,6 +129,10 @@ check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
   shared address (your rigs would then mine for it, not you, if it also ran Stratum with another address). Both are
   the same trust as letting people on your network mine through xelDash at all. Use the HTTPS proxy profile for the
   main server if your network is shared with people you do not trust.
+- **Some read-only endpoints are open to your network.** Disk space, the cluster role and (in a cluster) the standby's `/status` need no
+  token: they show sizes, a server name and a count of connected rigs, to anyone who is allowed on your network. The alert
+  settings file on the config volume (webhook addresses, the Telegram token) is readable by the API and Stratum containers, not
+  by other users, and the dashboard only ever shows the last four characters.
 - **The wallet link is only a link.** The setup page points to the official web wallet at
   wallet.xelis.io. xelDash never sees a recovery phrase, and cannot move coins.
 - **Outbound requests.** Besides the XELIS network, xelDash contacts: GitHub (latest release,

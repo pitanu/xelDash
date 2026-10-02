@@ -93,14 +93,29 @@ const sessions = new Map();
 const PROBLEM_INTERVAL_MS = 10 * 60_000;
 /** @type {Map<string, number>} */
 const problemSeen = new Map();
+const PROBLEMS_PER_MINUTE = 60;
+let problemWindowStart = 0;
+let problemsThisWindow = 0;
 /** @param {string} type @param {Record<string, unknown> & { ip: string, reason: string }} payload */
 function reportProblem(type, payload) {
+  // The address and worker come straight from the miner's login: cut them short, so a miner cannot make an event as large as its message.
+  const short = (/** @type {unknown} */ value) => (typeof value === "string" ? value.slice(0, 200) : value);
+  payload = { ...payload, ...(payload.address !== undefined ? { address: short(payload.address) } : {}), ...(payload.worker !== undefined ? { worker: short(payload.worker) } : {}), ...(payload.detail !== undefined ? { detail: short(payload.detail) } : {}) };
   const key = [type, payload.reason, payload.ip, payload.address ?? ""].join("|");
   const now = Date.now();
   if (now - (problemSeen.get(key) ?? 0) < PROBLEM_INTERVAL_MS) return;
+  // Whatever the miners send, at most this many problem events a minute are recorded in all: they cannot flood the database or,
+  // while it is away, the journal.
+  if (now - problemWindowStart >= 60_000) {
+    problemWindowStart = now;
+    problemsThisWindow = 0;
+  }
+  if (++problemsThisWindow > PROBLEMS_PER_MINUTE) return;
   problemSeen.set(key, now);
   if (problemSeen.size > 1_000) {
     for (const [k, at] of problemSeen) if (now - at >= PROBLEM_INTERVAL_MS) problemSeen.delete(k);
+    // Still too many distinct causes (they are all recent): forget the oldest rather than grow without limit.
+    while (problemSeen.size > 5_000) problemSeen.delete(/** @type {string} */ (problemSeen.keys().next().value));
   }
   const masked = payload.ip === dockerGateway;
   store.recordServiceEvent(type, { ...payload, ...(masked ? { masked: true } : {}) })

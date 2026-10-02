@@ -315,6 +315,41 @@ export async function applyJournalRecord(pool, record, workers, { api = { ensure
   }
 }
 
+const HEX64 = /^[0-9a-f]{64}$/;
+const DECIMAL = /^(?:0|[1-9]\d{0,38})(?:\.\d{1,12})?$/;
+
+/** @param {unknown} value @param {number} max */
+const text = (value, max) => typeof value === "string" && value.length > 0 && value.length <= max;
+
+/**
+ * The reason a journal record must not be applied, or null. A standby server sends these in batches; the sender holds the
+ * cluster secret, so it is trusted, but a bug or a half-written record must not be able to store garbage, or to push the sequence
+ * number so far ahead that every later record is skipped.
+ * @param {any} r @param {number} [now]
+ */
+export function journalRecordProblem(r, now = Date.now()) {
+  if (!r || typeof r !== "object") return "not an object";
+  if (!Number.isSafeInteger(r.s) || r.s <= 0 || r.s > (now + 86_400_000) * 1000) return "bad sequence number";
+  if (typeof r.at !== "string" || Number.isNaN(Date.parse(r.at))) return "bad time";
+  const key = (/** @type {any} */ k) => k && text(k.address, 200) && text(k.name, 128);
+  switch (r.t) {
+    case "worker": return text(r.address, 200) && text(r.name, 128) && (r.ip === null || r.ip === undefined || text(r.ip, 64)) ? null : "bad worker";
+    case "share":
+      if (!key(r.key) || !text(r.jobId, 128) || !text(r.nonce, 128) || typeof r.accepted !== "boolean") return "bad share";
+      if (typeof r.difficulty !== "string" || !DECIMAL.test(r.difficulty)) return "bad difficulty";
+      if (r.networkDifficulty !== null && r.networkDifficulty !== undefined && !/^[1-9]\d{0,38}$/.test(String(r.networkDifficulty))) return "bad network difficulty";
+      if (!r.accepted && !text(r.rejectReason, 64)) return "bad reject reason";
+      return null;
+    case "block":
+      if (!HEX64.test(String(r.hash)) || !text(r.status, 32) || Number.isNaN(Date.parse(r.foundAt))) return "bad block";
+      if (r.key !== null && r.key !== undefined && !key(r.key)) return "bad block worker";
+      return null;
+    case "event": return text(r.type, 64) && r.payload && typeof r.payload === "object" && JSON.stringify(r.payload).length <= 8_192 ? null : "bad event";
+    case "ban": return text(r.ip, 64) && text(r.reason, 256) && !Number.isNaN(Date.parse(r.until)) ? null : "bad ban";
+    default: return "unknown record type";
+  }
+}
+
 /** A record that can never be applied (bad data), as opposed to a database that cannot be reached. @param {any} error */
 function isPermanentRecordError(error) {
   return error instanceof TypeError || /^(22|23)/.test(String(error?.code ?? ""));
@@ -338,11 +373,11 @@ export async function ingestRecords(pool, instance, records) {
   let rejected = 0;
   try {
     for (const record of records) {
-      const seq = Number(record?.s);
-      if (!Number.isFinite(seq) || seq <= 0) {
+      if (journalRecordProblem(record)) {
         rejected += 1;
         continue;
       }
+      const seq = record.s;
       if (seq <= last) {
         skipped += 1;
         continue;

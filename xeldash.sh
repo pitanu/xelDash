@@ -220,6 +220,7 @@ cmd_install() {
 
   [ -f .env.example ] || die "Run this from the xelDash folder (.env.example is missing)."
   cp .env.example .env
+  chmod 600 .env 2>/dev/null || true  # it holds passwords and the admin token: readable by this user only
 
   network="${network:-mainnet}"
   case "$network" in mainnet|testnet|devnet) ;; *) die "Network must be mainnet, testnet or devnet." ;; esac
@@ -437,10 +438,26 @@ cluster_setup() {
   say "Keep that code private: it holds the cluster secret. Show the cluster any time with: ./xeldash.sh cluster status"
 }
 
+# A cluster code is pasted from somewhere, so every field is checked before it is written to .env (where Docker Compose reads
+# it and the address manager's configuration is built from it): a crafted code must not be able to point this server's
+# records and secret at another computer, or put extra text into a configuration file.
+cluster_code_ok() {
+  local vip="$1" id="$2" secret="$3" network="$4" address="$5" primary="$6" name="$7" host
+  [[ "$vip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$ ]] && is_private_ip "${vip%/*}" && [ "${vip#*/}" -ge 8 ] && [ "${vip#*/}" -le 30 ] || { warn "The shared address in the code is not a home-network address: $vip"; return 1; }
+  [[ "$id" =~ ^[0-9]{1,3}$ ]] && [ "$id" -ge 1 ] && [ "$id" -le 255 ] || { warn "The cluster number in the code is not valid."; return 1; }
+  [[ "$secret" =~ ^[0-9a-f]{32}$ ]] || { warn "The cluster secret in the code is not valid."; return 1; }
+  case "$network" in mainnet|testnet|devnet|"") ;; *) warn "The network in the code is not valid: $network"; return 1 ;; esac
+  [[ -z "$address" || "$address" =~ ^(xel|xet):[a-z0-9]{30,120}$ ]] || { warn "The wallet address in the code is not valid."; return 1; }
+  [[ "$primary" =~ ^http://([^/:]+):[0-9]{2,5}$ ]] || { warn "The main server's address in the code is not valid: $primary"; return 1; }
+  host="${BASH_REMATCH[1]}"
+  if [[ "$host" =~ ^[0-9.]+$ ]]; then is_private_ip "$host" || { warn "The main server's address ($host) is not on a home network."; return 1; }
+  else [[ "$host" =~ ^[A-Za-z0-9-]+(\.(local|lan|home))?$ ]] || { warn "The main server's name in the code is not valid: $host"; return 1; }; fi
+  [[ "$name" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || { warn "The server name in the code is not valid."; return 1; }
+}
+
 cluster_join() {
   local code="${1:-}"
   [ -n "$code" ] || die "Say which cluster to join: ./xeldash.sh cluster join xelcluster1:..."
-  check_docker; cluster_need_linux
   case "$code" in xelcluster1:*) ;; *) die "That is not a cluster code. It starts with xelcluster1:" ;; esac
   local json; json="$(printf '%s' "${code#xelcluster1:}" | base64 -d 2>/dev/null)" || die "The cluster code is damaged. Copy it again in full."
   local vip id secret network address primary name
@@ -448,7 +465,9 @@ cluster_join() {
   network="$(printf '%s' "$json" | json_get network)"; address="$(printf '%s' "$json" | json_get address)"
   primary="$(printf '%s' "$json" | json_get primary)"; name="$(printf '%s' "$json" | json_get name)"
   [ -n "$vip" ] && [ -n "$id" ] && [ -n "$secret" ] && [ -n "$primary" ] || die "The cluster code is incomplete. Copy it again in full."
-  [ -f .env ] || cp .env.example .env
+  cluster_code_ok "$vip" "$id" "$secret" "$network" "$address" "$primary" "$name" || die "The cluster code was refused. Copy it again from the main server (./xeldash.sh cluster setup prints it)."
+  check_docker; cluster_need_linux
+  if [ ! -f .env ]; then cp .env.example .env; chmod 600 .env 2>/dev/null || true; fi
   [ -z "$(get_env XELDASH_PRIMARY_URL)" ] || die "This server already joined a cluster."
   set_env XELIS_NETWORK "${network:-mainnet}"
   set_env XELIS_SNAPSHOT_AUTO true

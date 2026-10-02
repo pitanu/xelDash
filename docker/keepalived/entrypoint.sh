@@ -25,6 +25,17 @@ export XELDASH_VIP_INTERFACE="$iface"
 priority="${XELDASH_CLUSTER_PRIORITY:-100}"
 port="${XELDASH_STRATUM_HEALTH_PORT:-8096}"
 
+# Everything below ends up in a configuration file read by a root process, so nothing but plain values may pass.
+case "$vip" in
+  [0-9]*.[0-9]*.[0-9]*.[0-9]*/[0-9]*) ;;
+  *) echo "cluster: XELDASH_VIP must look like 192.168.1.250/24" >&2; exit 1 ;;
+esac
+case "$vip" in *[!0-9./]*) echo "cluster: XELDASH_VIP has characters that do not belong in an address" >&2; exit 1 ;; esac
+case "$iface" in *[!A-Za-z0-9._-]*|'') echo "cluster: XELDASH_VIP_INTERFACE has characters that do not belong in an interface name" >&2; exit 1 ;; esac
+case "$priority" in ''|*[!0-9]*) echo "cluster: XELDASH_CLUSTER_PRIORITY must be a number from 1 to 254" >&2; exit 1 ;; esac
+{ [ "$priority" -ge 1 ] && [ "$priority" -le 254 ]; } || { echo "cluster: XELDASH_CLUSTER_PRIORITY must be from 1 to 254" >&2; exit 1; }
+case "$port" in ''|*[!0-9]*) echo "cluster: XELDASH_STRATUM_HEALTH_PORT must be a port number" >&2; exit 1 ;; esac
+
 mkdir -p /etc/keepalived
 cat > /etc/keepalived/keepalived.conf <<CONF
 global_defs {

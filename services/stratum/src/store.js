@@ -211,7 +211,7 @@ export class DurableStore {
     await this.#append({
       t: "block", key, hash: block.hash, height: block.height ?? null, topoheight: block.topoheight ?? null, status: block.status,
       foundAt: foundAt.toISOString(), at: foundAt.toISOString(),
-    }, { keep: true });
+    }, { keep: "always" });
   }
 
   /** @param {string} type @param {Record<string, unknown>} [payload] */
@@ -226,7 +226,7 @@ export class DurableStore {
         this.#goOffline(error);
       }
     }
-    await this.#append({ t: "event", type, payload, at: at.toISOString() }, { keep: true });
+    await this.#append({ t: "event", type, payload, at: at.toISOString() }, { keep: "events" });
   }
 
   /** @param {{ ip: string, reason: string, until: Date }} ban */
@@ -240,7 +240,7 @@ export class DurableStore {
         this.#goOffline(error);
       }
     }
-    await this.#append({ t: "ban", ip: ban.ip, reason: ban.reason, until: ban.until.toISOString(), at: new Date().toISOString() }, { keep: true });
+    await this.#append({ t: "ban", ip: ban.ip, reason: ban.reason, until: ban.until.toISOString(), at: new Date().toISOString() }, { keep: "events" });
   }
 
   /** The miner-reported hashrate is a display value: it is not kept for later. @param {string | bigint | null} workerId @param {number} hashrate */
@@ -294,15 +294,18 @@ export class DurableStore {
 
   /**
    * @param {Record<string, unknown> & { t: string, at: string }} record
-   * @param {{ keep?: boolean }} [options] Blocks, events and bans are always kept; shares are dropped past the size limit.
+   * @param {{ keep?: "always" | "events" }} [options] Blocks are always kept (a few hundred bytes each, and the one record that
+   *   matters). Events and bans are kept up to twice the size limit, shares only up to the limit: what a miner can make Stratum
+   *   record must not be able to fill the disk.
    */
-  #append(record, { keep = false } = {}) {
+  #append(record, { keep } = {}) {
     if (!this.journalFile) return Promise.resolve();
     this.lastSeq = Math.max(this.lastSeq + 1, Date.now() * 1000);
     record.s = this.lastSeq;
     const line = `${JSON.stringify(record)}\n`;
     const task = this.chain.then(async () => {
-      if (!keep && this.bytes + line.length > this.maxBytes) {
+      const limit = keep === "always" ? Infinity : keep === "events" ? this.maxBytes * 2 : this.maxBytes;
+      if (this.bytes + line.length > limit) {
         if (this.dropped++ % 1_000 === 0) this.logger.warn?.(`The journal is full (${Math.round(this.maxBytes / 1048576)} MB); statistics are being dropped until the database is back`);
         return;
       }
