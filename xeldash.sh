@@ -151,6 +151,48 @@ cmd_lan() {
 
 # ---------------------------------------------------------------- install
 
+# ---------------------------------------------------------------- disk space
+
+# Free space, in GB (1024-based, like df and Finder), on the drive that holds xelDash's data. XELDASH_TEST_FREE_GB overrides it for tests.
+disk_free_gb() {
+  [ -n "${XELDASH_TEST_FREE_GB:-}" ] && { printf '%s' "$XELDASH_TEST_FREE_GB"; return; }
+  local dir="."
+  # With Docker Engine on Linux the data lives under Docker's own directory; Docker Desktop keeps it on this drive.
+  if [ "$(uname -s)" = Linux ]; then
+    local root; root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)"
+    [ -n "$root" ] && [ -d "$root" ] && dir="$root"
+  fi
+  df -Pk "$dir" 2>/dev/null | awk 'NR == 2 { print int($4 / 1048576) }'
+}
+
+# The first start downloads the blockchain snapshot and unpacks it before deleting the download (about 21 GB at the
+# peak, so 40 GB free is comfortable); syncing from other nodes instead needs about half that but takes much longer.
+# Warns before anything is downloaded, and offers the slower start when only that fits.
+check_disk_space() {
+  local yes="${1:-0}"
+  [ -z "${XELDASH_SKIP_DISK_CHECK:-}" ] || return 0
+  [ "$(get_env XELIS_NETWORK)" = mainnet ] || return 0
+  local free; free="$(disk_free_gb)"
+  [[ "$free" =~ ^[0-9]+$ ]] || return 0
+  local fast=40 slow=25 snapshot=0
+  [ "$(get_env XELIS_SNAPSHOT_AUTO)" = true ] && snapshot=1
+  local need=$slow; [ "$snapshot" -eq 1 ] && need=$fast
+  if [ "$free" -ge "$need" ]; then ok "Free disk space: $free GB, enough."; return 0; fi
+  say ""
+  warn "Only $free GB of disk space is free where xelDash keeps its data."
+  if [ "$snapshot" -eq 1 ] && [ "$free" -ge "$slow" ]; then
+    say "The fast start needs about $fast GB free: it downloads the blockchain (9 GB) and unpacks it (11 GB) before deleting the download."
+    say "A slower start needs only about $slow GB: the node syncs from other nodes instead, which takes much longer, but never holds both copies."
+    local reply="y"
+    if [ "$yes" -eq 0 ]; then read -r -p "Use the slower start that fits? [Y/n]: " reply || reply=""; fi
+    case "$reply" in n|N|no|NO) warn "Continuing with the fast start. It may run out of space; the dashboard warns you and you can free space meanwhile." ;;
+      *) set_env XELIS_SNAPSHOT_AUTO false; ok "Using the slower start. You can switch later on the Nodes page (Snapshots)." ;;
+    esac
+    return 0
+  fi
+  die "That is not enough: xelDash needs about $slow GB free even with the slower start (the blockchain is about 11 GB and grows). Free some space and run ./xeldash.sh again. (XELDASH_SKIP_DISK_CHECK=1 skips this check.)"
+}
+
 cmd_install() {
   local network="" address="" lan="" yes=0 nostart=0 sets=()
   while [ $# -gt 0 ]; do
@@ -219,6 +261,7 @@ cmd_install() {
     [[ "$kv" == *=* ]] || die "--set needs KEY=VALUE, got: $kv"
     set_env "${kv%%=*}" "${kv#*=}"
   done
+  check_disk_space "$yes"
   ok "Settings saved to .env (with a new random password and admin token)."
 
   if [ "$nostart" -eq 1 ]; then say "Not starting, as asked. Start later with: ./xeldash.sh start"; return; fi

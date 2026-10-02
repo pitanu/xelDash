@@ -115,6 +115,8 @@ First public version, planned as 0.1.0.
 
 ### Operations
 
+- The installer checks free disk space before the first download (mainnet): about 40 GB for the fast snapshot start, 25 GB
+  for the slower start that syncs from other nodes. If only the slower start fits, it offers it; below that it stops.
 - A system requirements page (minimum and recommended: disk, memory, processor, network, operating systems), with the
   figures measured on the running mainnet stack and what has not been measured yet marked.
 - Redundancy between two Linux servers (`xeldash cluster setup` and `cluster join`): they share one address, held by

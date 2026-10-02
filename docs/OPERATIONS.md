@@ -284,6 +284,12 @@ snapshot downloads and unpacks, then starts on it. If the download fails, the no
 the network as usual. The dashboard shows the progress. `XELIS_SNAPSHOT_URL` and
 `XELIS_SNAPSHOT_CHECKSUM_URL` point at another source (then used on any network).
 
+**The trade-off.** The snapshot start is much faster, but it needs about twice the chain's size in free space while it
+runs (about 21 GB at the peak, because the download and the unpacked chain exist together for a while). Without it
+(`XELIS_SNAPSHOT_AUTO=false`) the node syncs from other nodes: slower, often by a wide margin, but it uses less space,
+since there is no download and no second copy. The launcher compares the free space with these needs before the first
+start and offers the slower start when only that fits (`XELDASH_SKIP_DISK_CHECK=1` turns the check off).
+
 Automatic snapshots are for `daemon` only. A second node is quickest to start with **Copy from
 daemon** (see [Redundant nodes](#redundant-nodes)), or it can take a snapshot from the same
 page.

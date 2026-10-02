@@ -35,6 +35,9 @@ proven on a small computer. Please confirm or correct them:
 - [ ] The same on a hard disk instead of an SSD: how long the sync takes to catch up, and whether mining ever pauses.
 - [ ] A Raspberry Pi 4 or 5 (64-bit OS, 8 GB, SSD): do the images start, and does a rig get shares accepted?
 - [ ] macOS with Docker Desktop (Intel or Apple Silicon): install, mine, and the free-space figure on the Nodes page.
+- [ ] The installer's disk check on a real small disk (not the test override): with 30 GB free it offers the slower start,
+      and with 20 GB free it stops. Then time a full sync without the snapshot (`XELIS_SNAPSHOT_AUTO=false`), noting the
+      lowest free space reached, to confirm or correct the "25 GB" and "much slower" figures.
 - [ ] Correct the numbers in REQUIREMENTS.md wherever the result differs.
 
 ## 2. Local network only

@@ -124,6 +124,10 @@ network, not the internet. See [Security](SECURITY.md).
 - **"Docker is not running".** Open Docker Desktop and wait until it says it is running.
 - **A port is already in use.** Another program uses 8088 or 3333. Change `XELDASH_WEB_PORT` or
   `XELDASH_STRATUM_PORT` in the `.env` file, then run `start` again.
+- **"Only 30 GB of disk space is free".** The installer checks before it downloads anything. The fast start needs about
+  40 GB free for a little while (it downloads the blockchain and unpacks it before deleting the download). If you have
+  less, it offers a slower start that needs about 25 GB: your node then syncs from other nodes, which takes much longer
+  but never needs both copies. Below 25 GB it stops and asks you to free some space.
 - **The snapshot is slow or stuck.** It is a 9 GB download; a slow connection takes a while. It
   resumes if interrupted. The **Nodes** page shows the details.
 - **I forgot the admin password.** Run `xeldash token`. It is also in the `.env` file.

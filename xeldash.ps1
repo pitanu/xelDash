@@ -285,6 +285,49 @@ function Invoke-Start([bool]$First = $false) {
     }
 }
 
+# ---------------------------------------------------------------- disk space
+
+# Free space in GB (1024-based, like Explorer) on the drive that holds xelDash and its Docker data.
+# XELDASH_TEST_FREE_GB overrides it for tests.
+function Get-FreeDiskGb {
+    if ($env:XELDASH_TEST_FREE_GB) { return [int]$env:XELDASH_TEST_FREE_GB }
+    try {
+        $drive = (Get-Item -LiteralPath $PSScriptRoot).PSDrive
+        if ($drive -and $null -ne $drive.Free) { return [int][math]::Floor($drive.Free / 1GB) }
+    } catch { }
+    return $null
+}
+
+# The first start downloads the blockchain snapshot and unpacks it before deleting the download (about 21 GB at the
+# peak, so 40 GB free is comfortable); syncing from other nodes instead needs about half that but takes much longer.
+# Warns before anything is downloaded, and offers the slower start when only that fits.
+function Test-DiskSpace([bool]$Yes) {
+    if ($env:XELDASH_SKIP_DISK_CHECK) { return }
+    if ((Get-EnvValue "XELIS_NETWORK") -ne "mainnet") { return }
+    $free = Get-FreeDiskGb
+    if ($null -eq $free) { return }
+    $fast = 40; $slow = 25
+    $snapshot = ((Get-EnvValue "XELIS_SNAPSHOT_AUTO") -eq "true")
+    $need = $slow; if ($snapshot) { $need = $fast }
+    if ($free -ge $need) { Ok "Free disk space: $free GB, enough."; return }
+    Say ""
+    Warn "Only $free GB of disk space is free where xelDash keeps its data."
+    if ($snapshot -and $free -ge $slow) {
+        Say "The fast start needs about $fast GB free: it downloads the blockchain (9 GB) and unpacks it (11 GB) before deleting the download."
+        Say "A slower start needs only about $slow GB: the node syncs from other nodes instead, which takes much longer, but never holds both copies."
+        $reply = "y"
+        if (-not $Yes) { $reply = Read-Host "Use the slower start that fits? [Y/n]" }
+        if ($reply -match '^(n|no)$') {
+            Warn "Continuing with the fast start. It may run out of space; the dashboard warns you and you can free space meanwhile."
+        } else {
+            Set-EnvValue "XELIS_SNAPSHOT_AUTO" "false"
+            Ok "Using the slower start. You can switch later on the Nodes page (Snapshots)."
+        }
+        return
+    }
+    Die "That is not enough: xelDash needs about $slow GB free even with the slower start (the blockchain is about 11 GB and grows). Free some space and run xeldash again. (Set XELDASH_SKIP_DISK_CHECK=1 to skip this check.)"
+}
+
 function Invoke-Install([string[]]$Rest) {
     $network = ""; $address = ""; $lan = ""; $yes = $false; $noStart = $false; $wantFirewall = $false
     $sets = New-Object System.Collections.Generic.List[string]
@@ -353,6 +396,7 @@ function Invoke-Install([string[]]$Rest) {
         $idx = $kv.IndexOf("=")
         Set-EnvValue $kv.Substring(0, $idx) $kv.Substring($idx + 1)
     }
+    Test-DiskSpace $yes
     Ok "Settings saved to .env (with a new random password and admin token)."
 
     if ($noStart) { Say "Not starting, as asked. Start later with: xeldash start"; return }

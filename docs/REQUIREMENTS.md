@@ -10,7 +10,7 @@ space. The mining rigs are separate (see the end).
 | **Operating system** | Windows 10 or 11 (64-bit), macOS, or Linux (64-bit) | Linux with Docker Engine for a server that stays on; Windows 10 or 11 is fine |
 | **Processor** | 2 cores, x86-64 or ARM64 | 4 cores or more |
 | **Memory (RAM)** | 4 GB in the computer | 8 GB (16 GB if your rigs also run on this computer) |
-| **Free disk space** | **40 GB** | **100 GB or more, on an SSD** |
+| **Free disk space** | **40 GB** (25 GB if you start without the snapshot: slower, less space) | **100 GB or more, on an SSD** |
 | **Network** | A normal broadband connection, always on | Wired Ethernet |
 | **Software** | Docker with Compose v2 (the launcher checks and tells you what is missing) | The current Docker release |
 | **Power** | A computer that stays on and does not go to sleep | The same, on a UPS if you can |
@@ -20,6 +20,15 @@ The minimum is enough to run one node and a handful of rigs. The recommended fig
 a second node, for backups, and for a server that you do not want to think about for a year.
 
 ## Disk space: the one to plan for
+
+**Short on disk? Start without the snapshot.** The fast start (the default) downloads the official snapshot and unpacks it
+before deleting the download, which is why it peaks at about 21 GB. Syncing from other nodes instead (`XELIS_SNAPSHOT_AUTO=false`)
+**is slower, but needs less space**: there is no 9 GB download and no second copy, so it never needs much more than the chain
+itself, roughly **25 GB free** to be comfortable instead of 40 GB. The cost is time: a node that syncs from nothing has to
+fetch and check every block, which takes much longer than unpacking a snapshot (the Overview shows the progress and time left).
+The launcher checks free space before the first download and, if only the slower start fits, offers it. You can also
+choose it later on the Nodes page. The 25 GB figure is an estimate, not a measurement: the node's database can use extra
+space for a while as it reorganises itself while syncing, and nobody has timed a full sync here yet.
 
 | What | Size (measured) |
 |---|---|
