@@ -12,12 +12,23 @@ export function createPool(connectionString = process.env.DATABASE_URL) {
     throw new Error("Set DATABASE_URL or PGHOST/PGDATABASE/PGUSER/PGPASSWORD");
   }
 
-  return new Pool({
+  const pool = new Pool({
     ...(connectionString ? { connectionString } : {}),
     max: Number.parseInt(process.env.DB_POOL_MAX ?? "10", 10),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
   });
+  // When the database restarts or goes away, the server drops the pool's idle connections and the pool
+  // emits "error". Unhandled, Node ends the process, which would disconnect every miner and restart the
+  // service. The pool discards the broken connection and opens a new one on the next query; one warning
+  // per minute says it happened.
+  let lastWarning = 0;
+  pool.on("error", (error) => {
+    if (Date.now() - lastWarning < 60_000) return;
+    lastWarning = Date.now();
+    console.warn("Database connection lost; it will be reopened on the next query:", error.message);
+  });
+  return pool;
 }
 
 /** @param {PgPool} pool @param {WorkerInput} workerInput */
@@ -155,7 +166,7 @@ export async function recordShare(pool, share) {
   }
 }
 
-/** @typedef {{ hash: string, height?: number | null, topoheight?: number | null, minerId?: string | bigint | null, workerId?: string | bigint | null, status: string }} BlockInput */
+/** @typedef {{ hash: string, height?: number | null, topoheight?: number | null, minerId?: string | bigint | null, workerId?: string | bigint | null, status: string, foundAt?: Date | null }} BlockInput */
 
 /**
  * Record a block candidate the stratum submitted. A hash already on record keeps its
@@ -170,8 +181,8 @@ export async function recordBlock(pool, block) {
     throw new TypeError("Block status is required");
   }
   await pool.query(
-    `INSERT INTO blocks (hash, height, topoheight, miner_id, worker_id, status)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO blocks (hash, height, topoheight, miner_id, worker_id, status, found_at)
+     VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::timestamptz, now()))
      ON CONFLICT (hash) DO UPDATE SET
        status = EXCLUDED.status,
        height = COALESCE(EXCLUDED.height, blocks.height),
@@ -184,6 +195,7 @@ export async function recordBlock(pool, block) {
       block.minerId ?? null,
       block.workerId ?? null,
       block.status,
+      block.foundAt ?? null,
     ],
   );
 }

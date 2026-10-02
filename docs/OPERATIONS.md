@@ -130,6 +130,21 @@ docker compose exec -T postgres pg_restore -U xeldash -d restore_test /tmp/resto
 docker compose exec -T postgres dropdb -U xeldash restore_test
 ```
 
+## If the database goes down
+
+Tested by stopping PostgreSQL while a miner kept mining. Mining does not need the database to find a block:
+a solved block goes to your node first, and its reward is paid whatever happens afterwards. While the
+database is down:
+
+- miners are disconnected and reconnect on their own when it is back (logins need the database);
+- the dashboard still loads, but its data returns "503" until the database is back;
+- a block found in those seconds is kept in memory and recorded as soon as the database returns, with the
+  time it was found. If the mining server itself restarts before the database is back, that one record is
+  lost (the block is still on the chain and paid);
+- shares in flight are not recorded, so the statistics have a small gap.
+
+Nothing needs restarting.
+
 ## Mining availability
 
 The Health page shows how much of the last day, week or month your miners could be given work. A pause is a

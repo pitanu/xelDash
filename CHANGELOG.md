@@ -11,6 +11,8 @@ First public version, planned as 0.1.0.
 
 ### Mining
 
+- A database outage no longer restarts the mining server or the API, and a block found while the database
+  is down is recorded when it returns (with its original time).
 - Stratum server for XELIS (`xel/v3`) with per-address work: rewards go straight to each
   miner's address, and xelDash holds no funds.
 - Share validation with the official XELIS Hash V3 code (native addon), hashed on a thread
