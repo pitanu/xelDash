@@ -115,6 +115,9 @@ First public version, planned as 0.1.0.
 
 ### Operations
 
+- Pruning is documented with measured sizes (a mainnet node goes from about 10.6 GB to about 6 GB, whatever number of blocks is
+  kept, and the space returns only after a restart), the Settings help for it says so, and on a pruned node a block the
+  node no longer knows stays pending instead of being marked orphaned.
 - The installer checks free disk space before the first download (mainnet): about 40 GB for the fast snapshot start, 25 GB
   for the slower start that syncs from other nodes. If only the slower start fits, it offers it; below that it stops.
 - A system requirements page (minimum and recommended: disk, memory, processor, network, operating systems), with the

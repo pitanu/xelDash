@@ -38,6 +38,11 @@ proven on a small computer. Please confirm or correct them:
 - [ ] The installer's disk check on a real small disk (not the test override): with 30 GB free it offers the slower start,
       and with 20 GB free it stops. Then time a full sync without the snapshot (`XELIS_SNAPSHOT_AUTO=false`), noting the
       lowest free space reached, to confirm or correct the "25 GB" and "much slower" figures.
+- [ ] Pruning on a real node: set "Prune old blocks" to 17,280 on the Settings page, apply, and watch the node's log
+      (`docker compose logs daemon`) for "Auto pruning chain until topoheight". After it says "Auto pruning done", restart the
+      node from the Nodes page: its folder should drop from about 10.6 GB to about 6 GB. Check that mining carries on, and
+      that a block found before the prune still shows on the Blocks page (as pending if the node no longer knows it).
+- [ ] Peak memory while pruning on a small computer (about 1.6 GB was in use right after a prune on the test machine; the exact peak was not recorded).
 - [ ] Correct the numbers in REQUIREMENTS.md wherever the result differs.
 
 ## 2. Local network only

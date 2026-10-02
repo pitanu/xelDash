@@ -233,6 +233,24 @@ depends on RPC being on, so those cannot be changed here. Settings are saved on 
 data volume (`.xeldash/daemon-args`) and survive restarts and upgrades. With two nodes,
 pick the node at the top of the section; change one node at a time so the other keeps mining.
 
+### Pruning old blocks (saving disk space)
+
+**Settings, Disk and logs, Prune old blocks** makes the node delete old blocks and keep only the number you give. On mainnet
+today it reduces a node's data from about 10.6 GB to about 6 GB, whatever number you choose between a thousand and a hundred
+thousand, so keep a generous one: **at least 17,280 blocks (one day)**. How it behaves, measured on a copy of the mainnet
+chain (details in [System requirements](REQUIREMENTS.md#pruning-old-blocks-what-it-saves)):
+
+1. Set the number and apply; the node restarts with pruning on.
+2. The node prunes only when the chain height is an exact multiple of your number, so the first prune can be hours away
+   (about 11 minutes of work, with roughly 1.6 GB of memory and up to 2 GB of extra space while it runs). The node's log says
+   "Auto pruning chain until topoheight ..." and "Auto pruning done".
+3. **Restart the node once more (Nodes page) after it has pruned.** The space is given back only then.
+
+Pruning cannot be undone without a new snapshot (Nodes page, Snapshots), and a pruned node cannot help other nodes sync old
+blocks. Mining and the dashboard work as normal. One difference: a block your miners found that the node has already pruned
+away is shown as pending rather than orphaned, because a pruned node cannot say what became of it; keeping at least a day of
+blocks makes that practically impossible unless xelDash was stopped for longer.
+
 ### Trusted peers
 
 **Trusted peers**, at the top of the daemon settings, lists nodes you trust: your other XELIS

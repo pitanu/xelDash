@@ -37,6 +37,7 @@ space for a while as it reorganises itself while syncing, and nobody has timed a
 | **Peak during a first start** | about **21 GB**: the snapshot download plus the unpacked chain, before the download is deleted |
 | xelDash's own images | about 1.5 GB |
 | The statistics database | small: about 18 MB after five days with one rig. Raw shares are kept 7 days (roughly 15 MB per active rig), per-minute stats 90 days, hourly stats forever |
+| The same node **after pruning** (see below) | about **6.0 to 6.2 GB**, down from about 10.6 GB, once the node has pruned and been restarted |
 | A second node (optional) | another 10.7 GB, plus 21 GB while it first starts, unless you copy the first node's chain (minutes) |
 | Old chain copies kept after a snapshot or a copy | up to one more chain size each, until you delete them on the Nodes page |
 
@@ -45,6 +46,35 @@ xelDash warns you on the Overview and Health pages, and sends an alert, when fre
 (`XELDASH_DISK_WARN_GB`). A full disk stops the node and can force a long resync. An **SSD** is strongly recommended:
 the node's database does a lot of small reads and writes, and a hard disk makes the first sync and the daily running
 noticeably slower.
+
+### Pruning old blocks: what it saves
+
+The node can delete old blocks as new ones arrive (the **Prune old blocks** setting, `auto-prune-keep-n-blocks`). Measured on a
+copy of the mainnet chain (block height 7.93 million, from the official snapshot, which is a full-history database):
+
+| Blocks kept | Size of the node's data | Saved |
+|---|---|---|
+| All (no pruning) | about 10.6 GB | |
+| The last 1,000 (about 83 minutes) | about 6.0 GB | 43% |
+| The last 16,933 (about 23 hours) | about 6.2 GB | 42% |
+| The last 108,172 (about 6 days) | about 6.2 GB | 42% |
+
+- **It saves about 4.4 GB, and it hardly matters how many blocks you keep** (from a thousand to over a hundred thousand gave
+  the same size, give or take 0.2 GB). What stays is mostly the current state of the chain, which cannot be pruned. So do not
+  keep too few: **keep at least 17,280 blocks (one day)**; it costs almost nothing in space and keeps xelDash able to look up
+  your recent blocks after a long stop.
+- **The space comes back only after the node restarts.** Right after a prune the folder was still 10.3 to 10.8 GB; after a restart
+  it dropped to about 6 GB and stayed there.
+- **It prunes only when the chain height is an exact multiple of the number you set.** With 1,000 that is every 83 minutes;
+  with 20,000 it can be many hours before the first prune. So: set it, apply (the node restarts), wait for the first prune
+  (the node's log says "Auto pruning chain"), then restart the node once more to get the space back.
+- **While it prunes** (about 11 minutes in the test) the node was using about 1.6 GB of memory when sampled right after (the exact peak was not
+  recorded), and its folder grew by up to about 2 GB before shrinking. Plan for that headroom on a small computer.
+- **It does not lower the 40 GB needed for the first start**: pruning starts after the node has its data. Pruning while syncing
+  from nothing (no snapshot) was not measured.
+- **It cannot be undone** without downloading a new snapshot, and a pruned node cannot help other nodes sync old blocks.
+  Mining works as normal on a pruned node (block templates were checked); a block that your miners found and that the node
+  has since pruned away is left as "pending" on the dashboard, because the node can no longer say what became of it.
 
 On Windows and macOS, Docker keeps its data inside a virtual disk that lives on your drive, so the free space that
 matters is your computer's drive (xelDash reads it for you and shows it on the Nodes page).
