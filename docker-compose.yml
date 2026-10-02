@@ -249,6 +249,8 @@ services:
       # Share hashing and DNS lookups share libuv's thread pool; this is also the number of
       # shares hashed in parallel.
       UV_THREADPOOL_SIZE: ${STRATUM_HASH_THREADS:-8}
+      # Addresses of a front door (xeldash frontdoor setup) whose PROXY line names the real miner; empty = none.
+      STRATUM_PROXY_FROM: ${STRATUM_PROXY_FROM:-}
       STRATUM_HANDSHAKE_TIMEOUT_MS: ${STRATUM_HANDSHAKE_TIMEOUT_MS:-10000}
       STRATUM_MAX_QUEUED_REQUESTS: ${STRATUM_MAX_QUEUED_REQUESTS:-32}
       # Where Stratum keeps records while the database cannot be reached, and replays them when it is back.

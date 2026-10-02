@@ -132,6 +132,26 @@ Only the failover logic has been tested so far, with containers on one machine; 
       failover alert within a minute or two, and none while the main server is on.
 - [ ] Both servers on a Raspberry Pi (arm64), if you have one.
 
+## 5d. Front door (needs a Linux computer with Docker Engine, and the main server on the same network; Windows is the interesting case)
+
+Tested only with simulated servers (HAProxy in containers, a fake Stratum that reports the address it sees); not with real miners.
+
+- [ ] `frontdoor join` refuses a damaged or edited code (a public address for the main server, a port above 65535, extra text in the
+      name) and writes nothing to `.env`.
+- [ ] `frontdoor setup` on the main server (Windows too) asks for the Linux box's address and prints a code; `frontdoor join CODE`
+      works on the Linux box; `frontdoor status` on both says which side miners are on.
+- [ ] A miner pointed at the front door mines, and the main server's Workers page shows the **miner's own address**, not the Linux box's.
+- [ ] Two rigs on the same network: a rig that misbehaves (bad shares) is banned alone; the other keeps mining.
+- [ ] Switch the main server off (power it off): the miner reconnects within about ten seconds, keeps getting shares accepted, and
+      the page at the Linux box says "Dashboard offline ... mining continues". Switch it back on: the shares from the outage appear in the
+      statistics and the miner goes back to it.
+- [ ] Restart the main server for an update (`xeldash update`): same, with only a reconnect.
+- [ ] A computer on the network that is not the front door sends a PROXY line to the main server's port 3333 (for example
+      `printf 'PROXY TCP4 1.2.3.4 1.2.3.5 1 2\r\n' | nc MAIN 3333`): on a Linux main server it is closed; on Windows it is not
+      believed unless it comes through Docker's gateway (see Security).
+- [ ] The official `xelis_miner` (getwork, port 8090) through the front door.
+- [ ] `frontdoor off` on the main server: miners pointed at the main server mine again.
+
 ## 6. Nodes and upgrades
 
 - [ ] Add a second local node, then a rolling update to a newer version. Mining continues.

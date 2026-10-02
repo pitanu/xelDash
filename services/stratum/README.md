@@ -73,7 +73,10 @@ Blocks are submitted to the node first, so a database outage never costs a block
 journals every record and sends it, in numbered batches, to the main server's `/api/v1/ingest`, which applies each
 record once. The block tracker, retention and live notifications, which need the database, are left to the main
 server. This is the second server of a two-server cluster (`docker-compose.standby.yml`; see
-[docs/OPERATIONS.md](../../docs/OPERATIONS.md#redundancy-two-servers)). `STRATUM_INSTANCE` names the sender. A standby also asks the main server's readiness endpoint every 30 seconds, and keeps the
+[docs/OPERATIONS.md](../../docs/OPERATIONS.md#redundancy-two-servers)). `STRATUM_INSTANCE` names the sender. `STRATUM_PROXY_FROM` (a front door, `src/proxy-protocol.js`): connections from the listed addresses
+(or `private`, or `gateway` for Docker Desktop) must begin with a PROXY protocol v1 line naming the real miner; from anyone else it is
+never believed. The plain Stratum and getwork ports support it, the TLS port does not.
+`STRATUM_INSTANCE` names the sender. A standby also asks the main server's readiness endpoint every 30 seconds, and keeps the
 default mining address it reports in `XELDASH_MINING_ADDRESS_FILE` (on its own volume), where the default-address watcher reads it.
 
 **Health.** A small HTTP server on `STRATUM_HEALTH_PORT` (8096): `/healthz` answers 200 while a node is ready to issue work

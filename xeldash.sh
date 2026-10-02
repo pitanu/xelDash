@@ -8,6 +8,7 @@
 #   ./xeldash.sh update     get the newest xelDash and restart it
 #   ./xeldash.sh backup     save a copy of your statistics to the backups folder
 #   ./xeldash.sh cluster setup|join CODE|status|off   two Linux servers sharing one address, for redundancy
+#   ./xeldash.sh frontdoor setup|join CODE|status|off a Linux box miners connect to, in front of this server
 #   ./xeldash.sh restore FILE   put a backup back (replaces the current statistics)
 #
 # Options for install (all optional; without them it asks):
@@ -526,7 +527,149 @@ cmd_cluster() {
   esac
 }
 
-usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; }
+# ---------------------------------------------------------------- front door (a Linux box in front of the main server)
+
+# Docker Desktop (Windows, macOS, or Linux with Desktop) shows every outside client as the network's gateway.
+docker_is_desktop() {
+  [ "$(uname -s)" != Linux ] || grep -qiE 'microsoft|linuxkit' /proc/sys/kernel/osrelease 2>/dev/null || docker info --format '{{.OperatingSystem}}' 2>/dev/null | grep -qi 'docker desktop'
+}
+
+frontdoor_setup() {
+  [ -f .env ] || die "xelDash is not set up yet. Run ./xeldash.sh first, then come back."
+  check_docker
+  [ -z "$(get_env STRATUM_PROXY_FROM)" ] || die "A front door is already set up. Show it with: ./xeldash.sh frontdoor status"
+  local from="" arg
+  for arg in "$@"; do case "$arg" in --from=*) from="${arg#--from=}" ;; esac; done
+  local ip; ip="$(lan_ip)"
+  [ -n "$ip" ] && is_private_ip "$ip" || die "Could not find this server's address on your home network. Set it up with ./xeldash.sh lan on first."
+  if [ -z "$from" ]; then
+    say ""
+    say "The front door is a second, Linux computer that your miners connect to. What is its address on your home network?"
+    say "(Find it on that computer with: hostname -I)"
+    read -r -p "Front door's address: " from || from=""
+  fi
+  [[ "$from" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && is_private_ip "$from" || die "That is not a home-network address: $from"
+  [ "$from" != "$ip" ] || die "The front door must be a different computer than this one ($ip)."
+  local secret; secret="$(get_env XELDASH_CLUSTER_SECRET)"; [ -n "$secret" ] || secret="$(random_hex 16)"
+  lan_on "$ip" >/dev/null || true
+  set_env XELDASH_CLUSTER_SECRET "$secret"
+  set_env XELDASH_SERVER_NAME "$(hostname)"
+  # The Stratum believes the front door's PROXY line (the real miner's address) from this address only; Docker Desktop shows
+  # every outside computer as its gateway, so there that has to be trusted too.
+  if docker_is_desktop; then set_env STRATUM_PROXY_FROM "$from,gateway"; else set_env STRATUM_PROXY_FROM "$from"; fi
+  say "Restarting to accept the front door..."
+  compose_up
+  frontdoor_code_print "$ip" "$secret"
+}
+
+frontdoor_code_print() {
+  local ip="$1" secret="$2" address network json code stratum getwork
+  address="$(curl -s -m 3 "http://127.0.0.1:$(web_port)/api/v1/node/mining-address" 2>/dev/null | json_get address)"
+  network="$(get_env XELIS_NETWORK)"
+  stratum="$(get_env XELDASH_STRATUM_PORT)"; getwork="$(get_env XELDASH_GETWORK_PORT)"
+  json="$(printf '{"v":1,"secret":"%s","network":"%s","address":"%s","host":"%s","webPort":%s,"stratumPort":%s,"getworkPort":%s,"name":"%s"}' \
+    "$secret" "${network:-mainnet}" "$address" "$ip" "$(web_port)" "${stratum:-3333}" "${getwork:-8090}" "$(hostname)")"
+  code="xelfront1:$(printf '%s' "$json" | base64 | tr -d '\n')"
+  ok "This server accepts the front door."
+  say ""
+  say "Now, on the Linux computer that will be the front door:"
+  say "  1. Download xelDash there, and run:   ${B}./xeldash.sh frontdoor join $code${N}"
+  say "  2. Wait for its node to sync (the first time it downloads the blockchain)."
+  say "  3. Point your miners at the front door's address (port 3333) instead of this server."
+  say "Keep that code private: it holds the secret. Miners should connect only through the front door from now on."
+}
+
+# Pasted from somewhere, so every field is checked before it reaches .env.
+frontdoor_code_ok() {
+  local secret="$1" network="$2" address="$3" host="$4" web="$5" stratum="$6" getwork="$7" name="$8" p
+  [[ "$secret" =~ ^[0-9a-f]{32}$ ]] || { warn "The secret in the code is not valid."; return 1; }
+  case "$network" in mainnet|testnet|devnet|"") ;; *) warn "The network in the code is not valid: $network"; return 1 ;; esac
+  [[ -z "$address" || "$address" =~ ^(xel|xet):[a-z0-9]{30,120}$ ]] || { warn "The wallet address in the code is not valid."; return 1; }
+  [[ "$host" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] && is_private_ip "$host" || { warn "The main server's address in the code is not a home-network address: $host"; return 1; }
+  for p in "$web" "$stratum" "$getwork"; do [[ "$p" =~ ^[0-9]{2,5}$ ]] && [ "$p" -le 65535 ] || { warn "A port number in the code is not valid: $p"; return 1; }; done
+  [[ "$name" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || { warn "The server name in the code is not valid."; return 1; }
+}
+
+frontdoor_join() {
+  local code="${1:-}"
+  [ -n "$code" ] || die "Say which server to join: ./xeldash.sh frontdoor join xelfront1:..."
+  case "$code" in xelfront1:*) ;; *) die "That is not a front door code. It starts with xelfront1:" ;; esac
+  local json; json="$(printf '%s' "${code#xelfront1:}" | base64 -d 2>/dev/null)" || die "The code is damaged. Copy it again in full."
+  local secret network address host web stratum getwork name
+  secret="$(printf '%s' "$json" | json_get secret)"; network="$(printf '%s' "$json" | json_get network)"; address="$(printf '%s' "$json" | json_get address)"
+  host="$(printf '%s' "$json" | json_get host)"; web="$(printf '%s' "$json" | json_get webPort)"; stratum="$(printf '%s' "$json" | json_get stratumPort)"
+  getwork="$(printf '%s' "$json" | json_get getworkPort)"; name="$(printf '%s' "$json" | json_get name)"
+  [ -n "$secret" ] && [ -n "$host" ] && [ -n "$web" ] && [ -n "$stratum" ] && [ -n "$getwork" ] || die "The code is incomplete. Copy it again in full."
+  frontdoor_code_ok "$secret" "$network" "$address" "$host" "$web" "$stratum" "$getwork" "$name" || die "The code was refused. Copy it again from the main server (./xeldash.sh frontdoor setup prints it)."
+  check_docker
+  if docker_is_desktop; then die "The front door needs Linux with Docker Engine: Docker Desktop hides the miners' addresses from it. See docs/OPERATIONS.md#front-door-a-box-miners-connect-to"; fi
+  if [ ! -f .env ]; then cp .env.example .env; chmod 600 .env 2>/dev/null || true; fi
+  [ -z "$(get_env FRONTDOOR_MAIN_HOST)" ] || die "This computer is already a front door."
+  [ -z "$(get_env XELDASH_PRIMARY_URL)" ] || die "This computer is already the second server of a cluster."
+  set_env XELIS_NETWORK "${network:-mainnet}"
+  set_env XELIS_SNAPSHOT_AUTO true
+  set_env XELDASH_PRIMARY_URL "http://$host:$web"
+  set_env XELDASH_CLUSTER_SECRET "$secret"
+  set_env FRONTDOOR_MAIN_HOST "$host"
+  set_env FRONTDOOR_MAIN_HEALTH_PORT "$web"
+  set_env FRONTDOOR_MAIN_STRATUM_PORT "$stratum"
+  set_env FRONTDOOR_MAIN_GETWORK_PORT "$getwork"
+  [ -z "$address" ] || set_env XELIS_DEFAULT_ADDRESS "$address"
+  set_env XELDASH_SERVER_NAME "$(hostname)"
+  [ -n "$(get_env XELDASH_ADMIN_TOKEN)" ] || set_env XELDASH_ADMIN_TOKEN "$(random_hex 24)"
+  set_env XELDASH_WEB_BIND_IP 0.0.0.0
+  set_env XELDASH_STRATUM_BIND_IP 0.0.0.0
+  set_env COMPOSE_FILE "docker-compose.frontdoor.yml"
+  if ! curl -fs -m 5 -H "x-cluster-secret: $secret" "http://$host:$web/api/v1/ingest/ping" >/dev/null 2>&1; then
+    warn "The main server at $host did not answer. Check that it is running and that the code is right. Continuing: this computer keeps its records and sends them when the main server answers."
+  else
+    ok "The main server answers."
+  fi
+  say "Starting the front door. The first time it downloads the blockchain (about 10 GB) and builds or pulls the images."
+  compose_up
+  ok "The front door is running. Point your miners at $(lan_ip) (port 3333): they reach the main server while it can mine, and this computer when it cannot."
+  say "  Its page (the main dashboard, or an offline notice) is at http://$(lan_ip):$(get_env XELDASH_WEB_PORT | sed 's/^$/8088/')"
+}
+
+frontdoor_status() {
+  [ -f .env ] || die "xelDash is not set up yet. Run ./xeldash.sh first."
+  check_docker
+  if [ -n "$(get_env FRONTDOOR_MAIN_HOST)" ]; then
+    local host; host="$(get_env FRONTDOOR_MAIN_HOST)"
+    say "This is the front door. Miners connect here (port 3333)."
+    if curl -fs -m 4 "http://$host:$(get_env FRONTDOOR_MAIN_HEALTH_PORT)/api/v1/mining-health" >/dev/null 2>&1; then
+      say "The main server ($host) can mine: miners are sent there."
+    else
+      say "The main server ($host) cannot mine right now (or does not answer): miners are mining on this computer."
+    fi
+  elif [ -n "$(get_env STRATUM_PROXY_FROM)" ]; then
+    say "This is the main server. It accepts a front door at: $(get_env STRATUM_PROXY_FROM)"
+  else
+    say "No front door is set up. Set one up with: ./xeldash.sh frontdoor setup"
+  fi
+}
+
+frontdoor_off() {
+  [ -z "$(get_env FRONTDOOR_MAIN_HOST)" ] || die "This is the front door itself. To remove it, run: docker compose down -v, and delete this folder. The main server keeps working on its own after ./xeldash.sh frontdoor off."
+  [ -n "$(get_env STRATUM_PROXY_FROM)" ] || die "No front door is set up."
+  check_docker
+  set_env STRATUM_PROXY_FROM ""
+  [ -n "$(get_env XELDASH_VIP)" ] || set_env XELDASH_CLUSTER_SECRET ""
+  compose_up
+  ok "The front door is off. Point your miners back at this server's own address."
+}
+
+cmd_frontdoor() {
+  case "${1:-status}" in
+    setup)  shift; frontdoor_setup "$@" ;;
+    join)   shift; frontdoor_join "$@" ;;
+    status) frontdoor_status ;;
+    off)    frontdoor_off ;;
+    *)      die "Use: ./xeldash.sh frontdoor setup | join CODE | status | off" ;;
+  esac
+}
+
+usage() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; }
 
 case "${1:-}" in
   "")       if [ -f .env ]; then check_docker; docker compose ps; say ""; say "Dashboard: http://localhost:$(web_port)   (more: ./xeldash.sh help)"; else cmd_install; fi ;;
@@ -541,6 +684,7 @@ case "${1:-}" in
   lan)      shift; cmd_lan "$@" ;;
   update)   cmd_update ;;
   cluster)  shift; cmd_cluster "$@" ;;
+  frontdoor) shift; cmd_frontdoor "$@" ;;
   backup)   cmd_backup ;;
   restore)  shift; cmd_restore "$@" ;;
   help|-h|--help) usage ;;

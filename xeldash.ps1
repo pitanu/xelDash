@@ -8,6 +8,7 @@
 #   .\xeldash.cmd update     get the newest xelDash and restart it
 #   .\xeldash.cmd backup     save a copy of your statistics to the backups folder
 #   .\xeldash.cmd cluster   two Linux servers sharing one address (not on Windows: see docs)
+#   .\xeldash.cmd frontdoor setup|status|off   a Linux box miners connect to, in front of this computer
 #   .\xeldash.cmd restore FILE   put a backup back (replaces the current statistics)
 #
 # Options for install (all optional; without them it asks):
@@ -462,8 +463,68 @@ function Invoke-Restore([string[]]$Arguments) {
     Ok "Backup restored and xelDash is running."
 }
 
+# ---------------------------------------------------------------- front door (a Linux box in front of this computer)
+
+function Invoke-FrontDoor([string[]]$Rest) {
+    $sub = "status"; if ($Rest -and $Rest.Count -gt 0) { $sub = $Rest[0] }
+    switch ($sub) {
+        "setup" {
+            if (-not (Test-Path ".env")) { Die "xelDash is not set up yet. Run xeldash first, then come back." }
+            Assert-Docker
+            if (Get-EnvValue "STRATUM_PROXY_FROM") { Die "A front door is already set up. Show it with: xeldash frontdoor status" }
+            $from = ""
+            foreach ($a in $Rest) { if ($a -like "--from=*") { $from = $a.Substring(7) } }
+            $ip = Get-LanIp
+            if (-not $ip -or -not (Test-PrivateIp $ip)) { Die "Could not find this computer's address on your home network. Set it up with: xeldash lan on" }
+            if (-not $from) {
+                Say ""
+                Say "The front door is a second, Linux computer that your miners connect to. What is its address on your home network?"
+                Say "(Find it on that computer with: hostname -I)"
+                $from = Read-Host "Front door's address"
+            }
+            if ($from -notmatch '^\d{1,3}(\.\d{1,3}){3}$' -or -not (Test-PrivateIp $from)) { Die "That is not a home-network address: $from" }
+            if ($from -eq $ip) { Die "The front door must be a different computer than this one ($ip)." }
+            $secret = Get-EnvValue "XELDASH_CLUSTER_SECRET"; if (-not $secret) { $secret = New-RandomHex 16 }
+            $null = Enable-Lan $ip
+            Set-EnvValue "XELDASH_CLUSTER_SECRET" $secret
+            Set-EnvValue "XELDASH_SERVER_NAME" $env:COMPUTERNAME
+            # Docker Desktop shows every outside computer as its gateway, so the gateway has to be trusted as well.
+            Set-EnvValue "STRATUM_PROXY_FROM" "$from,gateway"
+            Say "Restarting to accept the front door..."
+            Invoke-ComposeUp
+            $address = ""
+            try { $address = [string](Invoke-RestMethod -Uri "http://127.0.0.1:$(Get-WebPort)/api/v1/node/mining-address" -TimeoutSec 3).address } catch { }
+            $network = Get-EnvValue "XELIS_NETWORK"; if (-not $network) { $network = "mainnet" }
+            $stratum = Get-EnvValue "XELDASH_STRATUM_PORT"; if (-not $stratum) { $stratum = "3333" }
+            $getwork = Get-EnvValue "XELDASH_GETWORK_PORT"; if (-not $getwork) { $getwork = "8090" }
+            $json = '{"v":1,"secret":"' + $secret + '","network":"' + $network + '","address":"' + $address + '","host":"' + $ip + '","webPort":' + (Get-WebPort) + ',"stratumPort":' + $stratum + ',"getworkPort":' + $getwork + ',"name":"' + $env:COMPUTERNAME + '"}'
+            $code = "xelfront1:" + [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json))
+            Ok "This computer accepts the front door."
+            Say ""
+            Say "Now, on the Linux computer that will be the front door:"
+            Say "  1. Download xelDash there, and run:   ./xeldash.sh frontdoor join $code"
+            Say "  2. Wait for its node to sync (the first time it downloads the blockchain)."
+            Say "  3. Point your miners at the front door's address (port 3333) instead of this computer."
+            Say "Keep that code private: it holds the secret. Miners should connect only through the front door from now on."
+        }
+        "join" { Say "The front door must be a Linux computer with Docker Engine (Docker Desktop hides the miners' addresses). Run this on Linux: ./xeldash.sh frontdoor join CODE" }
+        "off" {
+            if (-not (Get-EnvValue "STRATUM_PROXY_FROM")) { Die "No front door is set up." }
+            Assert-Docker
+            Set-EnvValue "STRATUM_PROXY_FROM" ""
+            Invoke-ComposeUp
+            Ok "The front door is off. Point your miners back at this computer's own address."
+        }
+        "status" {
+            $f = Get-EnvValue "STRATUM_PROXY_FROM"
+            if ($f) { Say "This is the main server. It accepts a front door at: $f" } else { Say "No front door is set up. Set one up with: xeldash frontdoor setup" }
+        }
+        default { Die "Use: xeldash frontdoor setup | status | off  (the front door itself is set up on Linux: ./xeldash.sh frontdoor join CODE)" }
+    }
+}
+
 function Show-Usage {
-    Get-Content -LiteralPath $PSCommandPath -TotalCount 19 | Select-Object -Skip 1 | ForEach-Object { Say ($_ -replace '^# ?', '') }
+    Get-Content -LiteralPath $PSCommandPath -TotalCount 20 | Select-Object -Skip 1 | ForEach-Object { Say ($_ -replace '^# ?', '') }
 }
 
 # ---------------------------------------------------------------- dispatch
@@ -502,6 +563,7 @@ switch ($cmd) {
         Say "Redundancy between two servers needs Linux with Docker Engine: Docker Desktop on Windows cannot hold a shared address on your network."
         Say "A Windows computer can still be your main server; see docs/OPERATIONS.md#redundancy-two-servers for the options."
     }
+    "frontdoor" { Invoke-FrontDoor $rest }
     "restore" { Invoke-Restore $rest }
     { $_ -in @("help", "-h", "--help") } { Show-Usage }
     default { Say "Unknown command: $cmd"; Show-Usage; exit 1 }

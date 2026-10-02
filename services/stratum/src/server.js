@@ -12,6 +12,7 @@ import { watchDefaultAddress } from "./default-address.js";
 import { watchFallbackConfig } from "./fallback-config.js";
 import { DurableStore } from "./store.js";
 import { startGetworkServer } from "./getwork.js";
+import { acceptWithProxyHeader, proxyTrustFromEnv } from "./proxy-protocol.js";
 import { startHealthServer } from "./health.js";
 import { readDefaultGateway } from "./gateway.js";
 import { IpGuard, MessageRateLimiter, ipGuardConfigFromEnv, normalizeIp } from "./ip-guard.js";
@@ -45,6 +46,9 @@ if (dockerGateway) {
   ipGuardConfig.exemptIps.push(dockerGateway);
   console.info(`Connections from ${dockerGateway} (Docker's gateway) hide the real client address: per-address limits are off for it`);
 }
+// Behind the front door of a cluster, connections start with a PROXY line naming the real miner (see proxy-protocol.js).
+const proxyTrust = proxyTrustFromEnv(process.env.STRATUM_PROXY_FROM, { gateway: dockerGateway });
+if (proxyTrust) console.info(`Connections from ${proxyTrust.text} must start with a PROXY line naming the real miner`);
 console.info(`Miners may connect from: ${ipGuardConfig.allowedNetworks}`);
 const retention = retentionConfigFromEnv(process.env);
 const tls = tlsConfigFromEnv(process.env);
@@ -372,7 +376,10 @@ fallbackConfig = fallbackWatch;
 await fallbackWatch.ready;
 nodesStarted = true;
 
-const server = createServer(handleConnection);
+// The plain listener reads the PROXY line first when a forwarder is listed; the TLS port does not support it.
+const server = proxyTrust
+  ? createServer({ pauseOnConnect: true }, (socket) => acceptWithProxyHeader(socket, proxyTrust, (ready) => { handleConnection(ready); }))
+  : createServer(handleConnection);
 const tlsServer = tls
   ? createTlsServer({ cert: tls.cert, key: tls.key, minVersion: "TLSv1.2" }, handleConnection)
   : null;
@@ -409,7 +416,7 @@ if (!Number.isSafeInteger(getworkPort) || getworkPort < 1 || getworkPort > 65535
 }
 const getwork = getworkEnabled
   ? startGetworkServer({ host, port: getworkPort, ipGuard, rateLimit: ipGuardConfig, sessions, createSession: newSession,
-    onRefused: (ip, reason) => reportProblem("connection_refused", { ip, reason }) })
+    onRefused: (ip, reason) => reportProblem("connection_refused", { ip, reason }), proxyTrust })
   : null;
 
 // Whether this server can give miners work right now; see health.js.

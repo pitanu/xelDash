@@ -134,6 +134,8 @@ holds no funds, ever.
 - **Connection help:** when a miner cannot connect (wrong address, wrong network, not on your
   network), the dashboard says why and what to change.
 - **Events** for everything that happens to your nodes, on the dashboard.
+- **A front door**: a small Linux box that miners connect to, forwarding them to your (Windows or Linux) main server and to its own
+  Stratum when the main one is down or restarting. See [Operations](docs/OPERATIONS.md#front-door-a-box-miners-connect-to).
 - **Redundancy** between two Linux servers that share one address: if one loses power or restarts, the other
   takes over within seconds and your miners need no change.
 - **Backups** from the dashboard or the launcher (`xeldash backup`, `xeldash restore`), and optional daily

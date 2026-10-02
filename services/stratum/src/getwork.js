@@ -1,4 +1,6 @@
 import { createServer } from "node:http";
+import { createServer as createNetServer } from "node:net";
+import { acceptWithProxyHeader } from "./proxy-protocol.js";
 import { WebSocketServer } from "ws";
 import { MessageRateLimiter, normalizeIp } from "./ip-guard.js";
 
@@ -109,9 +111,10 @@ class GetworkSocket {
  *   sessions: Map<any, StratumSession>,
  *   createSession: (socket: GetworkSocket, ip: string) => StratumSession,
  *   onRefused?: (ip: string, reason: string) => void,
+ *   proxyTrust?: { trusts: (ip: string) => boolean } | null,
  *   logger?: Pick<Console, "info" | "warn"> }} options
  */
-export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, createSession, onRefused = () => {}, logger = console }) {
+export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, createSession, onRefused = () => {}, proxyTrust = null, logger = console }) {
   const server = createServer((_, response) => {
     response.writeHead(426, { "content-type": "text/plain" }).end("Connect with a getwork WebSocket client");
   });
@@ -212,12 +215,16 @@ export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, c
     }
   }
 
-  server.listen(port, host, () => logger.info?.(`xelDash getwork listening on ${host}:${port}`));
+  // Behind a forwarder (see proxy-protocol.js) a net server reads the PROXY line first, then hands the connection to HTTP.
+  const front = proxyTrust
+    ? createNetServer({ pauseOnConnect: true }, (socket) => acceptWithProxyHeader(socket, proxyTrust, (ready) => server.emit("connection", ready), { logger }))
+    : null;
+  (front ?? server).listen(port, host, () => logger.info?.(`xelDash getwork listening on ${host}:${port}`));
   return {
     close() {
       for (const ws of wss.clients) ws.terminate();
       wss.close();
-      return new Promise((resolve) => server.close(() => resolve(undefined)));
+      return new Promise((resolve) => (front ?? server).close(() => resolve(undefined)));
     },
   };
 }

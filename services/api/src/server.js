@@ -310,6 +310,23 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (pathname === "/api/v1/mining-health") {
+      // Whether this server can give miners work right now. The cluster front door asks this to decide where to send miners;
+      // it answers 503 when Stratum cannot mine or cannot be reached (so the dashboard being up is not enough to be chosen).
+      const healthUrl = process.env.STRATUM_HEALTH_URL ?? "http://stratum:8096/healthz";
+      let status = 503;
+      let body = { ok: false, reason: "Stratum is not answering" };
+      try {
+        const reply = await fetch(healthUrl, { signal: AbortSignal.timeout(2_000) });
+        status = reply.ok ? 200 : 503;
+        body = await reply.json();
+      } catch {
+        // keep the default
+      }
+      sendJson(response, status, body);
+      return;
+    }
+
     if (pathname === "/api/v1/version") {
       sendJson(response, 200, await updateStatus());
       return;

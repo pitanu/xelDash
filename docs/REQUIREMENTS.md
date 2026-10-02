@@ -137,6 +137,12 @@ with the requirements above, plus one unused address on your network for the sha
 node, so it needs the same disk space (about 11 GB for the chain, 21 GB at its first start). It has no database, so it
 needs less memory than the main server, but give it the same recommended figures.
 
+## Front door
+
+A Linux box with Docker Engine on the same home network, with the requirements above for a second server: its own node (the same disk
+space, 11 GB for the chain and 21 GB at its first start) and no database. The main server can be Windows or macOS. It adds a few
+megabytes of memory for HAProxy.
+
 ## The mining rigs
 
 xelDash does not mine. Your rigs run a mining program (Rigel, SRBMiner, `xelis_miner` and others) on a graphics card or a

@@ -40,6 +40,9 @@ jobs:
           - image: standby-web
             context: docker/standby-web
             dockerfile: docker/standby-web/Dockerfile
+          - image: frontdoor
+            context: docker/frontdoor
+            dockerfile: docker/frontdoor/Dockerfile
     steps:
       - uses: actions/checkout@v7
       # arm64 stages run under emulation; the Rust addon cross-compiles natively instead.

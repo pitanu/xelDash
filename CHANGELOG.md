@@ -136,6 +136,11 @@ First public version, planned as 0.1.0.
   is away. Its page shows "Dashboard offline. Mining continues." when the main dashboard cannot be reached. New images
   `keepalived` and `standby-web`, and new settings `XELDASH_CLUSTER_SECRET`, `XELDASH_VIP`, `XELDASH_CLUSTER_ID` and
   `XELDASH_PRIMARY_URL` (written by the launcher). Docker Desktop (Windows, macOS) cannot be part of a cluster.
+- A front door (`xeldash frontdoor setup` on the main server, `frontdoor join CODE` on a Linux box): the miners connect to the Linux
+  box, which forwards them to the main server (Windows or macOS too) while that can mine, and to its own Stratum when it cannot.
+  Uses HAProxy (new image `frontdoor`) and the PROXY protocol (`STRATUM_PROXY_FROM`), so miners' addresses, limits and bans
+  stay right; the dashboard answers `/api/v1/mining-health` for the check. Protects against the main server stopping, not the
+  front door.
 - Backups from the dashboard (Settings, "Download a backup") and from the launcher (`xeldash backup` and
   `xeldash restore FILE`), with no extra tools or services needed.
 - A "Mining availability" card on the Health page: the share of the last day, week or month miners could be

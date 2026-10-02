@@ -126,6 +126,15 @@ check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
   server for its alert settings (webhook addresses, the Telegram token) over the ingest endpoint, with the cluster secret, and
   keeps them in its config volume. They cross your network in plain HTTP, like the rest of the cluster traffic; the same trust as
   the secret itself (see the next point), and a reason to use the HTTPS proxy profile if your network is shared.
+- **The front door is trusted to name the miner.** With a front door (`STRATUM_PROXY_FROM`), the main server's Stratum reads a
+  PROXY line from the listed addresses telling it each miner's real address, and uses it for the network allow-list, limits and bans.
+  A computer that is not listed is never believed (its connection is taken as it is, and a PROXY line from it is not valid
+  Stratum). `any` and networks of every address are refused. A listed address must always send the line, so a front door cannot
+  be bypassed from it by mistake. On Docker Desktop (Windows, macOS) the main server's Stratum sees every outside computer as
+  Docker's gateway, so the setup trusts `gateway` there: any computer on your network that can reach the Stratum port can then
+  claim to be another address, to get around a ban or the "Miners may connect from" setting. That is the same trust as letting
+  people on your network connect at all, and a reason to keep that network yours. A Linux main server trusts the front door's
+  address only.
 - **A redundancy cluster trusts your network.** The two servers share a secret (`XELDASH_CLUSTER_SECRET`, in both
   `.env` files; keep the cluster code private). The standby sends its records to the main server over plain HTTP,
   with the secret in a header, so anyone who can read traffic on your network can read it; and the address manager

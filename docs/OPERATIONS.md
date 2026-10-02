@@ -440,8 +440,52 @@ block alerts and the rest need the database and resume with the main server.
 - This is protection against one server failing, not against both, or against the router or the network.
 - Each server runs and syncs its own node. The standby's node needs the same disk space as the main one.
 - Remove a cluster with `./xeldash.sh cluster off` on the main server, and delete the standby.
-- A Windows computer as the main server with a Linux computer as a backup cannot share an address. That variant (a
-  Linux box in front that forwards to the Windows server first) is not built yet.
+- A Windows computer as the main server cannot share an address with a Linux computer. For that, use the front door below.
+
+## Front door: a box miners connect to
+
+For a main server on **Windows or macOS** (Docker Desktop), or any main server you would rather not move miners away from, the
+backup is a small **Linux box that miners connect to instead**. It forwards every miner to the main server while that can mine,
+and to its own Stratum when it cannot, so the main server can lose power, be switched off or restart for an update without
+the miners noticing more than a reconnect. Unlike the shared address above, nothing needs to hold an address on your network,
+so the main server can be a Windows PC.
+
+| | Main server (any computer) | Front door (Linux with Docker Engine) |
+|---|---|---|
+| Runs | everything, as usual | HAProxy, its own node and Stratum, a status page; no database |
+| Miners connect to | nothing (they use the front door) | **this one**, port 3333 (and 8090 for getwork) |
+| Records | the one database | nothing locally: it sends what it records to the main server, and keeps a journal file while that is away |
+
+**Set up**
+
+1. On the main server: `./xeldash.sh frontdoor setup` (Windows: `.\xeldash.cmd frontdoor setup`). It asks for the Linux box's
+   address on your network, lets the main server's Stratum believe that box, restarts, and prints a code.
+2. On the Linux box (xelDash downloaded, nothing else needed): `./xeldash.sh frontdoor join CODE`. It starts its own node (the
+   first time it downloads the blockchain, about 10 GB) and HAProxy.
+3. Point **every miner at the front door** (its address, port 3333), once. Miners should not connect to the main server directly
+   any more: it now expects every connection to arrive through the front door, and refuses others.
+
+`./xeldash.sh frontdoor status` on either computer says which side miners are on.
+
+**How it decides.** HAProxy asks the main server every 2 seconds whether it can mine (the same check the address manager uses: its
+node is ready and Stratum answers). After 3 failed answers (about 6 seconds) it sends new connections to the front door's own
+Stratum and closes the connections still on the main server, so the miners reconnect there; after 2 good answers they go back to
+the main server (the miners reconnect again, once). In tests with simulated servers, a stopped main server was replaced
+within about 10 seconds. Rewards go to the same wallet address on both sides, and the front door keeps its own copy of the main
+server's default address, as the standby of the cluster does. Alerts, the offline page and the journal work as described under
+"Redundancy: two servers".
+
+**Limits to know**
+
+- It protects against the **main server** stopping, **not against the front door itself** stopping: if that box loses power, the
+  miners have nowhere to connect.
+- The miners' addresses are passed on with the PROXY protocol, so per-address limits and bans keep working. Only the front door
+  can send it (see [Security](SECURITY.md)). Connect miners through the front door only.
+- Encrypted Stratum (port 3334) is not offered through the front door; the miners use the plain port.
+- The Linux box must be Linux with Docker Engine, not Docker Desktop, or it cannot see the miners' real addresses.
+- Remove it with `./xeldash.sh frontdoor off` on the main server, then point the miners back at the main server and delete
+  the front door.
+- Not yet run on real hardware: see the pre-release checklist.
 
 ## Redundant nodes
 

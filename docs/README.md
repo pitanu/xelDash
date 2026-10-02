@@ -7,7 +7,7 @@
 | [System requirements](REQUIREMENTS.md) | Disk, memory, processor, network and operating systems: minimum and recommended, with what was measured |
 | [Getting started](GETTING-STARTED.md) | From nothing to mining, for complete beginners: Docker, the installer, your wallet address, the setup guide |
 | [Connecting miners](MINERS.md) | Pool URLs, difficulty, tested miners |
-| [Operations](OPERATIONS.md) | Alerts, backups and restores, what happens when the database goes down, HTTPS and login, node settings, snapshots, two-server redundancy, redundant nodes, daemon upgrades, the official node fallback |
+| [Operations](OPERATIONS.md) | Alerts, backups and restores, what happens when the database goes down, HTTPS and login, node settings, snapshots, two-server redundancy, the front door, redundant nodes, daemon upgrades, the official node fallback |
 | [Security](SECURITY.md) | What is protected, what the admin token can do, remaining risks |
 | [Devnet](DEVNET.md) | Trying xelDash without real coins, and how the mining path is verified |
 
