@@ -33,6 +33,8 @@ export class BlockTracker {
     /** @type {Promise<void> | null} */
     this.running = null;
     this.queued = false;
+    /** Blocks already reported as unknown to a pruned node, so the log is not repeated every pass. @type {Set<string>} */
+    this.unknownWarned = new Set();
     /** @type {Set<string>} */
     this.sideNoticed = new Set();
   }
@@ -92,13 +94,24 @@ export class BlockTracker {
   async checkOnce() {
     const pending = await listSubmittedBlocks(this.pool);
     if (pending.length === 0) return;
-    const { stableheight } = await this.daemon.getInfo();
+    const info = await this.daemon.getInfo();
+    const { stableheight } = info;
+    // A pruned node has deleted old blocks, so "the node does not know this block" no longer means it was orphaned.
+    const pruned = info.pruned_topoheight !== null && info.pruned_topoheight !== undefined;
     for (const { hash, height } of pending) {
       if (height > stableheight) {
         await this.noticeSideBlock(hash, height);
         continue;
       }
       const block = await this.daemon.getBlockByHash(hash);
+      if (!block && pruned) {
+        // Keep it pending rather than guess: it may have been paid and then pruned away (docs/OPERATIONS.md, pruning).
+        if (!this.unknownWarned.has(hash)) {
+          this.unknownWarned.add(hash);
+          this.logger.warn?.("A pruned node does not know this block, so its status is left as pending", { hash, height });
+        }
+        continue;
+      }
       const status = block ? FINAL_STATUS.get(block.block_type) : "orphaned";
       if (!status) {
         this.logger.warn?.("Daemon returned an unknown block type", { hash, blockType: block?.block_type });

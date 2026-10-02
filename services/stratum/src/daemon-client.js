@@ -80,7 +80,7 @@ export class DaemonClient {
     return this.call("submit_block", { block_template: template, miner_work: minerWork });
   }
 
-  /** @returns {Promise<{ height: number, topoheight: number, stableheight: number }>} */
+  /** `pruned_topoheight` is null for a node that keeps the full history. @returns {Promise<{ height: number, topoheight: number, stableheight: number, pruned_topoheight?: number | null }>} */
   getInfo() {
     return this.call("get_info");
   }
