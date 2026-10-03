@@ -1,7 +1,9 @@
 name: Release images
 
 # Push a tag like v0.1.0 to publish multi-arch images to GitHub Container Registry:
-#   ghcr.io/<owner>/xeldash/{api,stratum,web,node-admin,daemon}:<version> and :latest
+#   ghcr.io/<owner>/xeldash/{api,stratum,web,node-admin,daemon,keepalived,standby-web,frontdoor}:<version>
+# A release candidate (v0.1.0-rc.1) gets only its own version tag; :latest is set by a final version. The typecheck and the tests
+# run first, and nothing is published if they fail.
 on:
   push:
     tags: ["v*.*.*"]
@@ -11,8 +13,37 @@ permissions:
   packages: write
 
 jobs:
+  verify:
+    name: Typecheck and tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://postgres:test@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
   images:
     name: Publish ${{ matrix.image }} image
+    needs: verify
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
