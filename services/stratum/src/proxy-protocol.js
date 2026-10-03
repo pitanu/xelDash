@@ -84,7 +84,9 @@ export function proxyTrustFromEnv(text, { gateway = null } = {}) {
 export function acceptWithProxyHeader(socket, trust, onReady, { timeoutMs = HEADER_TIMEOUT_MS, logger = console } = {}) {
   const peer = normalizeIp(socket.remoteAddress);
   if (!trust.trusts(peer)) {
+    // Accepted paused (pauseOnConnect); once the handlers are attached, let the data flow.
     onReady(socket);
+    socket.resume();
     return;
   }
   let received = Buffer.alloc(0);
