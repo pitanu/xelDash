@@ -1,7 +1,7 @@
 # The native hash addon is compiled on the build machine's own architecture and
 # cross-compiled for the target, so multi-arch builds do not run rustc under emulation.
 # Debian bookworm on both sides keeps the addon's glibc requirement at 2.36.
-FROM --platform=$BUILDPLATFORM rust:1.90-bookworm AS hash-build
+FROM --platform=$BUILDPLATFORM rust:1.98-bookworm AS hash-build
 ARG TARGETARCH
 
 RUN set -eu; \
@@ -28,7 +28,7 @@ RUN set -eu; \
     cargo build --locked --release --target "$triple"; \
     cp "target/$triple/release/libindex.so" /tmp/index.node
 
-FROM node:22-bookworm-slim
+FROM node:26-bookworm-slim
 
 WORKDIR /app
 COPY package.json package-lock.json ./
