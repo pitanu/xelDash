@@ -44,7 +44,23 @@ retargeting; a good value gives one share every few seconds.
 | Rigel 1.23.0 | Stratum | Tested on mainnet with a GPU |
 | `xelis_miner` 1.21.3 | Getwork | Tested on devnet |
 | xelDash test miner | Stratum, TLS | Tested on devnet and mainnet |
-| SRBMiner, lolMiner, OneZeroMiner | Stratum | Not tested yet |
+| SRBMiner-MULTI, BzMiner, OneZeroMiner, lolMiner | Stratum | **Not tested** (see below) |
+
+**Miners not tested yet.** SRBMiner-MULTI, BzMiner and OneZeroMiner list XELIS (`xelishashv3`) in their own documentation, and their example
+settings are below, adapted to xelDash. They have **not** been run against xelDash, so treat them as a starting point and tell us what
+happens. (An attempt to try them on the maintainer's Windows computer was cut short: the SRBMiner and lolMiner programs disappeared right after
+they were unpacked, most likely removed by Windows Defender, which often flags mining programs; OneZeroMiner disappeared after its first
+run; and an unattended try with BzMiner did not connect, for a reason that was not looked into.) Replace `HOST` with this server's address and `YOUR_ADDRESS` with your wallet address:
+
+```
+SRBMiner-MULTI.exe --algorithm xelishashv3 --pool HOST:3333 --wallet YOUR_ADDRESS --worker rig1 --password x
+bzminer.exe -a xelis -p stratum+tcp://HOST:3333 -w YOUR_ADDRESS --pass x --worker rig1
+onezerominer.exe -a xelis -o stratum+tcp://HOST:3333 -w YOUR_ADDRESS --worker rig1
+```
+
+Use the miner's own help for the exact option names if one of these is refused (versions differ), and do not run the `.bat` examples
+that come with a miner without editing them: they contain the miner author's own wallet address. lolMiner's release notes do not mention
+XELIS, and it could not be checked, so do not count on it.
 
 Miners that follow the [XELIS Stratum protocol](https://docs.xelis.io/developers-api/stratum)
 should work. If yours does not, or you have tried one that is not listed, please open a
