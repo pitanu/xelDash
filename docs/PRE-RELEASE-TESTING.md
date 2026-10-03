@@ -134,7 +134,7 @@ Only the failover logic has been tested so far, with containers on one machine; 
 
 ## 5d. Front door (needs a Linux computer with Docker Engine, and the main server on the same network; Windows is the interesting case)
 
-Tested only with simulated servers (HAProxy in containers, a fake Stratum that reports the address it sees); not with real miners.
+Tested on a devnet with the real Stratum, API and HAProxy images on one machine and the devnet test miner (Stratum and getwork): the main server saw the miner's own address, stopping the main Stratum moved the miner to the standby within seconds, blocks mined there were ingested into the main database, and the miner went back when the main returned. Not tested on separate computers, with a Windows main server, or with real miners.
 
 - [ ] `frontdoor join` refuses a damaged or edited code (a public address for the main server, a port above 65535, extra text in the
       name) and writes nothing to `.env`.

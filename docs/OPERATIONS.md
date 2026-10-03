@@ -470,8 +470,7 @@ so the main server can be a Windows PC.
 **How it decides.** HAProxy asks the main server every 2 seconds whether it can mine (the same check the address manager uses: its
 node is ready and Stratum answers). After 3 failed answers (about 6 seconds) it sends new connections to the front door's own
 Stratum and closes the connections still on the main server, so the miners reconnect there; after 2 good answers they go back to
-the main server (the miners reconnect again, once). In tests with simulated servers, a stopped main server was replaced
-within about 10 seconds. Rewards go to the same wallet address on both sides, and the front door keeps its own copy of the main
+the main server (the miners reconnect again, once). In devnet tests a stopped main Stratum was replaced within about 10 seconds. Rewards go to the same wallet address on both sides, and the front door keeps its own copy of the main
 server's default address, as the standby of the cluster does. Alerts, the offline page and the journal work as described under
 "Redundancy: two servers".
 
