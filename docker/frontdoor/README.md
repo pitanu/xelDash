@@ -7,6 +7,7 @@ Stratum on this box otherwise. Both are sent a PROXY protocol line, so Stratum s
 (`STRATUM_PROXY_FROM`, see [SECURITY](../../docs/SECURITY.md)).
 
 `entrypoint.sh` checks its environment (`FRONTDOOR_MAIN_HOST`, `FRONTDOOR_MAIN_HEALTH_PORT`, `FRONTDOOR_MAIN_STRATUM_PORT`,
-`FRONTDOOR_MAIN_GETWORK_PORT`, `FRONTDOOR_STANDBY_HOST`), writes the configuration and starts HAProxy. The TLS port is not
-forwarded. A miner already connected to a server that stops mining is dropped when the server closes the connection, and
+`FRONTDOOR_MAIN_GETWORK_PORT`, `FRONTDOOR_STANDBY_HOST`), writes the configuration and starts HAProxy. With `FRONTDOOR_TLS=true` (set from `STRATUM_TLS_ENABLED` in the compose file) it also accepts encrypted Stratum on 3334 with
+`/tls/cert.pem` and `/tls/key.pem` (HAProxy needs them in one file, so the entrypoint joins them), decrypts it, and sends the plain
+connection on like the others. A miner already connected to a server that stops mining is dropped when the server closes the connection, and
 reconnects to whichever is chosen then.

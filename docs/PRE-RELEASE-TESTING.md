@@ -150,6 +150,8 @@ Tested on a devnet with the real Stratum, API and HAProxy images on one machine 
       `printf 'PROXY TCP4 1.2.3.4 1.2.3.5 1 2\r\n' | nc MAIN 3333`): on a Linux main server it is closed; on Windows it is not
       believed unless it comes through Docker's gateway (see Security).
 - [ ] The official `xelis_miner` (getwork, port 8090) through the front door.
+- [ ] With a certificate in `docker/stratum-tls` and `STRATUM_TLS_ENABLED=true` on the front door: a miner using `stratum+ssl://FRONTDOOR:3334`
+      mines, and sees the same certificate when the main server is switched off.
 - [ ] `frontdoor off` on the main server: miners pointed at the main server mine again.
 
 ## 6. Nodes and upgrades

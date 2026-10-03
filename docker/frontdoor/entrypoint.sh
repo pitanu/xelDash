@@ -5,6 +5,7 @@
 #   FRONTDOOR_MAIN_STRATUM_PORT  main server's Stratum port (default 3333)
 #   FRONTDOOR_MAIN_GETWORK_PORT  main server's getwork port (default 8090)
 #   FRONTDOOR_STANDBY_HOST       the local standby Stratum (default "stratum")
+#   FRONTDOOR_TLS                "true" to also accept encrypted Stratum on 3334, with /tls/cert.pem and /tls/key.pem
 set -eu
 
 fail() { echo "frontdoor: $1" >&2; exit 1; }
@@ -16,11 +17,26 @@ HEALTH_PORT=${FRONTDOOR_MAIN_HEALTH_PORT:-8088}
 STRATUM_PORT=${FRONTDOOR_MAIN_STRATUM_PORT:-3333}
 GETWORK_PORT=${FRONTDOOR_MAIN_GETWORK_PORT:-8090}
 STANDBY_HOST=${FRONTDOOR_STANDBY_HOST:-stratum}
+TLS=${FRONTDOOR_TLS:-false}
 
 [ -n "$MAIN_HOST" ] || fail "FRONTDOOR_MAIN_HOST is not set (run: xeldash frontdoor join CODE)"
 host_ok "$MAIN_HOST" || fail "FRONTDOOR_MAIN_HOST is not a host name or address"
 host_ok "$STANDBY_HOST" || fail "FRONTDOOR_STANDBY_HOST is not a host name"
+case "$TLS" in true|false) ;; *) fail "FRONTDOOR_TLS must be true or false" ;; esac
 for p in "$HEALTH_PORT" "$STRATUM_PORT" "$GETWORK_PORT"; do port_ok "$p" || fail "\"$p\" is not a port number"; done
+
+TLS_BIND=""
+if [ "$TLS" = true ]; then
+  [ -r /tls/cert.pem ] && [ -r /tls/key.pem ] || fail "STRATUM_TLS_ENABLED is true but /tls/cert.pem and /tls/key.pem are missing (put them in docker/stratum-tls, see its README)"
+  # HAProxy wants the certificate and its key in one file.
+  umask 077
+  cat /tls/cert.pem /tls/key.pem > /tmp/bundle.pem
+  TLS_BIND="
+frontend stratum_tls_in
+    bind :3334 ssl crt /tmp/bundle.pem ssl-min-ver TLSv1.2
+    default_backend stratum
+"
+fi
 
 cat > /tmp/haproxy.cfg <<CFG
 global
@@ -66,8 +82,10 @@ frontend stratum_in
 frontend getwork_in
     bind :8090
     default_backend getwork
+${TLS_BIND}
 CFG
 
 haproxy -c -f /tmp/haproxy.cfg >/dev/null || fail "the generated configuration is not valid"
+[ "$TLS" != true ] || echo "frontdoor: encrypted Stratum is accepted on 3334 (the front door decrypts it and passes it on)"
 echo "frontdoor: miners go to ${MAIN_HOST} while it can mine, else to the local standby"
 exec haproxy -W -db -f /tmp/haproxy.cfg

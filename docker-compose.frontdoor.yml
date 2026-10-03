@@ -118,9 +118,14 @@ services:
       FRONTDOOR_MAIN_HEALTH_PORT: ${FRONTDOOR_MAIN_HEALTH_PORT:-8088}
       FRONTDOOR_MAIN_STRATUM_PORT: ${FRONTDOOR_MAIN_STRATUM_PORT:-3333}
       FRONTDOOR_MAIN_GETWORK_PORT: ${FRONTDOOR_MAIN_GETWORK_PORT:-8090}
+      # Encrypted Stratum (3334): decrypted here, with the certificate in docker/stratum-tls, and passed on.
+      FRONTDOOR_TLS: ${STRATUM_TLS_ENABLED:-false}
     ports:
       - "${XELDASH_STRATUM_BIND_IP:-0.0.0.0}:${XELDASH_STRATUM_PORT:-3333}:3333"
+      - "${XELDASH_STRATUM_BIND_IP:-0.0.0.0}:${XELDASH_STRATUM_TLS_PORT:-3334}:3334"
       - "${XELDASH_STRATUM_BIND_IP:-0.0.0.0}:${XELDASH_GETWORK_PORT:-8090}:8090"
+    volumes:
+      - ${XELDASH_STRATUM_TLS_DIR:-./docker/stratum-tls}:/tls:ro
     depends_on:
       - stratum
 

@@ -135,6 +135,9 @@ check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
   claim to be another address, to get around a ban or the "Miners may connect from" setting. That is the same trust as letting
   people on your network connect at all, and a reason to keep that network yours. A Linux main server trusts the front door's
   address only.
+- **The front door decrypts Stratum TLS.** With encrypted Stratum on the front door (`STRATUM_TLS_ENABLED=true`), the miner's connection
+  is encrypted only as far as the front door; from there to the main server it is plain on your network (with the PROXY line). Its
+  private key is in `docker/stratum-tls` on the front door, read-only, and never leaves it. Miners accept TLS 1.2 and newer.
 - **A redundancy cluster trusts your network.** The two servers share a secret (`XELDASH_CLUSTER_SECRET`, in both
   `.env` files; keep the cluster code private). The standby sends its records to the main server over plain HTTP,
   with the secret in a header, so anyone who can read traffic on your network can read it; and the address manager

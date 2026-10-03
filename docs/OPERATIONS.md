@@ -480,7 +480,10 @@ server's default address, as the standby of the cluster does. Alerts, the offlin
   miners have nowhere to connect.
 - The miners' addresses are passed on with the PROXY protocol, so per-address limits and bans keep working. Only the front door
   can send it (see [Security](SECURITY.md)). Connect miners through the front door only.
-- Encrypted Stratum (port 3334) is not offered through the front door; the miners use the plain port.
+- Encrypted Stratum (port 3334) is optional: put `cert.pem` and `key.pem` in `docker/stratum-tls` on the front door (the same as
+  [on a single server](../docker/stratum-tls/README.md)), set `STRATUM_TLS_ENABLED=true` in its `.env` and run `docker compose up -d`.
+  The front door decrypts it, so miners always see the one certificate whichever server they end up on; the step from the front
+  door to the main server is plain, on your network, like the rest of the front door traffic.
 - The Linux box must be Linux with Docker Engine, not Docker Desktop, or it cannot see the miners' real addresses.
 - Remove it with `./xeldash.sh frontdoor off` on the main server, then point the miners back at the main server and delete
   the front door.
