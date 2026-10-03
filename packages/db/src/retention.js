@@ -1,5 +1,5 @@
 /** @typedef {import("pg").Pool} PgPool */
-/** @typedef {{ rawShareDays: number, minuteStatsDays: number, eventDays?: number }} RetentionConfig */
+/** @typedef {{ rawShareDays: number, minuteStatsDays: number, eventDays: number }} RetentionConfig */
 
 /** @type {RetentionConfig} */
 export const DEFAULT_RETENTION = Object.freeze({ rawShareDays: 7, minuteStatsDays: 90, eventDays: 365 });
@@ -86,7 +86,7 @@ export async function runRetention(pool, config) {
     `${config.minuteStatsDays} days`,
   );
   // Events (node changes, problems, alerts' sources) and bans would otherwise only ever grow. Hourly stats and blocks are kept.
-  const eventAge = `${config.eventDays ?? DEFAULT_RETENTION.eventDays} days`;
+  const eventAge = `${config.eventDays} days`;
   const events = await deleteInBatches(
     pool,
     `DELETE FROM service_events WHERE id IN (

@@ -133,16 +133,16 @@ test("retention: records that arrive late (a replayed journal) are still rolled 
   const { workerId } = await ensureWorker(pool, { address: address(), name: "late" });
   const hoursAgo = (h) => new Date(Date.now() - h * 3_600_000).toISOString();
   await recordShare(pool, { workerId, jobId: "j", nonce: "recent", difficulty: "10", accepted: true, createdAt: hoursAgo(5) });
-  await runRetention(pool, { rawShareDays: 7, minuteStatsDays: 90 });
+  await runRetention(pool, { rawShareDays: 7, minuteStatsDays: 90, eventDays: 365 });
   // The same worker's shares from three days ago arrive only now, as after a long outage.
   await recordShare(pool, { workerId, jobId: "j", nonce: "late1", difficulty: "20", accepted: true, createdAt: hoursAgo(72) });
   await recordShare(pool, { workerId, jobId: "j", nonce: "late2", difficulty: "30", accepted: true, createdAt: hoursAgo(72) });
-  await runRetention(pool, { rawShareDays: 7, minuteStatsDays: 90 });
+  await runRetention(pool, { rawShareDays: 7, minuteStatsDays: 90, eventDays: 365 });
   const { rows } = await pool.query("SELECT accepted, sum_difficulty FROM worker_stats_1h WHERE worker_id = $1 AND bucket < now() - interval '60 hours'", [workerId]);
   assert.equal(rows.length, 1, "the late hour has a row");
   assert.deepEqual([Number(rows[0].accepted), Number(rows[0].sum_difficulty)], [2, 50]);
   // Running it again changes nothing.
-  await runRetention(pool, { rawShareDays: 7, minuteStatsDays: 90 });
+  await runRetention(pool, { rawShareDays: 7, minuteStatsDays: 90, eventDays: 365 });
   const again = await pool.query("SELECT accepted FROM worker_stats_1h WHERE worker_id = $1", [workerId]);
   assert.equal(again.rows.reduce((sum, r) => sum + Number(r.accepted), 0), 3);
 });
@@ -153,13 +153,15 @@ test("retention: old events and bans are deleted, recent ones and blocks stay", 
   const old = new Date(Date.now() - 400 * 86_400_000).toISOString();
   await recordServiceEvent(pool, marker, { n: 1 }, old);
   await recordServiceEvent(pool, marker, { n: 2 });
-  await recordBan(pool, { ip: "10.55.1.1", reason: "old", until: new Date(Date.now() - 400 * 86_400_000) });
-  await recordBan(pool, { ip: "10.55.1.2", reason: "new", until: new Date(Date.now() + 3_600_000) });
+  const oldIp = `10.55.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`;
+  const newIp = `10.56.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`;
+  await recordBan(pool, { ip: oldIp, reason: "old", until: new Date(Date.now() - 400 * 86_400_000) });
+  await recordBan(pool, { ip: newIp, reason: "new", until: new Date(Date.now() + 3_600_000) });
   const result = await runRetention(pool, { rawShareDays: 7, minuteStatsDays: 90, eventDays: 365 });
   assert.ok(result.events >= 1 && result.bans >= 1);
   const left = await pool.query("SELECT payload FROM service_events WHERE type = $1", [marker]);
   assert.deepEqual(left.rows.map((r) => r.payload.n), [2]);
-  const bans = await pool.query("SELECT host(ip) AS ip FROM bans WHERE host(ip) IN ('10.55.1.1', '10.55.1.2')");
-  assert.deepEqual(bans.rows.map((r) => r.ip).sort(), ["10.55.1.2"]);
-  await runRetention(pool, { rawShareDays: 7, minuteStatsDays: 90 });
+  const bans = await pool.query("SELECT host(ip) AS ip FROM bans WHERE host(ip) = ANY($1)", [[oldIp, newIp]]);
+  assert.deepEqual(bans.rows.map((r) => r.ip), [newIp]);
+  await runRetention(pool, { rawShareDays: 7, minuteStatsDays: 90, eventDays: 365 });
 });
