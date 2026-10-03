@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { usePolled } from "../api.js";
 import { AdminUnlock, useAdminToken } from "../components/AdminUnlock.jsx";
 import CopyButton from "../components/CopyButton.jsx";
 import ProblemsCard from "../components/ProblemsCard.jsx";
@@ -149,7 +150,10 @@ function Field({ label, value, hint }) {
 /** What to type into a mining program. @param {{ info: any }} props */
 function ConnectPanel({ info }) {
   const [miner, setMiner] = useState("rigel");
+  const frontDoor = usePolled("/api/v1/front-door", { intervalMs: 30_000 }).data;
   if (!info) return null;
+  // The front door is listed by address (and "gateway" under Docker Desktop, which is not an address miners use).
+  const frontDoorAddress = frontDoor?.configured ? String(frontDoor.from).split(",").map((v) => v.trim()).find((v) => /^\d{1,3}(\.\d{1,3}){3}$/.test(v)) ?? null : null;
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
   const host = info.host ?? window.location.hostname;
   const address = info.address ?? (info.network === "mainnet" ? "xel:YOUR_ADDRESS" : "xet:YOUR_ADDRESS");
@@ -161,6 +165,16 @@ function ConnectPanel({ info }) {
   return (
     <Card title="Connect a miner" subtitle="The settings for your mining program. Use a different worker name (rig1, rig2, ...) for each computer.">
       <div className="space-y-4">
+        {frontDoor?.configured && (
+          <div className="rounded-md border border-line bg-wash p-3 text-xs text-ink-2">
+            <p className="font-medium text-ink">A front door is set up{frontDoorAddress ? ` at ${frontDoorAddress}` : ""}.</p>
+            <p className="mt-1">
+              Point your miners at the front door{frontDoorAddress ? <> (<code>{frontDoorAddress}</code>, same ports)</> : ""} instead of this server: it sends them
+              here while this server can mine, and to its own standby when it cannot. This server expects every miner to come through it, so a miner
+              pointed straight here may be refused. The address below is this server's own.
+            </p>
+          </div>
+        )}
         {!info.reachableFromNetwork && (
           <div className="rounded-md border border-line bg-wash p-3 text-xs text-ink-2">
             <p className="font-medium text-ink">Right now only this computer can connect.</p>
