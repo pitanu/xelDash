@@ -10,6 +10,7 @@
   "scripts": {
     "db:migrate": "npm run migrate --workspace @xeldash/db",
     "typecheck": "tsc --noEmit",
+    "e2e": "node test/e2e/run.js",
     "test": "node --test \"services/*/test/*.test.js\" \"packages/*/test/*.test.js\" \"web/test/*.test.js\" \"test/*.test.js\""
   },
   "devDependencies": {

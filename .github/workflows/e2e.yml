@@ -1,0 +1,24 @@
+name: End-to-end
+
+# Starts the real stack on a private devnet and mines real blocks through it (see test/e2e/stack.e2e.js). It takes about ten
+# minutes, so it does not run on every push: run it by hand from the Actions tab, or let the weekly run catch problems that
+# appear when a base image or the daemon changes.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Mine on a devnet
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm run e2e

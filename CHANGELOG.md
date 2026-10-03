@@ -121,6 +121,8 @@ First public version, planned as 0.1.0.
 
 ### Operations
 
+- End-to-end tests (`npm run e2e`): the real stack on a private devnet with real miners (Stratum and getwork), a database outage, a Stratum
+  restart, and the front door through a failover and back. They run weekly and on demand in GitHub Actions.
 - Fixed: records that arrive late (a journal replayed after an outage, or a standby server's batch) are now rolled into the hourly
   statistics. Before, hours more than an hour behind the latest were skipped, so that work would have vanished from the long-range
   charts and effort once the per-minute rows were deleted after 90 days.

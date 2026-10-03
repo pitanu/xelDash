@@ -132,6 +132,9 @@ Only the failover logic has been tested so far, with containers on one machine; 
       failover alert within a minute or two, and none while the main server is on.
 - [ ] Both servers on a Raspberry Pi (arm64), if you have one.
 
+The container-level checks of the sections below, on one computer, are automated: `npm run e2e` (see CONTRIBUTING). What remains for people is
+what only real machines show.
+
 ## 5d. Front door (needs a Linux computer with Docker Engine, and the main server on the same network; Windows is the interesting case)
 
 Tested on a devnet with the real Stratum, API and HAProxy images on one machine and the devnet test miner (Stratum and getwork): the main server saw the miner's own address, stopping the main Stratum moved the miner to the standby within seconds, blocks mined there were ingested into the main database, and the miner went back when the main returned. Not tested on separate computers, with a Windows main server, or with real miners.

@@ -49,6 +49,11 @@ docker run -d --name xeldash-test-db -e POSTGRES_PASSWORD=test -p 127.0.0.1:5543
 TEST_DATABASE_URL=postgres://postgres:test@127.0.0.1:55432/postgres npm test
 ```
 
+`npm run e2e` is the end-to-end check: it starts the real stack in Docker on a private devnet (its own project and ports, so a stack
+that is already running is left alone), mines real blocks through Stratum and through the official miner's getwork, stops the
+database and Stratum in the middle, and runs a front door (HAProxy) through a failover and back. It needs Docker, takes about five
+minutes once the images are built, and also runs weekly and on demand in GitHub Actions. It is not part of `npm test`.
+
 The launcher tests need `bash`, the Compose tests need Docker Compose; each is skipped when missing. A test that fixes a bug
 should fail without the fix. They check logic and the pieces that are easy to get wrong; what only real hardware can show (two
 computers, a Raspberry Pi, a real miner) is in [docs/PRE-RELEASE-TESTING.md](docs/PRE-RELEASE-TESTING.md).
