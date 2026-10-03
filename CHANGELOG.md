@@ -124,6 +124,8 @@ First public version, planned as 0.1.0.
 - Fixed: records that arrive late (a journal replayed after an outage, or a standby server's batch) are now rolled into the hourly
   statistics. Before, hours more than an hour behind the latest were skipped, so that work would have vanished from the long-range
   charts and effort once the per-minute rows were deleted after 90 days.
+- Events and old bans are now deleted after a year (`RETENTION_EVENT_DAYS`, default 365); they only ever grew before. Hourly stats and
+  blocks are still kept.
 - Faster: the effort figures no longer slow down with the number of workers; the live-update listener no longer leaks a database
   connection when a restart of the database interrupts it; version switches wait for a running snapshot or chain copy.
 - A "Support xelDash" card on the Settings page (mainnet only) with the maintainer's wallet address, and a one-time dismissible note on the

@@ -98,7 +98,7 @@ Use your `POSTGRES_USER` and `POSTGRES_DB` if you changed them.
 
 ### Size
 
-Raw shares are kept 7 days and per-minute stats 90 days (see `RETENTION_*`). Dumps stay
+Raw shares are kept 7 days, per-minute stats 90 days and events (node changes, problems, failovers) a year (see `RETENTION_*`). Dumps stay
 small: roughly 15 MB of raw shares per active worker at steady state, plus the hourly stats
 and blocks, which grow slowly.
 

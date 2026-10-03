@@ -84,5 +84,5 @@ and 503 with the reason otherwise (the cluster's address manager asks it, so the
 cannot mine); `/status` adds the instance, mode (`main` or `standby`), connected rigs and the journal's size, for the
 standby's offline page. It is published on this computer's loopback only, and only when the cluster is set up.
 
-**Retention.** Raw shares are kept 7 days and per-minute stats 90 days; hourly rollups are
+**Retention.** Raw shares are kept 7 days, per-minute stats 90 days and events a year; hourly rollups and blocks are
 kept (`RETENTION_*`).

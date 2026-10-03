@@ -169,7 +169,7 @@ async function retentionPass() {
   try {
     if (!pool) return;
     const result = await runRetention(pool, retention);
-    if (result.shares > 0 || result.minuteStats > 0) console.info("Retention pass", result);
+    if (result.shares > 0 || result.minuteStats > 0 || result.events > 0 || result.bans > 0) console.info("Retention pass", result);
   } catch (error) {
     console.warn("Retention pass failed:", error instanceof Error ? error.message : String(error));
   } finally {

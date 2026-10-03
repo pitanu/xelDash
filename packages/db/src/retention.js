@@ -1,8 +1,8 @@
 /** @typedef {import("pg").Pool} PgPool */
-/** @typedef {{ rawShareDays: number, minuteStatsDays: number }} RetentionConfig */
+/** @typedef {{ rawShareDays: number, minuteStatsDays: number, eventDays?: number }} RetentionConfig */
 
 /** @type {RetentionConfig} */
-export const DEFAULT_RETENTION = Object.freeze({ rawShareDays: 7, minuteStatsDays: 90 });
+export const DEFAULT_RETENTION = Object.freeze({ rawShareDays: 7, minuteStatsDays: 90, eventDays: 365 });
 const DELETE_BATCH = 10_000;
 
 /** @param {Partial<Record<string, string | undefined>>} env @returns {RetentionConfig} */
@@ -16,6 +16,7 @@ export function retentionConfigFromEnv(env) {
   return {
     rawShareDays: read("RETENTION_RAW_SHARE_DAYS", DEFAULT_RETENTION.rawShareDays),
     minuteStatsDays: read("RETENTION_MINUTE_STATS_DAYS", DEFAULT_RETENTION.minuteStatsDays),
+    eventDays: read("RETENTION_EVENT_DAYS", DEFAULT_RETENTION.eventDays),
   };
 }
 
@@ -84,5 +85,19 @@ export async function runRetention(pool, config) {
        WHERE bucket < date_trunc('hour', now()) - $1::interval LIMIT $2)`,
     `${config.minuteStatsDays} days`,
   );
-  return { rolledUp, shares, minuteStats };
+  // Events (node changes, problems, alerts' sources) and bans would otherwise only ever grow. Hourly stats and blocks are kept.
+  const eventAge = `${config.eventDays ?? DEFAULT_RETENTION.eventDays} days`;
+  const events = await deleteInBatches(
+    pool,
+    `DELETE FROM service_events WHERE id IN (
+       SELECT id FROM service_events WHERE created_at < now() - $1::interval LIMIT $2)`,
+    eventAge,
+  );
+  const bans = await deleteInBatches(
+    pool,
+    `DELETE FROM bans WHERE id IN (
+       SELECT id FROM bans WHERE COALESCE(until, created_at) < now() - $1::interval LIMIT $2)`,
+    eventAge,
+  );
+  return { rolledUp, shares, minuteStats, events, bans };
 }
