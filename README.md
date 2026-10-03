@@ -259,6 +259,19 @@ Node.js and PostgreSQL for the services, React, Vite and Tailwind for the dashbo
 official XELIS daemon and [XELIS Hash V3](https://github.com/xelis-project/xelis-hash) code
 (compiled into a small Rust addon) for validation. Images are built for amd64 and arm64.
 
+## Support the project
+
+xelDash is free, with no fees and no ads, and is made by one person. If it is useful to you, you can send a little XEL to the
+maintainer's mainnet wallet. It is entirely optional and nothing in xelDash depends on it.
+
+```
+xel:060exlhsp28xzkxf8zpa04kw33dgs7tcqu8sq8zntddf9h7wmvusqy82lgk
+```
+
+The dashboard shows the same address on its Settings page (mainnet only), and once, dismissibly, after your miners find a block.
+xelDash never sends anything for you: copy the address and send from your own wallet. If the dashboard and this page ever show
+different addresses, trust this page on GitHub. Stars, bug reports, miner compatibility reports and pull requests help just as much.
+
 ## Contributing
 
 Bug reports, miner compatibility reports and pull requests are welcome. See

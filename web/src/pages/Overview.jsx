@@ -6,6 +6,7 @@ import SharesChart from "../components/SharesChart.jsx";
 import DiskWarning from "../components/DiskWarning.jsx";
 import { EffortSummary } from "../components/LuckCard.jsx";
 import SetupBanner from "../components/SetupBanner.jsx";
+import { SupportNudge } from "../components/SupportCard.jsx";
 import { BlocksTable, Card, EventsList, HealthBadge, StatTile } from "../components/ui.jsx";
 import { formatCompact, formatDuration, formatHashrate, formatInteger, formatBucket } from "../format.js";
 
@@ -58,6 +59,8 @@ export default function Overview() {
         <StatTile icon="height" label="Node height" value={formatInteger(o?.node?.height)}
           detail={o ? `${o.node.network} · ${o.node.version}` : undefined} />
       </div>
+
+      <SupportNudge network={o?.node?.network} blocks={countOf(blockRows, "main-chain")} />
 
       <EffortSummary luck={o?.luck} />
 

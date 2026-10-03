@@ -6,8 +6,10 @@ import BlockSoundSetting from "../components/BlockSoundSetting.jsx";
 import DaemonSettings from "../components/DaemonSettings.jsx";
 import MiningFallback from "../components/MiningFallback.jsx";
 import PriceSetting from "../components/PriceSetting.jsx";
+import SupportCard from "../components/SupportCard.jsx";
 import ThemeSetting from "../components/ThemeSetting.jsx";
 import { Card, Segmented } from "../components/ui.jsx";
+import { usePolled } from "../api.js";
 import { useNodes } from "../nodes.js";
 
 /** Everything about the node that can be changed from the dashboard, with what each does. */
@@ -25,6 +27,7 @@ export default function Settings() {
 
   const token = actionsEnabled ? admin.token : "";
   const managed = useNodes();
+  const network = usePolled("/api/v1/status").data?.node?.network;
   const nodeIds = managed?.nodes.map((n) => n.id) ?? ["daemon"];
   const [node, setNode] = useState("daemon");
   return (
@@ -61,6 +64,8 @@ export default function Settings() {
         <p className="-mt-3 text-xs text-ink-2">Each node has its own settings. Change them one node at a time, so the other keeps mining.</p>
       )}
       <DaemonSettings key={node} node={node} token={token} onUnauthorized={admin.forget} />
+
+      <SupportCard network={network} />
 
       <Card title="Set in .env">
         <p className="text-sm text-ink-2">

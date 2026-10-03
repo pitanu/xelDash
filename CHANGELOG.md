@@ -121,6 +121,8 @@ First public version, planned as 0.1.0.
 
 ### Operations
 
+- A "Support xelDash" card on the Settings page (mainnet only) with the maintainer's wallet address, and a one-time dismissible note on the
+  Overview after your miners find a block. Optional; nothing depends on it.
 - A test suite (`npm test`, Node's built-in runner): Stratum, API, node-admin, database (with a throwaway PostgreSQL), dashboard formatting,
   the Linux launcher, the documentation and the Compose files; it runs in CI. It found and fixed two small bugs: an empty
   `STRATUM_BAN_EXEMPT_IPS` produced an exempt address named "unknown", and XEL amounts used a dot where the viewer's language uses a comma.
