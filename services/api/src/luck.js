@@ -16,11 +16,13 @@ const STATS = `
     SELECT h.bucket, h.worker_id, h.sum_effort FROM worker_stats_1h h
     WHERE h.bucket < COALESCE((SELECT date_trunc('hour', min(bucket)) FROM worker_stats_1m), 'infinity')
   ),
+  -- One row per minute (or hour) however many workers there are, so the per-block sums below do not grow with the number of rigs.
   mine AS (
-    SELECT st.bucket, st.sum_effort FROM stats st
+    SELECT st.bucket, sum(st.sum_effort) AS sum_effort FROM stats st
     JOIN workers w ON w.id = st.worker_id
     JOIN miners m ON m.id = w.miner_id
     WHERE $1::text IS NULL OR m.address = $1
+    GROUP BY st.bucket
   ),
   found AS (
     SELECT b.hash, b.found_at FROM blocks b

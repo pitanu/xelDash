@@ -307,6 +307,7 @@ const server = createServer(async (request, response) => {
         send(response, 400, { error: "Send { \"version\": \"1.26.0\" | \"image\", \"nodes\": [\"daemon2\"] }" });
         return;
       }
+      if (refuseIfBusy(response)) return;
       if (target !== "image") await releases.find(target);
       // The whole stack by default: every other node first, the usual mining node last.
       const order = updateOrder();

@@ -127,3 +127,22 @@ test("ingest: progress is kept per sender", { skip }, async () => {
 });
 
 test.after(async () => { await pool?.end(); });
+
+test("retention: records that arrive late (a replayed journal) are still rolled into the hourly stats", { skip }, async () => {
+  const { runRetention } = await import("../src/index.js");
+  const { workerId } = await ensureWorker(pool, { address: address(), name: "late" });
+  const hoursAgo = (h) => new Date(Date.now() - h * 3_600_000).toISOString();
+  await recordShare(pool, { workerId, jobId: "j", nonce: "recent", difficulty: "10", accepted: true, createdAt: hoursAgo(5) });
+  await runRetention(pool, { rawShareDays: 7, minuteStatsDays: 90 });
+  // The same worker's shares from three days ago arrive only now, as after a long outage.
+  await recordShare(pool, { workerId, jobId: "j", nonce: "late1", difficulty: "20", accepted: true, createdAt: hoursAgo(72) });
+  await recordShare(pool, { workerId, jobId: "j", nonce: "late2", difficulty: "30", accepted: true, createdAt: hoursAgo(72) });
+  await runRetention(pool, { rawShareDays: 7, minuteStatsDays: 90 });
+  const { rows } = await pool.query("SELECT accepted, sum_difficulty FROM worker_stats_1h WHERE worker_id = $1 AND bucket < now() - interval '60 hours'", [workerId]);
+  assert.equal(rows.length, 1, "the late hour has a row");
+  assert.deepEqual([Number(rows[0].accepted), Number(rows[0].sum_difficulty)], [2, 50]);
+  // Running it again changes nothing.
+  await runRetention(pool, { rawShareDays: 7, minuteStatsDays: 90 });
+  const again = await pool.query("SELECT accepted FROM worker_stats_1h WHERE worker_id = $1", [workerId]);
+  assert.equal(again.rows.reduce((sum, r) => sum + Number(r.accepted), 0), 3);
+});

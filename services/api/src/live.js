@@ -92,23 +92,32 @@ export function startLiveUpdates({ server, pool, onNotification = () => {}, logg
 
   async function listen() {
     if (stopped) return;
+    /** @type {import("pg").PoolClient | null} */
+    let client = null;
     try {
-      const client = await pool.connect();
-      client.on("notification", (notification) => {
+      client = await pool.connect();
+      const connected = client;
+      connected.on("notification", (notification) => {
         if (notification.channel !== LIVE_CHANNEL || !notification.payload) return;
         broadcast(notification.payload);
         onNotification(notification.payload);
       });
-      client.on("error", (error) => {
+      connected.on("error", (error) => {
         logger.warn?.("Live update listener failed; reconnecting", { error: message(error) });
-        client.release(true);
-        if (listener === client) listener = null;
+        connected.release(true);
+        if (listener === connected) listener = null;
         setTimeout(listen, RELISTEN_MS).unref();
       });
-      await client.query(`LISTEN ${LIVE_CHANNEL}`);
-      listener = client;
+      await connected.query(`LISTEN ${LIVE_CHANNEL}`);
+      listener = connected;
       logger.info?.("Relaying live updates on /api/v1/live");
     } catch (error) {
+      // A connection that was obtained but could not LISTEN must go back, or each retry would use up one of the pool's connections.
+      try {
+        client?.release(true);
+      } catch {
+        // Already given back by the error handler above.
+      }
       logger.warn?.("Unable to listen for live updates; retrying", { error: message(error) });
       setTimeout(listen, RELISTEN_MS).unref();
     }

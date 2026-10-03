@@ -21,15 +21,20 @@ export function retentionConfigFromEnv(env) {
 
 /**
  * Roll completed hours up into worker_stats_1h. Recomputes from the hour before the latest
- * rolled one, so it is idempotent and picks up rows that landed after the previous run.
- * @param {PgPool} pool
+ * rolled one, so it is idempotent and picks up rows that landed after the previous run. Records that
+ * arrive late (a journal replayed after an outage, a standby server's batch) carry their original
+ * time and land in older minutes, so the last `lookbackDays` are recomputed as well; only whole hours
+ * that still have all their minute rows are touched (see runRetention).
+ * @param {PgPool} pool @param {{ lookbackDays?: number }} [options]
  */
-export async function rollUpHourlyStats(pool) {
+export async function rollUpHourlyStats(pool, { lookbackDays = 0 } = {}) {
   const result = await pool.query(
     `INSERT INTO worker_stats_1h (bucket, worker_id, accepted, rejected, stale, sum_difficulty, sum_effort)
      SELECT date_trunc('hour', bucket), worker_id, SUM(accepted), SUM(rejected), SUM(stale), SUM(sum_difficulty), SUM(sum_effort)
      FROM worker_stats_1m
-     WHERE bucket >= COALESCE((SELECT max(bucket) FROM worker_stats_1h) - interval '1 hour', '-infinity')
+     WHERE bucket >= LEAST(
+         COALESCE((SELECT max(bucket) FROM worker_stats_1h) - interval '1 hour', '-infinity'),
+         date_trunc('hour', now()) - $1::interval)
        AND bucket < date_trunc('hour', now())
      GROUP BY 1, 2
      ON CONFLICT (bucket, worker_id) DO UPDATE SET
@@ -38,6 +43,7 @@ export async function rollUpHourlyStats(pool) {
        stale = EXCLUDED.stale,
        sum_difficulty = EXCLUDED.sum_difficulty,
        sum_effort = EXCLUDED.sum_effort`,
+    [`${lookbackDays} days`],
   );
   return result.rowCount ?? 0;
 }
@@ -62,7 +68,9 @@ async function deleteInBatches(pool, sql, age) {
  * @param {PgPool} pool @param {RetentionConfig} config
  */
 export async function runRetention(pool, config) {
-  const rolledUp = await rollUpHourlyStats(pool);
+  // Late records can only be in minutes that still exist: stay inside the minute-stats retention, so no hour is ever recomputed from a
+  // partly deleted set of minutes.
+  const rolledUp = await rollUpHourlyStats(pool, { lookbackDays: Math.max(0, Math.min(7, config.minuteStatsDays - 1)) });
   const shares = await deleteInBatches(
     pool,
     `DELETE FROM shares WHERE id IN (

@@ -146,6 +146,8 @@ export class ScheduledUpgrade {
       const chain = await this.chain();
       if (!chain || chain.height < schedule.height) return;
       if (this.upgrade.running) return;
+      // Restarting a node in the middle of a snapshot or chain copy would break it; wait for the next tick.
+      if (this.order().some((n) => n.snapshots.busy)) return;
       this.logger.info?.(`Height ${chain.height} reached; switching to ${schedule.version}`);
       await this.update({ status: "started", startedAt: new Date().toISOString(), note: `Height ${chain.height} reached; switching` });
       this.upgrade.start(this.order(), schedule.version, "scheduled");

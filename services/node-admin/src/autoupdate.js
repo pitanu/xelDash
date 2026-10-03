@@ -125,6 +125,7 @@ export class AutoUpdate {
     if (!saved.enabled) return null;
     if (!this.eligible) return "Waiting for a second local node";
     if (this.upgrade.running) return "A version switch is running";
+    if (this.nodes().some((n) => n.snapshots.busy)) return "A snapshot or chain copy is running; waiting for it to finish";
     if (await this.scheduled()) return "A switch at a set height is scheduled; automatic updates wait for it";
 
     const latest = (await this.releases.list())[0];
