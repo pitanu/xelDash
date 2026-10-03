@@ -1,4 +1,4 @@
-FROM haproxy:3.0-alpine
+FROM haproxy:3.4-alpine
 # HAProxy forwards miners' TCP connections to the main server, or to the local standby Stratum when the main one cannot mine.
 USER root
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh

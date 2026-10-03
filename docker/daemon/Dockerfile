@@ -9,7 +9,7 @@ ARG XELIS_DAEMON_IMAGE=xelis/daemon:1.25.0
 
 FROM ${XELIS_DAEMON_IMAGE} AS upstream
 
-FROM busybox:1.37-musl AS busybox
+FROM busybox:1.38-musl AS busybox
 
 FROM gcr.io/distroless/cc-debian13
 ENV APP_DIR=/var/run/xelis
