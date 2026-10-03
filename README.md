@@ -232,13 +232,21 @@ users. [Connecting miners](docs/MINERS.md) has the settings for each kind of min
 
 ## Status
 
-xelDash is feature-complete for a first release and has been run on XELIS mainnet with two
-nodes, failover, rolling and scheduled upgrades, and a GPU mining through it. What remains
-before a tagged 0.1.0 is testing with more mining programs, and automated tests. Rigel and the
-official `xelis_miner` are tested; others should work but are not verified yet. The Windows
-installer has been run end to end; the macOS and Linux launcher has not yet been tried on those
-systems. The
+xelDash is a release candidate for 0.1.0. It has been run on XELIS mainnet with two nodes, failover, rolling and scheduled
+upgrades, and a GPU mining through it, and it has an automated test suite (`npm test`, run in CI). The
 [pre-release testing list](docs/PRE-RELEASE-TESTING.md) says what is still unverified.
+
+**Known limits**
+
+- **Miners.** Rigel 1.23.0 is tested on mainnet with a GPU, and the official `xelis_miner` (getwork) on a devnet. SRBMiner, lolMiner,
+  OneZeroMiner and others follow the same Stratum protocol and should work, but nobody has tried them yet: reports are welcome.
+- **Systems.** The Windows installer has been run end to end. The Linux and macOS launcher, the Raspberry Pi (arm64) images and the
+  Intel macOS case have not been run on real machines.
+- **Two-server redundancy and the front door** are tested with containers on one computer (failover timing, data kept and replayed,
+  real miner addresses preserved), not yet on separate computers or with a Windows main server. Treat them as new.
+- **Wallets.** xelDash does not handle wallets or keys; rewards go straight to your address.
+- **Not covered by automated tests:** the dashboard's components, the PowerShell launcher beyond a syntax check, and anything that
+  needs real hardware.
 
 ## Documentation
 

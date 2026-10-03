@@ -1,0 +1,43 @@
+# Weekly version updates, grouped so a week's worth arrives as one pull request per area rather than many.
+# Security updates are separate and arrive as soon as they exist (a repository setting).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    groups:
+      npm-root:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /web
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    groups:
+      npm-web:
+        patterns: ["*"]
+  - package-ecosystem: cargo
+    directory: /packages/xelis-hash
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 2
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: docker
+    directories:
+      - /docker/daemon
+      - /docker/frontdoor
+      - /docker/keepalived
+      - /docker/standby-web
+      - /services/api
+      - /services/node-admin
+      - /services/stratum
+      - /web
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    groups:
+      base-images:
+        patterns: ["*"]
