@@ -121,6 +121,9 @@ First public version, planned as 0.1.0.
 
 ### Operations
 
+- A test suite (`npm test`, Node's built-in runner): Stratum, API, node-admin, database (with a throwaway PostgreSQL), dashboard formatting,
+  the Linux launcher, the documentation and the Compose files; it runs in CI. It found and fixed two small bugs: an empty
+  `STRATUM_BAN_EXEMPT_IPS` produced an exempt address named "unknown", and XEL amounts used a dot where the viewer's language uses a comma.
 - In a two-server cluster the standby follows the main server's default wallet address, and sends the failover alert itself when the
   main server cannot be reached (it keeps a copy of the main server's alert settings).
 - Pruning is documented with measured sizes (a mainnet node goes from about 10.6 GB to about 6 GB, whatever number of blocks is

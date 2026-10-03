@@ -81,7 +81,7 @@ export function ipGuardConfigFromEnv(env) {
     invalidMinCount: read("STRATUM_BAN_INVALID_COUNT", DEFAULT_IP_GUARD.invalidMinCount),
     invalidRatio,
     banMinutes: read("STRATUM_BAN_MINUTES", DEFAULT_IP_GUARD.banMinutes),
-    exemptIps: (env.STRATUM_BAN_EXEMPT_IPS ?? "").split(",").map((ip) => normalizeIp(ip.trim())).filter(Boolean),
+    exemptIps: (env.STRATUM_BAN_EXEMPT_IPS ?? "").split(",").map((ip) => ip.trim()).filter(Boolean).map(normalizeIp),
     // Validated here, so a typo stops Stratum at start instead of silently allowing everyone.
     allowedNetworks: parseAllowedNetworks(env.XELDASH_ALLOWED_NETWORKS ?? env.STRATUM_ALLOWED_NETWORKS ?? DEFAULT_IP_GUARD.allowedNetworks).text,
   };

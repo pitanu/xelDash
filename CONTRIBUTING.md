@@ -33,6 +33,26 @@ npm ci
 npm run dev    # proxies /api to the API on 127.0.0.1:8081
 ```
 
+## Tests
+
+```sh
+npm test
+```
+
+Node's built-in test runner, no extra packages. Tests live next to what they test (`services/*/test`, `packages/*/test`,
+`web/test`) and in `test/` for the launcher, the documentation and the Compose files. Without anything else running, the
+database tests are skipped; to run them, start a throwaway PostgreSQL and point `TEST_DATABASE_URL` at it (the tests add rows
+with random addresses and do not clean up, so never use a database you care about):
+
+```sh
+docker run -d --name xeldash-test-db -e POSTGRES_PASSWORD=test -p 127.0.0.1:55432:5432 postgres:17-alpine
+TEST_DATABASE_URL=postgres://postgres:test@127.0.0.1:55432/postgres npm test
+```
+
+The launcher tests need `bash`, the Compose tests need Docker Compose; each is skipped when missing. A test that fixes a bug
+should fail without the fix. They check logic and the pieces that are easy to get wrong; what only real hardware can show (two
+computers, a Raspberry Pi, a real miner) is in [docs/PRE-RELEASE-TESTING.md](docs/PRE-RELEASE-TESTING.md).
+
 Service code is JavaScript with JSDoc types checked by TypeScript (`npm run typecheck`).
 The hash addon is Rust (`packages/xelis-hash`); it is built inside the Stratum image.
 
@@ -44,7 +64,7 @@ The hash addon is Rust (`packages/xelis-hash`); it is built inside the Stratum i
   user would notice. Mark breaking changes **Breaking**.
 - Commit messages: a short, plain summary line in the imperative ("Add worker page"), with
   a body only when the reason is not obvious.
-- CI must pass: typecheck, dashboard build, Compose validation and image builds.
+- CI must pass: typecheck, dashboard build, tests, Compose validation and image builds. Add a test with a fix or a new behaviour.
 - Database changes go in a new numbered file in `packages/db/migrations/`. Never edit a
   migration that has been released.
 

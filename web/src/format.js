@@ -39,7 +39,9 @@ export function formatXel(atomic) {
   const padded = atomic.padStart(XEL_DECIMALS + 1, "0");
   const whole = padded.slice(0, -XEL_DECIMALS);
   const fraction = padded.slice(-XEL_DECIMALS).replace(/0+$/, "");
-  return `${Number(whole).toLocaleString()}${fraction ? `.${fraction}` : ""} XEL`;
+  // The decimal mark of the viewer's language, like the whole part's grouping (1,5 in Finnish, 1.5 in English).
+  const mark = (0.5).toLocaleString().charAt(1);
+  return `${Number(whole).toLocaleString()}${fraction ? `${mark}${fraction}` : ""} XEL`;
 }
 
 /** @param {string | number | null | undefined} value */
