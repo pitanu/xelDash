@@ -163,8 +163,7 @@ export function MinersTable({ miners }) {
     <Table>
       <thead>
         <tr><th className={th}>Address</th><th className={`${th} text-right`}>Hashrate (1 h)</th>
-          <th className={`${th} text-right`}>Workers</th><th className={`${th} text-right`}>Blocks</th><th className={`${th} text-right`}>Last seen</th>
-          {onRemove && <th className={th}><span className="sr-only">Remove</span></th>}</tr>
+          <th className={`${th} text-right`}>Workers</th><th className={`${th} text-right`}>Blocks</th><th className={`${th} text-right`}>Last seen</th></tr>
       </thead>
       <tbody className="tabular">
         {miners.map((m) => (
