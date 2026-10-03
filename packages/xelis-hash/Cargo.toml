@@ -9,7 +9,7 @@ name = "index"
 crate-type = ["cdylib"]
 
 [dependencies]
-napi = { version = "2", features = ["napi8"] }
+napi = { version = "3", features = ["napi8"] }
 napi-derive = "2"
 xelis-hash = { git = "https://github.com/xelis-project/xelis-hash.git", rev = "f48262b931438fdbf2932711613e020c02f1ea04", default-features = false, features = ["v3"] }
 
