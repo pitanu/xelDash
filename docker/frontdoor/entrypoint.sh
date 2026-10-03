@@ -42,6 +42,9 @@ cat > /tmp/haproxy.cfg <<CFG
 global
     log stdout format raw local0 notice
     maxconn 4096
+    # Started as root only to read the certificate files; the processes that handle miners run as an ordinary user.
+    user haproxy
+    group haproxy
 
 defaults
     mode tcp

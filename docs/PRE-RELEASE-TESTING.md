@@ -109,8 +109,8 @@ shares accepted? Does `address.worker` in the user field work?
 
 Only the failover logic has been tested so far, with containers on one machine; none of this has run on real hardware.
 
-- [ ] On Linux or macOS the installer's `.env` is owner-only (`ls -l .env` shows `-rw-------`); it was only tested on Windows,
-      where `chmod` does nothing.
+- [ ] On Linux or macOS the installer's `.env` is owner-only (`ls -l .env` shows `-rw-------`); checked in a Linux container
+      (it is `-rw-------` there), not yet on macOS or a real Linux computer.
 - [ ] `./xeldash.sh cluster join` refuses a damaged or edited code (change one character of the secret, or the main server's
       address to a public one) with a clear message, and writes nothing to `.env`.
 - [ ] `./xeldash.sh cluster setup` on the first server suggests a free address and prints a code; `cluster join CODE` on

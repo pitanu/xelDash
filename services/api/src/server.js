@@ -99,6 +99,7 @@ async function getOverview() {
         COALESCE(SUM(rejected) FILTER (WHERE bucket >= date_trunc('minute', now()) - interval '24 hours' AND bucket < date_trunc('minute', now())), 0)::text AS rejected_24h,
         COALESCE(SUM(sum_difficulty) FILTER (WHERE bucket >= date_trunc('minute', now()) - interval '24 hours' AND bucket < date_trunc('minute', now())), 0)::text AS difficulty_24h
       FROM worker_stats_1m
+      WHERE bucket >= date_trunc('minute', now()) - interval '24 hours'
     `),
     pool.query(`
       SELECT status, COUNT(*)::text AS count
@@ -115,6 +116,7 @@ async function getOverview() {
       COUNT(DISTINCT w.miner_id) FILTER (WHERE s.bucket >= date_trunc('minute', now()) - interval '4 minutes')::text AS active_miners
     FROM workers w
     LEFT JOIN worker_stats_1m s ON s.worker_id = w.id
+      AND s.bucket >= date_trunc('minute', now()) - interval '4 minutes'
   `);
 
   return {
