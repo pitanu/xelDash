@@ -23,6 +23,15 @@ export function tokensMatch(a, b) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
+/**
+ * The folder the database sits in inside an archive comes from the archive itself and is handed to unzip as a pattern, so a name
+ * that unzip would read as an option (a leading "-") or a wildcard is refused.
+ * @param {string} prefix @returns {boolean}
+ */
+export function unsafeArchivePrefix(prefix) {
+  return prefix.startsWith("-") || /[*?[\]\\]/.test(prefix);
+}
+
 /** Run a command, collecting stdout. Rejects on a non-zero exit. @param {string} cmd @param {string[]} args @param {AbortSignal} [signal] @returns {Promise<string>} */
 function run(cmd, args, signal) {
   return new Promise((resolve, reject) => {
@@ -229,6 +238,7 @@ export class SnapshotManager {
       const head = await fetch(url, { method: "HEAD", signal });
       if (!head.ok) throw new Error(`Snapshot server returned HTTP ${head.status}`);
       const size = Number(head.headers.get("content-length"));
+      if (!Number.isFinite(size) || size <= 0) throw new Error("The snapshot server did not say how big the file is");
       const etag = head.headers.get("etag") ?? head.headers.get("last-modified") ?? "";
       const checksum = await this.officialChecksum();
       this.set({ total: size });
@@ -349,6 +359,7 @@ export class SnapshotManager {
     const current = names.filter((name) => name === "CURRENT" || name.endsWith("/CURRENT"));
     if (current.length !== 1) throw new Error("The archive does not contain exactly one RocksDB database (CURRENT file)");
     const prefix = current[0].slice(0, -"CURRENT".length);
+    if (unsafeArchivePrefix(prefix)) throw new Error("The archive's database folder has a name that is not accepted");
     if (!names.some((name) => name.startsWith(`${prefix}MANIFEST-`))) throw new Error("The archive's database has no MANIFEST file");
     const totals = /(\d+) bytes uncompressed/.exec(await run("unzip", ["-Zt", zip], signal));
     const unpacked = totals ? Number(totals[1]) : null;

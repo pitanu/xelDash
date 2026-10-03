@@ -108,3 +108,9 @@ test("the mining address starts from .env, and a saved one wins; clearing return
   assert.equal(await none.read(), null);
   await rm(dir, { recursive: true, force: true });
 });
+
+test("a snapshot's database folder is refused when unzip would read it as an option or a wildcard", async () => {
+  const { unsafeArchivePrefix } = await import("../src/snapshot.js");
+  for (const ok of ["", "mainnet/", "xelis snapshot (1)/", "data/mainnet/", "a.b-c_d/"]) assert.equal(unsafeArchivePrefix(ok), false, ok);
+  for (const bad of ["-d/", "-x/", "*/", "mainnet/*", "a?/", "[ab]/", "x]/", `a${String.fromCharCode(92)}b/`]) assert.equal(unsafeArchivePrefix(bad), true, bad);
+});

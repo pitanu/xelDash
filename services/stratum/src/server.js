@@ -250,6 +250,8 @@ function newSession(socket, ip, onAuthorized = () => {}) {
       const now = Date.now();
       if (now - (hashrateWrites.get(key) ?? 0) < HASHRATE_WRITE_INTERVAL_MS) return;
       hashrateWrites.set(key, now);
+      // Worker names come from miners: forget the ones not heard from lately rather than keep every name ever sent.
+      if (hashrateWrites.size > 10_000) for (const [k, at] of hashrateWrites) if (now - at >= HASHRATE_WRITE_INTERVAL_MS) hashrateWrites.delete(k);
       store.recordReportedHashrate(worker.workerId, hashrate)
         .catch((error) => console.warn("Failed to record reported hashrate:", error instanceof Error ? error.message : String(error)));
     },
