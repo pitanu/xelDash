@@ -465,7 +465,7 @@ so the main server can be a Windows PC.
 3. Point **every miner at the front door** (its address, port 3333), once. Miners should not connect to the main server directly
    any more: it now expects every connection to arrive through the front door, and refuses others.
 
-`./xeldash.sh frontdoor status` on either computer says which side miners are on.
+`./xeldash.sh frontdoor status` on either computer says which side miners are on, and the main server's Health page has a Front door card with the number of rigs that arrive through it (plain Stratum port) and a warning for rigs connected straight to the main server.
 
 **How it decides.** HAProxy asks the main server every 2 seconds whether it can mine (the same check the address manager uses: its
 node is ready and Stratum answers). After 3 failed answers (about 6 seconds) it sends new connections to the front door's own

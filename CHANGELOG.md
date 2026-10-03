@@ -140,7 +140,8 @@ First public version, planned as 0.1.0.
   box, which forwards them to the main server (Windows or macOS too) while that can mine, and to its own Stratum when it cannot.
   Uses HAProxy (new image `frontdoor`) and the PROXY protocol (`STRATUM_PROXY_FROM`), so miners' addresses, limits and bans
   stay right; the dashboard answers `/api/v1/mining-health` for the check. Protects against the main server stopping, not the
-  front door.
+  front door. The Health page of the main server has a "Front door" card: how many rigs arrive through it, and a warning for rigs
+  connected straight to the main server (which have no standby).
 - Backups from the dashboard (Settings, "Download a backup") and from the launcher (`xeldash backup` and
   `xeldash restore FILE`), with no extra tools or services needed.
 - A "Mining availability" card on the Health page: the share of the last day, week or month miners could be

@@ -327,6 +327,18 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (pathname === "/api/v1/front-door") {
+      // Whether a front door is set up and where the connected rigs came in (from Stratum's own status).
+      const healthUrl = (process.env.STRATUM_HEALTH_URL ?? "http://stratum:8096/healthz").replace(/\/healthz$/, "/status");
+      try {
+        const body = await (await fetch(healthUrl, { signal: AbortSignal.timeout(2_000) })).json();
+        sendJson(response, 200, body.frontDoor ? { configured: true, ...body.frontDoor } : { configured: false });
+      } catch {
+        sendJson(response, 200, { configured: false });
+      }
+      return;
+    }
+
     if (pathname === "/api/v1/version") {
       sendJson(response, 200, await updateStatus());
       return;

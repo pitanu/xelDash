@@ -424,7 +424,15 @@ const health = startHealthServer({
   port: Number(process.env.STRATUM_HEALTH_PORT ?? 8096),
   // Mining does not need the database (see store.js), so only a ready node matters here.
   check: async () => (nodes.ready ? null : nodes.reason ?? "no node is ready"),
-  status: () => ({ instance: instanceName, mode: ingestUrl ? "standby" : "main", rigs: sessions.size, journal: store.status() }),
+  status: () => {
+    // Rigs on the plain Stratum port by how they arrived: through the front door (PROXY line) or straight to this server.
+    let viaFrontDoor = 0;
+    for (const socket of sessions.keys()) if (/** @type {{ viaFrontDoor?: boolean }} */ (socket).viaFrontDoor) viaFrontDoor++;
+    return {
+      instance: instanceName, mode: ingestUrl ? "standby" : "main", rigs: sessions.size, journal: store.status(),
+      frontDoor: proxyTrust ? { from: proxyTrust.text, viaFrontDoor, direct: sessions.size - viaFrontDoor } : null,
+    };
+  },
 });
 
 let shuttingDown = false;

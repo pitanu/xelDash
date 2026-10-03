@@ -135,6 +135,7 @@ export function acceptWithProxyHeader(socket, trust, onReady, { timeoutMs = HEAD
     const rest = received.subarray(end + 2);
     if (rest.length > 0) socket.unshift(rest);
     if (parsed.ip) Object.defineProperty(socket, "remoteAddress", { value: parsed.ip, configurable: true });
+    Object.defineProperty(socket, "viaFrontDoor", { value: true, configurable: true });
     onReady(socket);
     // The handlers are attached by now; let the data flow.
     setImmediate(() => socket.resume());
