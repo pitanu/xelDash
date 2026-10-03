@@ -269,4 +269,10 @@ Bug reports, miner compatibility reports and pull requests are welcome. See
 [MIT](LICENSE). The XELIS Hash V3 code built into the Stratum image comes from
 [xelis-project/xelis-hash](https://github.com/xelis-project/xelis-hash), also MIT.
 
-xelDash is a community project and is not an official XELIS product.
+## Disclaimer
+
+xelDash is an independent community project. It is not made, endorsed or supported by the XELIS team, and it is not an official
+XELIS product. It comes with no warranty (see the [license](LICENSE)). Mining can cost more in electricity and hardware than it
+earns, and a solo miner may wait a long time for a block; nothing here is financial advice. xelDash never holds your coins:
+rewards go straight to the wallet address you choose, and it does not handle wallets or keys. You are responsible for your own
+computers, network and wallet.
