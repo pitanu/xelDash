@@ -222,6 +222,7 @@ cmd_install() {
   [ -f .env.example ] || die "Run this from the xelDash folder (.env.example is missing)."
   cp .env.example .env
   chmod 600 .env 2>/dev/null || true  # it holds passwords and the admin token: readable by this user only
+  use_release_version
 
   network="${network:-mainnet}"
   case "$network" in mainnet|testnet|devnet) ;; *) die "Network must be mainnet, testnet or devnet." ;; esac
@@ -318,9 +319,106 @@ cmd_start() {
   fi
 }
 
+# ---------------------------------------------------------------- release versions
+
+# The VERSION file says which released images this copy of xelDash goes with. A downloaded release has its version number in it (for
+# example 0.1.0-rc.6) and installs by pulling the ready-made images; a copy of the development branch has "local" and builds from source.
+release_version() {
+  local v=""
+  [ -f VERSION ] && v="$(tr -d '[:space:]' < VERSION)"
+  if [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then printf '%s' "$v"; fi
+}
+
+# A new .env for a release uses the release's images.
+use_release_version() {
+  local v; v="$(release_version)"
+  if [ -n "$v" ]; then set_env XELDASH_VERSION "$v"; fi
+  return 0
+}
+
+# Whether version $1 is newer than $2: 1.10.0 > 1.9.0, a release is newer than its pre-releases, 0.1.0-rc.10 > 0.1.0-rc.9.
+version_newer() {
+  local a="$1" b="$2" ac bc ap="" bp="" i
+  ac="${a%%-*}"; bc="${b%%-*}"
+  [[ "$a" == *-* ]] && ap="${a#*-}"
+  [[ "$b" == *-* ]] && bp="${b#*-}"
+  local -a x y
+  IFS=. read -ra x <<<"$ac"; IFS=. read -ra y <<<"$bc"
+  for i in 0 1 2; do
+    if [ "${x[$i]:-0}" -gt "${y[$i]:-0}" ]; then return 0; fi
+    if [ "${x[$i]:-0}" -lt "${y[$i]:-0}" ]; then return 1; fi
+  done
+  [ "$ap" = "$bp" ] && return 1
+  [ -z "$ap" ] && return 0
+  [ -z "$bp" ] && return 1
+  IFS=. read -ra x <<<"$ap"; IFS=. read -ra y <<<"$bp"
+  local n=${#x[@]}; [ "${#y[@]}" -gt "$n" ] && n=${#y[@]}
+  for ((i = 0; i < n; i++)); do
+    local p="${x[$i]:-}" q="${y[$i]:-}"
+    [ "$p" = "$q" ] && continue
+    [ -z "$p" ] && return 1
+    [ -z "$q" ] && return 0
+    if [[ "$p" =~ ^[0-9]+$ && "$q" =~ ^[0-9]+$ ]]; then [ "$p" -gt "$q" ] && return 0; return 1; fi
+    [[ "$p" =~ ^[0-9]+$ ]] && return 1
+    [[ "$q" =~ ^[0-9]+$ ]] && return 0
+    [[ "$p" > "$q" ]] && return 0
+    return 1
+  done
+  return 1
+}
+
+# The newest release tag in GitHub's tag list (JSON on stdin). A pre-release counts only when the running version is one too.
+newest_tag() {
+  local current="$1" best="" name
+  while read -r name; do
+    [[ "$name" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || continue
+    if [[ "$name" == *-* && "$current" != *-* ]]; then continue; fi
+    if [ -z "$best" ] || version_newer "${name#v}" "${best#v}"; then best="$name"; fi
+  done < <(grep -o '"name"[[:space:]]*:[[:space:]]*"v[^"]*"' | sed -E 's/.*"(v[^"]*)"$/\1/')
+  printf '%s' "$best"
+}
+
+# Update a release install: find the newest release, download it, put its files over this folder (.env, backups and your data are not in it,
+# so they stay) and start it. Pull the new launcher in last, by starting it again, since this script is about to be replaced.
+update_release() {
+  local current="$1" repo api tag version url tmp dir
+  repo="$(get_env XELDASH_UPDATE_REPO)"; repo="${repo:-pitanu/xelDash}"
+  [[ "$repo" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || die "XELDASH_UPDATE_REPO must look like owner/name."
+  api="${XELDASH_RELEASE_API:-https://api.github.com/repos/$repo}"
+  say "Looking for a newer release..."
+  tag="$(curl -fsSL -m 20 -H 'accept: application/vnd.github+json' "$api/tags?per_page=100" 2>/dev/null | newest_tag "$current")" || tag=""
+  [ -n "$tag" ] || die "Could not find a release to update to. Check your internet connection, or look at https://github.com/$repo/releases"
+  version="${tag#v}"
+  if ! version_newer "$version" "$current"; then ok "You already have the newest release ($current)."; return 0; fi
+  say "Updating $current to $version..."
+  tmp="$(mktemp -d)"
+  url="${XELDASH_ARCHIVE_URL:-https://github.com/$repo/archive/refs/tags/$tag.tar.gz}"
+  curl -fsSL -m 600 -o "$tmp/release.tar.gz" "$url" || { rm -rf "$tmp"; die "Could not download $url"; }
+  mkdir "$tmp/x"
+  tar -xzf "$tmp/release.tar.gz" -C "$tmp/x" || { rm -rf "$tmp"; die "The download is damaged. Try again."; }
+  dir="$(find "$tmp/x" -mindepth 1 -maxdepth 1 -type d | head -1)"
+  if [ ! -f "$dir/xeldash.sh" ] || [ ! -f "$dir/docker-compose.yml" ] || [ "$(tr -d '[:space:]' < "$dir/VERSION" 2>/dev/null)" != "$version" ]; then
+    rm -rf "$tmp"; die "That download is not xelDash release $version. Nothing was changed."
+  fi
+  cp -R "$dir"/. ./ || { rm -rf "$tmp"; die "Could not copy the new files into this folder."; }
+  rm -rf "$tmp"
+  set_env XELDASH_VERSION "$version"
+  exec bash ./xeldash.sh _finish-update "$version"   # this folder is the script's own (it changed into it at the start)
+}
+
+cmd_finish_update() {
+  [ -z "${XELDASH_UPDATE_NO_START:-}" ] || { ok "Updated to ${1:-the new version} (not started: XELDASH_UPDATE_NO_START)."; return 0; }
+  check_docker
+  compose_up
+  ok "xelDash is updated to ${1:-the new version} and running. Your settings and data were kept."
+}
+
 cmd_update() {
   [ -f .env ] || die "xelDash is not set up yet. Run ./xeldash.sh first."
   check_docker
+  # A release install (XELDASH_VERSION is a version number) updates to the newest release; a source install (local) pulls and rebuilds.
+  local running; running="$(get_env XELDASH_VERSION)"
+  if [ -n "$running" ] && [ "$running" != local ]; then update_release "$running"; return; fi
   if [ -d .git ] && command -v git >/dev/null 2>&1; then
     say "Getting the newest xelDash..."
     git pull --ff-only || die "Could not update automatically (you may have changed files). Run: git status"
@@ -468,7 +566,7 @@ cluster_join() {
   [ -n "$vip" ] && [ -n "$id" ] && [ -n "$secret" ] && [ -n "$primary" ] || die "The cluster code is incomplete. Copy it again in full."
   cluster_code_ok "$vip" "$id" "$secret" "$network" "$address" "$primary" "$name" || die "The cluster code was refused. Copy it again from the main server (./xeldash.sh cluster setup prints it)."
   check_docker; cluster_need_linux
-  if [ ! -f .env ]; then cp .env.example .env; chmod 600 .env 2>/dev/null || true; fi
+  if [ ! -f .env ]; then cp .env.example .env; chmod 600 .env 2>/dev/null || true; use_release_version; fi
   [ -z "$(get_env XELDASH_PRIMARY_URL)" ] || die "This server already joined a cluster."
   set_env XELIS_NETWORK "${network:-mainnet}"
   set_env XELIS_SNAPSHOT_AUTO true
@@ -603,7 +701,7 @@ frontdoor_join() {
   frontdoor_code_ok "$secret" "$network" "$address" "$host" "$web" "$stratum" "$getwork" "$name" || die "The code was refused. Copy it again from the main server (./xeldash.sh frontdoor setup prints it)."
   check_docker
   if docker_is_desktop; then die "The front door needs Linux with Docker Engine: Docker Desktop hides the miners' addresses from it. See docs/OPERATIONS.md#front-door-a-box-miners-connect-to"; fi
-  if [ ! -f .env ]; then cp .env.example .env; chmod 600 .env 2>/dev/null || true; fi
+  if [ ! -f .env ]; then cp .env.example .env; chmod 600 .env 2>/dev/null || true; use_release_version; fi
   [ -z "$(get_env FRONTDOOR_MAIN_HOST)" ] || die "This computer is already a front door."
   [ -z "$(get_env XELDASH_PRIMARY_URL)" ] || die "This computer is already the second server of a cluster."
   set_env XELIS_NETWORK "${network:-mainnet}"
@@ -683,6 +781,7 @@ case "${1:-}" in
   token)    t="$(get_env XELDASH_ADMIN_TOKEN)"; [ -n "$t" ] && say "$t" || die "No admin password is set in .env." ;;
   lan)      shift; cmd_lan "$@" ;;
   update)   cmd_update ;;
+  _finish-update) shift; cmd_finish_update "$@" ;;
   cluster)  shift; cmd_cluster "$@" ;;
   frontdoor) shift; cmd_frontdoor "$@" ;;
   backup)   cmd_backup ;;

@@ -357,6 +357,7 @@ function Invoke-Install([string[]]$Rest) {
     }
     if (-not (Test-Path ".env.example")) { Die "Run this from the xelDash folder (.env.example is missing)." }
     Copy-Item ".env.example" $envPath
+    Use-ReleaseVersion
 
     if (-not $network) { $network = "mainnet" }
     if (@("mainnet", "testnet", "devnet") -notcontains $network) { Die "Network must be mainnet, testnet or devnet." }
@@ -405,9 +406,120 @@ function Invoke-Install([string[]]$Rest) {
     if ($wantFirewall) { Enable-Firewall }
 }
 
+# ---------------------------------------------------------------- release versions
+
+# The VERSION file says which released images this copy of xelDash goes with. A downloaded release has its version number in it (for example
+# 0.1.0-rc.6) and installs by pulling the ready-made images; a copy of the development branch has "local" and builds from source.
+function Get-ReleaseVersion {
+    $file = Join-Path $PSScriptRoot "VERSION"
+    if (-not (Test-Path -LiteralPath $file)) { return "" }
+    $v = ([System.IO.File]::ReadAllText($file)).Trim()
+    if ($v -match '^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') { return $v }
+    return ""
+}
+
+# A new .env for a release uses the release's images.
+function Use-ReleaseVersion {
+    $v = Get-ReleaseVersion
+    if ($v) { Set-EnvValue "XELDASH_VERSION" $v }
+}
+
+# Whether version $A is newer than $B: 1.10.0 > 1.9.0, a release is newer than its pre-releases, 0.1.0-rc.10 > 0.1.0-rc.9.
+function Test-VersionNewer([string]$A, [string]$B) {
+    $pa = [regex]::Match($A, '^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$')
+    $pb = [regex]::Match($B, '^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$')
+    if (-not $pa.Success -or -not $pb.Success) { return $false }
+    for ($i = 1; $i -le 3; $i++) {
+        $x = [int64]$pa.Groups[$i].Value; $y = [int64]$pb.Groups[$i].Value
+        if ($x -gt $y) { return $true }
+        if ($x -lt $y) { return $false }
+    }
+    $ap = $pa.Groups[4].Value; $bp = $pb.Groups[4].Value
+    if ($ap -eq $bp) { return $false }
+    if (-not $ap) { return $true }
+    if (-not $bp) { return $false }
+    $xs = $ap.Split("."); $ys = $bp.Split(".")
+    $n = [Math]::Max($xs.Count, $ys.Count)
+    for ($i = 0; $i -lt $n; $i++) {
+        if ($i -ge $xs.Count) { return $false }
+        if ($i -ge $ys.Count) { return $true }
+        $p = $xs[$i]; $q = $ys[$i]
+        if ($p -ceq $q) { continue }
+        $pn = $p -match '^\d+$'; $qn = $q -match '^\d+$'
+        if ($pn -and $qn) { return ([int64]$p -gt [int64]$q) }
+        if ($pn) { return $false }
+        if ($qn) { return $true }
+        return ([string]::CompareOrdinal($p, $q) -gt 0)
+    }
+    return $false
+}
+
+# The newest release tag in GitHub's tag list. A pre-release counts only when the running version is one too.
+function Get-NewestTag([object[]]$Tags, [string]$Current) {
+    $best = ""
+    foreach ($t in $Tags) {
+        $name = [string]$t.name
+        if ($name -notmatch '^v\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') { continue }
+        if ($name.Contains("-") -and -not $Current.Contains("-")) { continue }
+        if (-not $best -or (Test-VersionNewer $name.Substring(1) $best.Substring(1))) { $best = $name }
+    }
+    return $best
+}
+
+# Update a release install: find the newest release, download it, put its files over this folder (.env, backups and your data are not in it,
+# so they stay) and start it with the new launcher.
+function Update-Release([string]$Current) {
+    $repo = Get-EnvValue "XELDASH_UPDATE_REPO"; if (-not $repo) { $repo = "pitanu/xelDash" }
+    if ($repo -notmatch '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$') { Die "XELDASH_UPDATE_REPO must look like owner/name." }
+    $api = $env:XELDASH_RELEASE_API; if (-not $api) { $api = "https://api.github.com/repos/$repo" }
+    Say "Looking for a newer release..."
+    $tags = $null
+    try { $tags = Invoke-RestMethod -Uri "$api/tags?per_page=100" -TimeoutSec 20 -Headers @{ accept = "application/vnd.github+json"; "user-agent" = "xelDash" } } catch { }
+    $tag = ""
+    if ($tags) { $tag = Get-NewestTag @($tags) $Current }
+    if (-not $tag) { Die "Could not find a release to update to. Check your internet connection, or look at https://github.com/$repo/releases" }
+    $version = $tag.Substring(1)
+    if (-not (Test-VersionNewer $version $Current)) { Ok "You already have the newest release ($Current)."; return }
+    Say "Updating $Current to $version..."
+    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("xeldash-" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $tmp | Out-Null
+    try {
+        $url = $env:XELDASH_ARCHIVE_URL; if (-not $url) { $url = "https://github.com/$repo/archive/refs/tags/$tag.zip" }
+        $zip = Join-Path $tmp "release.zip"
+        try { Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing -TimeoutSec 600 } catch { Die "Could not download $url" }
+        try { Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $tmp "x") -Force } catch { Die "The download is damaged. Try again." }
+        $dir = Get-ChildItem -LiteralPath (Join-Path $tmp "x") -Directory | Select-Object -First 1
+        $versionFile = if ($dir) { Join-Path $dir.FullName "VERSION" } else { "" }
+        $claimed = ""
+        if ($versionFile -and (Test-Path -LiteralPath $versionFile)) { $claimed = ([System.IO.File]::ReadAllText($versionFile)).Trim() }
+        if (-not $dir -or -not (Test-Path (Join-Path $dir.FullName "xeldash.ps1")) -or -not (Test-Path (Join-Path $dir.FullName "docker-compose.yml")) -or $claimed -ne $version) {
+            Die "That download is not xelDash release $version. Nothing was changed."
+        }
+        # xeldash.cmd is what started this script, and Windows reads a batch file while it runs, so it is not replaced under it.
+        Get-ChildItem -LiteralPath $dir.FullName -Force | Where-Object { $_.Name -ne "xeldash.cmd" } | Copy-Item -Destination $PSScriptRoot -Recurse -Force
+    } finally {
+        Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    Set-EnvValue "XELDASH_VERSION" $version
+    # The launcher was just replaced: carry on with the new one.
+    & $PSCommandPath "finish-update" $version
+    exit $LASTEXITCODE
+}
+
+function Invoke-FinishUpdate([string[]]$Rest) {
+    $v = "the new version"; if ($Rest -and $Rest.Count -gt 0) { $v = $Rest[0] }
+    if ($env:XELDASH_UPDATE_NO_START) { Ok "Updated to $v (not started: XELDASH_UPDATE_NO_START)."; return }
+    Assert-Docker
+    Invoke-ComposeUp
+    Ok "xelDash is updated to $v and running. Your settings and data were kept."
+}
+
 function Invoke-Update {
     if (-not (Test-Path -LiteralPath $envPath)) { Die "xelDash is not set up yet. Double-click xeldash.cmd first." }
     Assert-Docker
+    # A release install (XELDASH_VERSION is a version number) updates to the newest release; a source install (local) pulls and rebuilds.
+    $running = Get-EnvValue "XELDASH_VERSION"
+    if ($running -and $running -ne "local") { Update-Release $running; return }
     if ((Test-Path ".git") -and (Get-Command git -ErrorAction SilentlyContinue)) {
         Say "Getting the newest xelDash..."
         git pull --ff-only
@@ -558,6 +670,7 @@ switch ($cmd) {
     "lan" { Invoke-Lan $rest }
     "firewall" { Invoke-Firewall $rest }
     "update" { Invoke-Update }
+    "finish-update" { Invoke-FinishUpdate $rest }
     "backup" { Invoke-Backup }
     "cluster" {
         Say "Redundancy between two servers needs Linux with Docker Engine: Docker Desktop on Windows cannot hold a shared address on your network."

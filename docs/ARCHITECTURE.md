@@ -201,8 +201,8 @@ versions, the fallback) needs `XELDASH_ADMIN_TOKEN`. Nothing can control Docker.
 ## 9. Deployment and operations
 
 - One `docker-compose.yml` and `.env.example`; `docker-compose.cluster.yml` is added on the main server of a two-server cluster and
-  `docker-compose.standby.yml` is the second server's own stack (selected through `COMPOSE_FILE` in `.env` by the launcher). Images build locally by default, or are pulled
-  from GHCR (amd64 and arm64) by setting `XELDASH_VERSION`.
+  `docker-compose.standby.yml` is the second server's own stack (selected through `COMPOSE_FILE` in `.env` by the launcher). A release (its `VERSION` file holds the version number, which the launcher copies to `XELDASH_VERSION`) pulls its images from GHCR (amd64 and arm64);
+  the development branch has `local` in `VERSION` and builds them locally.
 - Healthchecks and `restart: unless-stopped` on every long-running service.
 - Daemon pinned with `XELIS_DAEMON_IMAGE`, or switched to official releases from the dashboard;
   daemon settings, snapshots and node control from the dashboard.

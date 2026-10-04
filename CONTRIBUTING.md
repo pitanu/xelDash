@@ -75,9 +75,11 @@ The hash addon is Rust (`packages/xelis-hash`); it is built inside the Stratum i
 
 ## Releases
 
-Versions follow [Semantic Versioning](https://semver.org/). To release, move the
-"Unreleased" changelog entries under the new version, bump the `version` fields in the
-`package.json` files, and push a `vX.Y.Z` tag; the release workflow publishes the images.
+Versions follow [Semantic Versioning](https://semver.org/). To release: move the "Unreleased" changelog entries under the new version, commit,
+then run `./scripts/tag-release.sh X.Y.Z` (or `X.Y.Z-rc.N`) and push the tag it makes (`git push origin vX.Y.Z`). The script makes the tagged
+commit on the side with the `VERSION` file set to the version, so a downloaded release installs the ready-made images and `xeldash update` can
+find the next one; the development branch keeps `local` in `VERSION` and builds from source. The release workflow checks that `VERSION` matches the
+tag, runs the typecheck and the tests, and then publishes the images.
 
 ## Conduct
 

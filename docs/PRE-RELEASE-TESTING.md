@@ -135,6 +135,16 @@ Only the failover logic has been tested so far, with containers on one machine; 
 The container-level checks of the sections below, on one computer, are automated: `npm run e2e` (see CONTRIBUTING). What remains for people is
 what only real machines show.
 
+## Release installs and updates
+
+Tested with a local stand-in for GitHub (`npm test`); not yet with real releases.
+
+- [ ] Download a release's **Source code (zip)**, unzip, run the launcher: it pulls images (no build), and `.env` has `XELDASH_VERSION` set to that release.
+- [ ] With the next release out: `xeldash update` finds it, puts the files over the folder, restarts, and the footer of the dashboard shows the new
+      version; `.env`, backups and mining are kept. Then `xeldash update` again says you already have the newest.
+- [ ] A pre-release install (`-rc`) moves on to the next pre-release, and to the final release when it comes; a final release install ignores pre-releases.
+- [ ] On Windows too (the same flow; `xeldash.cmd` is not replaced while it runs).
+
 ## 5d. Front door (needs a Linux computer with Docker Engine, and the main server on the same network; Windows is the interesting case)
 
 Tested on a devnet with the real Stratum, API and HAProxy images on one machine and the devnet test miner (Stratum and getwork): the main server saw the miner's own address, stopping the main Stratum moved the miner to the standby within seconds, blocks mined there were ingested into the main database, and the miner went back when the main returned. Not tested on separate computers, with a Windows main server, or with real miners.

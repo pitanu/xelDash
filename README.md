@@ -221,7 +221,9 @@ management. Details are in the [architecture guide](docs/ARCHITECTURE.md).
 
 1. Check the [system requirements](docs/REQUIREMENTS.md) (about 40 GB of free disk, 4 GB of memory) and install **Docker Desktop**
    (Windows or macOS) or Docker Engine (Linux).
-2. Download xelDash (**Code → Download ZIP**) and unzip it.
+2. Download the **latest release** from the [Releases page](https://github.com/pitanu/xelDash/releases) (the **Source code (zip)** under the newest one) and unzip it.
+   A release uses ready-made images, so it starts in a few minutes and `xeldash update` can move it to the next release. (**Code → Download ZIP** gives
+   the development version instead, which builds everything on your computer and takes about ten minutes.)
 3. **Windows:** double-click `xeldash.cmd`. **macOS and Linux:** run `./xeldash.sh` in a terminal.
 
 The dashboard opens and guides you through the rest. You do not need a wallet before you start.

@@ -34,9 +34,10 @@ missing.
 
 ## 2. Get xelDash
 
-On the project's GitHub page, choose **Code → Download ZIP**, then unzip it somewhere you will
-find again, for example your Documents folder. (If you know git, `git clone` works too and
-lets xelDash update itself later.)
+On the project's [Releases page](https://github.com/pitanu/xelDash/releases), under the newest release, choose **Source code (zip)**, then unzip it somewhere
+you will find again, for example your Documents folder. A release comes with ready-made images, so it starts quickly and can update itself later.
+(If you know git, `git clone` also works, but it is the development version: it builds everything on your computer, which takes about ten
+minutes.)
 
 ## 3. Run the installer
 
@@ -50,8 +51,8 @@ It asks two questions, and both can be skipped:
 
 Then it does the rest: it makes a random password for the database and an admin password for the
 dashboard, chooses the real XELIS network (mainnet) and the fast start from the official
-snapshot, builds and starts everything (about 10 minutes the first time), and opens the
-dashboard in your browser.
+snapshot, downloads and starts everything (a few minutes, plus the blockchain download), and opens the
+dashboard in your browser. (A development copy builds everything instead, about 10 minutes.)
 
 **Write down the admin password it prints.** You need it to change settings in the dashboard. You
 can show it again any time with `xeldash token` (Windows) or `./xeldash.sh token`.
@@ -101,9 +102,9 @@ type `cmd` and press Enter) and use `xeldash` as written. In PowerShell, type `.
 Most things are also on the dashboard: node restarts, settings and updates
 are on the **Nodes** and **Settings** pages.
 
-`update` needs xelDash to have been downloaded with git. If you used the ZIP, download the newest
-ZIP, unzip it, and copy your `.env` file (the settings, including your passwords) into the new
-folder before running the launcher.
+`update` moves a release to the newest release by itself: it finds it on GitHub, downloads it, puts its files over the folder you have (your
+`.env` with your passwords, your backups and your data are kept) and restarts. A copy made with `git clone` (the development version) updates with
+`git pull` and a rebuild instead.
 
 ## Mining from other computers
 

@@ -164,8 +164,9 @@ first recorded anything, and the few seconds a restart of the mining server take
 
 The dashboard shows a notice under the header when a newer xelDash has been released (it asks GitHub for the
 project's tags every six hours; `XELDASH_VERSION_CHECK=off` stops that). To update, run `xeldash update`
-(`./xeldash.sh update`) in the xelDash folder; it pulls the new version and restarts the services, and your
-data and settings are kept. Pre-releases do not trigger the notice. If you run a fork, set `XELDASH_UPDATE_REPO`
+(`./xeldash.sh update`) in the xelDash folder. On a release install it finds the newest release on GitHub (a pre-release install follows pre-releases
+too, a final release only final ones), downloads it, puts its files over the folder, and restarts on its images; on a development copy it runs
+`git pull` and rebuilds. Your `.env`, backups and data are kept either way, and a failed download or a wrong archive changes nothing. Pre-releases do not trigger the notice. If you run a fork, set `XELDASH_UPDATE_REPO`
 to `owner/name`. The running version is shown at the foot of every page.
 
 ## Which networks may connect
@@ -317,9 +318,8 @@ page.
 
 1. Back up the database.
 2. Pull the new version and read the changelog for anything marked as breaking.
-3. Rebuild and restart: `docker compose up -d --build`. To run a published release instead of
-   building, set `XELDASH_VERSION` (for example `0.1.0`) in `.env`, then run
-   `docker compose pull && docker compose up -d`. Images are at
+3. A release: `xeldash update` does all of this (it also keeps your `.env`). By hand: set `XELDASH_VERSION` (for example `0.1.0`) in `.env`, then run
+   `docker compose pull && docker compose up -d`. A development copy: `docker compose up -d --build`. Images are at
    `ghcr.io/pitanu/xeldash/{api,stratum,web,daemon}` (`XELDASH_IMAGE_REGISTRY` overrides the
    prefix), for amd64 and arm64.
 
