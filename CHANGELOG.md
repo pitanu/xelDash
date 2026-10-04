@@ -11,6 +11,8 @@ First public version, planned as 0.1.0.
 
 ### Mining
 
+- Fixed: a computer on your network that reset its connection while the getwork port was refusing it (a browser, a bad address) could stop the whole
+  Stratum server. Found by a flaky test.
 - Logins from miners that do not follow the Stratum specification to the letter are accepted: a session id or an algorithm name (or nothing) where the
   specification has the algorithm list in `mining.subscribe`, and a `solo:` before the address. Found with SRBMiner, which could not log in before.
 - Mining no longer depends on the database. When it cannot be reached, miners stay connected and keep mining,

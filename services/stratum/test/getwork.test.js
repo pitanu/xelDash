@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createServer as createNetServer } from "node:net";
+import net, { createServer as createNetServer } from "node:net";
 import { WebSocket } from "ws";
 import { parseGetworkPath, startGetworkServer } from "../src/getwork.js";
 import { DEFAULT_IP_GUARD, IpGuard } from "../src/ip-guard.js";
@@ -95,10 +95,26 @@ test("a submitted block is answered with block_accepted or the reason it was ref
   }
 });
 
+/** The status line a getwork server answers to a hand-made upgrade request (a plain socket: a refused WebSocket client can see the connection reset instead of the answer). */
+function upgradeStatus(port, path, headers = {}) {
+  return new Promise((resolve) => {
+    const socket = net.connect(port, "127.0.0.1");
+    let text = "";
+    const done = () => { socket.destroy(); resolve(/^HTTP\/1\.1 (\d+)/.exec(text)?.[1] ?? "none"); };
+    socket.on("data", (d) => { text += d; if (text.includes("\r\n")) done(); });
+    socket.on("error", () => {});
+    socket.on("close", done);
+    const lines = [`GET ${path} HTTP/1.1`, "Host: x", "Connection: Upgrade", "Upgrade: websocket", "Sec-WebSocket-Version: 13", "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+      ...Object.entries(headers).map(([k, v]) => `${k}: ${v}`), "", ""];
+    socket.write(lines.join("\r\n"));
+    setTimeout(done, 2000);
+  });
+}
+
 test("bad requests are refused before a session exists: browsers and bad paths", async () => {
   const s = await start();
-  assert.equal((await connect(s.port, `/getwork/${ADDRESS}/rig1`, { headers: { origin: "https://evil.example" } })).status, 403, "a browser");
-  assert.equal((await connect(s.port, "/getwork/only-one-part")).status, 400);
+  assert.equal(await upgradeStatus(s.port, `/getwork/${ADDRESS}/rig1`, { Origin: "https://evil.example" }), "403", "a browser");
+  assert.equal(await upgradeStatus(s.port, "/getwork/only-one-part"), "400");
   assert.equal(s.seen.ips.length, 0, "no session was created for any of them");
   await s.close();
 });
@@ -110,6 +126,7 @@ test("an address that is not on the allowed networks is refused and reported", a
   const { default: net } = await import("node:net");
   const reply = await new Promise((resolve) => {
     const socket = net.connect(front.port, "127.0.0.1");
+    socket.on("error", () => {}); // a refused connection may be reset
     let text = "";
     socket.on("data", (d) => { text += d; });
     socket.on("close", () => resolve(text));
@@ -126,6 +143,7 @@ test("behind a front door the miner's own address is what the session and the li
   const { default: net } = await import("node:net");
   const got = await new Promise((resolve) => {
     const socket = net.connect(s.port, "127.0.0.1");
+    socket.on("error", () => {});
     let text = "";
     socket.on("data", (d) => { text += d; if (text.includes("new_job") || text.length > 200) resolve(text); });
     socket.write(`PROXY TCP4 192.168.1.37 1.1.1.1 1 2\r\nGET /getwork/${ADDRESS}/rig1 HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n`);
@@ -139,4 +157,30 @@ test("behind a front door the miner's own address is what the session and the li
   assert.deepEqual(direct.seen.ips, ["127.0.0.1"], "an address that is not listed is taken as it is, and still works");
   ws.close();
   await direct.close();
+});
+
+test("a client that resets the connection while it is being refused cannot stop the server", async () => {
+  const s = await start();
+  const errors = [];
+  const onUncaught = (e) => errors.push(e);
+  process.on("uncaughtException", onUncaught);
+  try {
+    for (let i = 0; i < 40; i++) {
+      await new Promise((resolve) => {
+        const socket = net.connect(s.port, "127.0.0.1");
+        socket.on("error", () => {});
+        socket.on("connect", () => {
+          socket.write(`GET /getwork/${ADDRESS}/rig1 HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nOrigin: https://evil.example\r\n\r\n`);
+          socket.resetAndDestroy();
+          resolve();
+        });
+      });
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  } finally {
+    process.off("uncaughtException", onUncaught);
+  }
+  assert.deepEqual(errors.map((e) => e.message), [], "no unhandled error escaped");
+  assert.equal(await upgradeStatus(s.port, `/getwork/${ADDRESS}/rig1`, { Origin: "https://evil.example" }), "403", "and it still answers");
+  await s.close();
 });

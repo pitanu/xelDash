@@ -121,6 +121,9 @@ export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, c
   const wss = new WebSocketServer({ noServer: true, maxPayload: 4096 });
 
   server.on("upgrade", (request, socket, head) => {
+    // Once a connection is handed over as an upgrade, Node no longer listens for its errors. A client that resets the connection while it is
+    // being refused (or before the WebSocket takes it over) would otherwise raise an unhandled error and stop the whole Stratum server.
+    socket.on("error", () => {});
     const ip = normalizeIp(request.socket.remoteAddress);
     // Miners never send an Origin header; browsers always do. Refusing browsers stops other
     // websites from opening getwork connections through a visitor's browser.

@@ -52,6 +52,9 @@ export function startLiveUpdates({ server, pool, onNotification = () => {}, logg
   let stopped = false;
 
   server.on("upgrade", (request, socket, head) => {
+    // Node stops listening for a connection's errors once it is handed over as an upgrade, so an error on it (a client that resets) must be
+    // absorbed here. (Refusals below destroy the socket at once, so this is a safeguard; getwork.js had a real case of it.)
+    socket.on("error", () => {});
     const pathname = safePathname(request.url);
     if (pathname !== PATH || wss.clients.size >= MAX_CLIENTS || !sameOrigin(request)) {
       const status = pathname !== PATH ? "404 Not Found" : wss.clients.size >= MAX_CLIENTS ? "503 Service Unavailable" : "403 Forbidden";
