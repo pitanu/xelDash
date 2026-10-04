@@ -140,13 +140,18 @@ export class StratumSession {
 
   /** @param {StratumRequest} request */
   subscribe(request) {
-    const [agent = "", supported = []] = request.params;
-    if (typeof agent !== "string" || !Array.isArray(supported)
-        || supported.some((algorithm) => typeof algorithm !== "string")) {
+    const [agent = "", second] = request.params;
+    // The XELIS spec puts the list of algorithms second. Other miners send a previous session id there when they reconnect (SRBMiner
+    // does), or a single algorithm name, or nothing; none of that is a reason to refuse the login.
+    /** @type {unknown[]} */
+    let supported = [];
+    if (Array.isArray(second)) supported = second;
+    else if (typeof second === "string" && negotiateAlgorithm([second]) !== null) supported = [second];
+    if (typeof agent !== "string" || supported.some((algorithm) => typeof algorithm !== "string")) {
       this.send(errorResponse(request.id, -32602, "Invalid subscribe parameters"));
       return;
     }
-    const algorithm = negotiateAlgorithm(supported);
+    const algorithm = negotiateAlgorithm(/** @type {string[]} */ (supported));
     if (algorithm !== "xel/v3") {
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNKNOWN, "Only xel/v3 is currently supported"));
       return;
@@ -173,7 +178,9 @@ export class StratumSession {
     // Stratum miners send [user, password], and often "address.worker" as the user; XELIS
     // addresses never contain a dot, so the dot separates the worker. The full user name is
     // remembered, because those miners submit shares under it.
-    const [first, second, third] = request.params;
+    const [rawFirst, second, third] = request.params;
+    // Some miners (and many pool guides) write "solo:" before the address; it only means "mine for this address".
+    const first = typeof rawFirst === "string" ? rawFirst.replace(/^solo:/i, "") : rawFirst;
     let requestedAddress = first;
     /** @type {unknown} */
     let workerName = second ?? "default";
@@ -196,6 +203,8 @@ export class StratumSession {
       workerName = "default";
       password = second;
     }
+    // A classic miner submits shares under the name it logged in with, as it wrote it (with the "solo:" too, if it had one).
+    const loginNames = username ? [username, ...(typeof rawFirst === "string" && rawFirst !== username ? [rawFirst] : [])] : [];
     if ((requestedAddress !== undefined && requestedAddress !== null
           && typeof requestedAddress !== "string") || typeof workerName !== "string"
         || workerName.length === 0 || workerName.length > MAX_WORKER_NAME
@@ -232,7 +241,7 @@ export class StratumSession {
 
     // Logging in again as a known worker changes nothing.
     if (this.authorizedWorkers.has(workerName) && this.miningAddress === address) {
-      if (username) this.workerAliases.set(username, workerName);
+      for (const name of loginNames) this.workerAliases.set(name, workerName);
       this.send(response(request.id, true));
       return;
     }
@@ -263,7 +272,7 @@ export class StratumSession {
     // Further workers on a connection share its job; only the first login fetches a template.
     if (this.miningIdentity && this.jobs.size > 0) {
       this.authorizedWorkers.set(workerName, identity);
-      if (username) this.workerAliases.set(username, workerName);
+      for (const name of loginNames) this.workerAliases.set(name, workerName);
       this.send(response(request.id, true));
       return;
     }
@@ -290,7 +299,7 @@ export class StratumSession {
     this.miningIdentity = identity;
     this.publicKey = identity.publicKey.toLowerCase();
     this.authorizedWorkers.set(workerName, identity);
-    if (username) this.workerAliases.set(username, workerName);
+    for (const name of loginNames) this.workerAliases.set(name, workerName);
     this.trackJob(job, true);
     this.onAuthorized();
     this.send(response(request.id, true));

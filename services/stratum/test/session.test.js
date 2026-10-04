@@ -320,3 +320,35 @@ test("getwork: work must match a job this session was given; stale work is not h
   assert.deepEqual(h.events.submissions, [true, false, false, false, false, false]);
   h.session.close();
 });
+
+test("subscribe accepts what real miners send: no algorithm list, a previous session id (SRBMiner), or one algorithm name", async () => {
+  for (const params of [["SRBMiner-MULTI/3.0.6"], ["SRBMiner-MULTI/3.0.6", "bbd8f7e9-b1a3-4ca8-aca2-0b70d3e595eb"], ["x", "xel/v3"], ["x", null], ["x", ["xel/v3"]], []]) {
+    const h = harness();
+    await subscribe(h, params);
+    assert.ok(Array.isArray(h.reply(1).result), `accepted: ${JSON.stringify(params)}`);
+  }
+  for (const params of [[5], ["x", ["xel/v3", 7]], ["x", "xel/v1"]]) {
+    const h = harness();
+    await subscribe(h, params);
+    assert.ok(h.reply(1).error, `still refused: ${JSON.stringify(params)}`);
+  }
+});
+
+test("a login with a solo: prefix mines for the address after it, and shares submitted under the name as written are accepted", async () => {
+  const h = harness();
+  await subscribe(h);
+  await h.send({ id: 2, method: "mining.authorize", params: [`solo:${ADDRESS}`, "SRBMiner", "x"] });
+  assert.equal(h.reply(2).result, true);
+  assert.equal(h.session.miningAddress, ADDRESS);
+  assert.deepEqual([...h.session.authorizedWorkers.keys()], ["SRBMiner"]);
+  const dotted = harness();
+  await subscribe(dotted);
+  await dotted.send({ id: 2, method: "mining.authorize", params: [`solo:${ADDRESS}.farm1`, "x"] });
+  assert.equal(dotted.reply(2).result, true);
+  const job = [...dotted.session.jobs.values()][0];
+  await submit(dotted, [`solo:${ADDRESS}.farm1`, job.jobId, NONCE]);
+  assert.equal(dotted.reply(50).result, true, "submitted under the full name as it was written");
+  await submit(dotted, [`${ADDRESS}.farm1`, job.jobId, "fedcba9876543210"], 51);
+  assert.equal(dotted.reply(51).result, true, "and without the prefix");
+  h.session.close(); dotted.session.close();
+});

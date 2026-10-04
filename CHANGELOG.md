@@ -11,6 +11,8 @@ First public version, planned as 0.1.0.
 
 ### Mining
 
+- Logins from miners that do not follow the Stratum specification to the letter are accepted: a session id or an algorithm name (or nothing) where the
+  specification has the algorithm list in `mining.subscribe`, and a `solo:` before the address. Found with SRBMiner, which could not log in before.
 - Mining no longer depends on the database. When it cannot be reached, miners stay connected and keep mining,
   and shares, blocks, events and bans are kept in a journal file and recorded, in order and with their original
   times, when it is back. A database outage no longer restarts the mining server or the API.
