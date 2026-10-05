@@ -5,6 +5,8 @@
 //   npm run load                      stages 100, 500, 1000, 2000 for 60 s each, with a miner producing blocks in the background
 //   LOAD_STAGES=50,200 LOAD_HOLD=30 npm run load
 //   LOAD_CHAIN=0 npm run load          no blocks while it runs (jobs change only with the periodic refresh)
+//   LOAD_STOP_DB=1 npm run load        stop the database first: shares are checked and answered but not written (Stratum keeps a journal), to
+//                                      measure the checking alone
 //   LOAD_KEEP=1 npm run load           leave the stack running afterwards
 //
 // Needs Docker and about 15 minutes. Results are printed as a table; they depend on the computer it runs on, so read them as an
@@ -24,6 +26,7 @@ const STAGES = process.env.LOAD_STAGES ?? "100,500,1000,2000";
 const HOLD = process.env.LOAD_HOLD ?? "60";
 const SHARE_SECONDS = process.env.LOAD_SHARE_SECONDS ?? "10";
 const CHAIN = (process.env.LOAD_CHAIN ?? "1") === "1";
+const STOP_DB = process.env.LOAD_STOP_DB === "1";
 const SERVICES = ["stratum", "daemon", "postgres", "api", "web"];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -137,6 +140,11 @@ async function main() {
     docker(["rm", "-f", "load-chain"], { allowFail: true });
     docker(["run", "-d", "--name", "load-chain", "--network", `${PROJECT}_node`, MINER_IMAGE, "--miner-address", ADDRESS, "--daemon-address", "ws://daemon:8080", "--num-threads", "1", "--disable-interactive-mode"]);
   }
+  if (STOP_DB) {
+    console.log("Stopping the database: shares are only checked and answered from here on.");
+    compose(["stop", "postgres"]);
+    await sleep(5_000);
+  }
   await sleep(5_000);
 
   const sampling_ = sampler();
@@ -180,12 +188,12 @@ async function main() {
   };
   if (baseline.length) describe("idle", 0, baseline[0].at, baseline.at(-1).at);
   for (const r of results) describe(String(r.stage), r.stage, r.from, r.to, { connected: r.connected, failed: r.connectFailed, dropped: r.closedByServer, sent: r.sharesSentPerSecond,
-    accepted: r.accepted, rejected: Object.values(r.rejected).reduce((a, b) => a + b, 0), reasons: r.rejected, p50: r.latencyMs.p50, p95: r.latencyMs.p95, p99: r.latencyMs.p99, jobs: r.jobsPerSecond });
+    accepted: r.accepted, holdSeconds: r.holdSeconds, rejected: Object.values(r.rejected).reduce((a, b) => a + b, 0), reasons: r.rejected, p50: r.latencyMs.p50, p95: r.latencyMs.p95, p99: r.latencyMs.p99, jobs: r.jobsPerSecond });
 
-  console.log("\n| rigs | connected | shares/s sent | accepted | stale/rejected | submit latency p50 / p95 / p99 (ms) | jobs/s to rigs | blocks/min |");
+  console.log("\n| rigs | connected | shares/s sent | accepted per second | stale/rejected | submit latency p50 / p95 / p99 (ms) | jobs/s to rigs | blocks/min |");
   console.log("|---:|---:|---:|---:|---:|---|---:|---:|");
   for (const r of rows.filter((x) => x.label !== "idle")) {
-    console.log(`| ${r.rigs} | ${r.connected} (${r.failed} failed, ${r.dropped} dropped) | ${fmt(r.sent, 1)} | ${r.accepted} | ${r.rejected} | ${fmt(r.p50, 1)} / ${fmt(r.p95, 1)} / ${fmt(r.p99, 1)} | ${fmt(r.jobs, 1)} | ${fmt(r.blocksPerMinute, 1)} |`);
+    console.log(`| ${r.rigs} | ${r.connected} (${r.failed} failed, ${r.dropped} dropped) | ${fmt(r.sent, 1)} | ${fmt(r.accepted / r.holdSeconds, 1)} | ${r.rejected} | ${fmt(r.p50, 1)} / ${fmt(r.p95, 1)} / ${fmt(r.p99, 1)} | ${fmt(r.jobs, 1)} | ${fmt(r.blocksPerMinute, 1)} |`);
   }
   console.log("\n| rigs | Stratum CPU avg / max (% of one core) | Stratum memory (MB) | node CPU avg | database CPU avg | API CPU avg | dashboard /overview avg / p95 (ms) | rows written/s |");
   console.log("|---:|---|---:|---:|---:|---:|---|---:|");

@@ -166,11 +166,23 @@ to the database:
 | 1,000 | 200 | all | 4 ms / 7 ms | about 2 cores | about 0.8 core |
 | 2,000 | 400 | all | 14 ms / 390 ms | about 4 cores | about 1.8 cores |
 
-The server checked and recorded **2,000 shares a second with none refused or lost** (the database wrote 2,020 rows a second), on the same
-computer. Each share costs about 2 ms of processor time, mostly the hash that proves it is valid work, so a core handles roughly 500 a
-second, and the work spreads over up to eight cores (`STRATUM_HASH_THREADS`). Real rigs send far fewer: Stratum asks each one for about a
-share every 10 seconds, so 2,000 shares a second would be around 20,000 rigs' worth of steady shares. The rig count above is what
-limits a server first, not the share rate.
+The server checked, recorded and answered **2,000 shares a second with none refused or lost** (each answer comes after the share is checked
+and written, and the database wrote 2,020 rows a second, as they arrived), on the same computer. Each share costs about 2 ms of processor time,
+mostly the hash that proves it is valid work.
+
+**How fast can it check shares at all?** Two more measurements separate the proof of work from the rest:
+
+- The hash alone (the XELIS Hash V3 check, in the native addon, no network or database) takes about 1.3 ms on one thread: about 3,000 shares a
+  second with 4 threads, 5,800 with the default 8 (`STRATUM_HASH_THREADS`), 9,200 with 16 and 12,000 with 24. That is the ceiling set by the
+  proof of work.
+- Stratum itself, with the database switched off (shares are checked and answered, and kept in a journal file), answered **2,000 shares a second
+  in about 2 ms** and about 2,900 a second at its limit; above that it fell behind (the time to answer grew to seconds and late shares were
+  counted stale). Its processor use then showed the hash threads were not yet all busy, so what saturates first is probably the one thread that
+  handles every connection's messages (not profiled).
+
+So on this computer the limit is roughly 3,000 shares a second through Stratum, with the hash able to do about twice that on 8 threads. Real rigs
+send far fewer: Stratum asks each one for about a share every 10 seconds, so 3,000 shares a second would be around 30,000 rigs' worth of steady
+shares. The rig count above is what limits a server first, not the share rate.
 
 ## Two servers (redundancy)
 
