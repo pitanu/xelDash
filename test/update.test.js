@@ -107,7 +107,9 @@ function installFolder(version) {
   return dir;
 }
 
-const why = hasBash && hasTar && hasDocker ? false : "needs bash, tar and Docker";
+// The whole update runs the bash launcher, which is for Linux and macOS; on Windows (Git Bash) writing the download can fail while the disk is busy
+// (virus scanning), so there it is covered by update-ps1.test.js instead.
+const why = process.platform === "win32" ? "the Windows launcher is tested in update-ps1.test.js" : hasBash && hasTar && hasDocker ? false : "needs bash, tar and Docker";
 
 test("update: a release install is moved to the newest release, keeping .env and backups", { skip: why }, async () => {
   const github = await fakeGithub({ archiveVersion: "9.9.9" });

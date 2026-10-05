@@ -28,7 +28,7 @@ RUN set -eu; \
     cargo build --locked --release --target "$triple"; \
     cp "target/$triple/release/libindex.so" /tmp/index.node
 
-FROM node:26-bookworm-slim
+FROM node:22-bookworm-slim
 
 WORKDIR /app
 COPY package.json package-lock.json ./

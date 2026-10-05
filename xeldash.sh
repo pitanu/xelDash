@@ -393,7 +393,12 @@ update_release() {
   say "Updating $current to $version..."
   tmp="$(mktemp -d)"
   url="${XELDASH_ARCHIVE_URL:-https://github.com/$repo/archive/refs/tags/$tag.tar.gz}"
-  curl -fsSL -m 600 -o "$tmp/release.tar.gz" "$url" || { rm -rf "$tmp"; die "Could not download $url"; }
+  # Tried three times: a virus scanner can briefly hold a file that was just written, and a connection can drop.
+  local try=1
+  until curl -fsSL -m 600 -o "$tmp/release.tar.gz" "$url"; do
+    [ "$try" -ge 3 ] && { rm -rf "$tmp"; die "Could not download $url"; }
+    try=$((try + 1)); sleep 2
+  done
   mkdir "$tmp/x"
   tar -xzf "$tmp/release.tar.gz" -C "$tmp/x" || { rm -rf "$tmp"; die "The download is damaged. Try again."; }
   dir="$(find "$tmp/x" -mindepth 1 -maxdepth 1 -type d | head -1)"
