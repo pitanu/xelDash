@@ -14,7 +14,7 @@
     "test": "node --test \"services/*/test/*.test.js\" \"packages/*/test/*.test.js\" \"web/test/*.test.js\" \"test/*.test.js\""
   },
   "devDependencies": {
-    "@types/node": "^22.15.30",
+    "@types/node": "^26.6.3",
     "@types/pg": "^8.15.4",
     "@types/ws": "^8.18.2",
     "typescript": "^7.0.2"

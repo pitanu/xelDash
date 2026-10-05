@@ -10,11 +10,8 @@ updates:
       npm-root:
         patterns: ["*"]
     ignore:
-      # The services run on Node 22: its types must not move ahead of it (that would allow calls Node 22 does not have).
+      # The services run on Node 26: its types move with it, deliberately, not ahead of it (that would allow calls the runtime does not have).
       - dependency-name: "@types/node"
-        update-types: ["version-update:semver-major"]
-      # Only the optional local build script uses it; the images build the addon with cargo directly.
-      - dependency-name: "@napi-rs/cli"
         update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /web
@@ -50,5 +47,6 @@ updates:
         patterns: ["*"]
     ignore:
       # Moving the services to a newer Node major is a deliberate step (tests, the typecheck's types and CI move with it), not a weekly bump.
+      # Odd-numbered Node releases are short-lived; move from one LTS to the next.
       - dependency-name: "node"
         update-types: ["version-update:semver-major"]

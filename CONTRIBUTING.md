@@ -12,7 +12,7 @@ are all welcome.
 
 ## Development setup
 
-You need Docker (with Compose) and Node.js 22.
+You need Docker (with Compose) and Node.js 26.
 
 ```sh
 cp .env.example .env        # then set POSTGRES_PASSWORD

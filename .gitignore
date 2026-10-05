@@ -2,6 +2,7 @@ node_modules/
 dist/
 target/
 *.node
+packages/xelis-hash/index.d.ts
 .env
 *.log
 docker/stratum-tls/*.pem

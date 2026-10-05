@@ -31,7 +31,7 @@ export class ChainWatcher {
    */
   constructor({ rpcUrl, onNewBlock, onDisconnect = () => {}, logger = console, WebSocketImpl = globalThis.WebSocket }) {
     if (typeof WebSocketImpl !== "function") {
-      throw new Error("A WebSocket implementation is required (Node.js 22 provides one globally)");
+      throw new Error("A WebSocket implementation is required (Node.js 22 and newer provide one globally)");
     }
     this.url = toWebSocketUrl(rpcUrl);
     this.onNewBlock = onNewBlock;
