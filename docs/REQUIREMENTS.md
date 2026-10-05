@@ -152,6 +152,26 @@ saturates a processor core. The database (about 10% of a core even at 2,000 rigs
 overview at any size) were never the limit. A slower computer, a Raspberry Pi, or a mainnet node (which is busier than the idle devnet
 node used here) will carry fewer; the test is in the repository so you can run it on yours.
 
+### Shares per second
+
+The table above counts rigs, and a share every 10 seconds per rig is a small load; what each rig costs most is its work being refreshed.
+To measure how many **shares** the server can check and record by themselves, the same test was run with few rigs sending shares very
+fast (a share every 0.2 seconds each, a hundred times what a real rig sends), every one a valid share that is hashed, checked and written
+to the database:
+
+| Shares per second | Rigs sending | Accepted | Time to answer a share (typical / slowest 5%) | Stratum processor use | Database processor use |
+|---:|---:|---:|---|---:|---:|
+| 250 | 50 | all | 3 ms / 4 ms | about 0.5 core | about 0.2 core |
+| 500 | 100 | all | 3 ms / 4 ms | about 1 core | about 0.4 core |
+| 1,000 | 200 | all | 4 ms / 7 ms | about 2 cores | about 0.8 core |
+| 2,000 | 400 | all | 14 ms / 390 ms | about 4 cores | about 1.8 cores |
+
+The server checked and recorded **2,000 shares a second with none refused or lost** (the database wrote 2,020 rows a second), on the same
+computer. Each share costs about 2 ms of processor time, mostly the hash that proves it is valid work, so a core handles roughly 500 a
+second, and the work spreads over up to eight cores (`STRATUM_HASH_THREADS`). Real rigs send far fewer: Stratum asks each one for about a
+share every 10 seconds, so 2,000 shares a second would be around 20,000 rigs' worth of steady shares. The rig count above is what
+limits a server first, not the share rate.
+
 ## Two servers (redundancy)
 
 Both servers are **Linux with Docker Engine** (Docker Desktop cannot be part of a cluster), on the same home network, each
