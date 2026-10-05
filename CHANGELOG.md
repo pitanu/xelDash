@@ -125,6 +125,9 @@ First public version, planned as 0.1.0.
 
 ### Operations
 
+- Dependencies brought up to date, each tried first: the services run on Node 26 (images, CI and types), TypeScript 7, the hashing addon
+  uses napi 3 (identical results, checked on twelve inputs, sync and async) and its build script `@napi-rs/cli` 3, and the base images
+  (busybox 1.38, HAProxy 3.4, nginx 1.31) are newer.
 - Releases install the ready-made images and update themselves: a downloaded release has its version in a `VERSION` file, the launcher uses it for
   `XELDASH_VERSION`, and `xeldash update` finds the newest release on GitHub, puts its files over the folder (keeping `.env`, backups and data) and
   restarts. The development branch (`VERSION` is `local`) still builds from source. `scripts/tag-release.sh` makes release tags; the release workflow
