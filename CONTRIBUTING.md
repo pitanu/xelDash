@@ -49,6 +49,9 @@ docker run -d --name xeldash-test-db -e POSTGRES_PASSWORD=test -p 127.0.0.1:5543
 TEST_DATABASE_URL=postgres://postgres:test@127.0.0.1:55432/postgres npm test
 ```
 
+`npm run load` is the capacity test: it connects simulated rigs to the real stack on a private devnet, 100 up to 4,000 at a time, and
+prints what it costs (see `docs/REQUIREMENTS.md`). It needs Docker and about 15 minutes and is not part of CI.
+
 `npm run e2e` is the end-to-end check: it starts the real stack in Docker on a private devnet (its own project and ports, so a stack
 that is already running is left alone), mines real blocks through Stratum and through the official miner's getwork, stops the
 database and Stratum in the middle, and runs a front door (HAProxy) through a failover and back. It needs Docker, takes about five

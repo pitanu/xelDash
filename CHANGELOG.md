@@ -125,6 +125,8 @@ First public version, planned as 0.1.0.
 
 ### Operations
 
+- A capacity test (`npm run load`), and a measured answer to "how many rigs": comfortable to a few hundred, about a thousand on a fast desktop,
+  overloaded from two thousand (see the requirements page).
 - Dependencies brought up to date, each tried first: the services run on Node 26 (images, CI and types), TypeScript 7, the hashing addon
   uses napi 3 (identical results, checked on twelve inputs, sync and async) and its build script `@napi-rs/cli` 3, and the base images
   (busybox 1.38, HAProxy 3.4, nginx 1.31) are newer.
