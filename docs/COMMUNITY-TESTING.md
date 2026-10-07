@@ -1,11 +1,11 @@
-# Pre-release testing
+# Community testing
 
-What has not been tested on a real system yet, and how to test it before the repository goes
-public. Everything here was built and checked on one Windows PC that already had xelDash
-running, so the first-time experience on a clean machine is the biggest unknown.
+What has not been tested on a real system yet, and how you can help. xelDash was built and checked on one
+Windows PC that already had it running, so the first-time experience on a clean machine, other operating systems,
+other miners and two-computer setups are the biggest unknowns. Pick any item below; you do not need to do all of them.
 
-For each item, note the result (pass, fail, or unclear) and what you saw. Report problems as
-issues, or to the maintainer directly. Do not paste your `.env` file or admin token anywhere.
+For each item you try, note the result (pass, fail, or unclear) and what you saw, and report it as an issue. Miner results
+fit the "Miner compatibility report" issue template. Do not paste your `.env` file or admin token anywhere.
 
 ## 1. Clean-machine install (most important)
 
@@ -24,9 +24,9 @@ XELIS nodes or wallets.
 - [ ] `xeldash stop`, then `xeldash start` again: everything comes back, and the address is kept.
 - [ ] `xeldash update` works, and mining continues afterwards.
 
-## 1b. The minimum hardware
+## 2. The minimum hardware
 
-The requirements page (docs/REQUIREMENTS.md) lists minimums that were reasoned from measurements on a fast desktop, not
+The requirements page ([REQUIREMENTS.md](REQUIREMENTS.md)) lists minimums that were reasoned from measurements on a fast desktop, not
 proven on a small computer. Please confirm or correct them:
 
 - [ ] A first start on a computer with **2 cores, 4 GB of memory and about 40 GB free** (a virtual machine is fine):
@@ -43,10 +43,10 @@ proven on a small computer. Please confirm or correct them:
       (`docker compose logs daemon`) for "Auto pruning chain until topoheight". After it says "Auto pruning done", restart the
       node from the Nodes page: its folder should drop from about 10.6 GB to about 6 GB. Check that mining carries on, and
       that a block found before the prune still shows on the Blocks page (as pending if the node no longer knows it).
-- [ ] Peak memory while pruning on a small computer (about 1.6 GB was in use right after a prune on the test machine; the exact peak was not recorded).
+- [ ] Peak memory while pruning on a small computer (about 1.6 GB was in use right after a prune on the developer's desktop; the exact peak was not recorded).
 - [ ] Correct the numbers in REQUIREMENTS.md wherever the result differs.
 
-## 2. Local network only
+## 3. Local network only
 
 - [ ] From another computer or phone on the same Wi-Fi, open the dashboard and connect a miner
       to Stratum after running `xeldash lan on`.
@@ -63,7 +63,7 @@ proven on a small computer. Please confirm or correct them:
 - [ ] `PostgreSQL` is not reachable: `docker compose exec web sh -c "nc -z postgres 5432"`
       should fail, and nothing listens on port 5432 on the host.
 
-## 3. Connection problems card
+## 4. Connection problems card
 
 Try each of these and check the Health or Setup page explains it in plain words within a
 minute:
@@ -74,7 +74,7 @@ minute:
 - [ ] A miner pointed at the wrong port (for example the dashboard's port).
 - [ ] A miner started while the node is still syncing.
 
-## 4. Other miners
+## 5. Other miners
 
 Only Rigel has been tested on mainnet. For each miner: does it connect, get work, and have
 shares accepted? Does `address.worker` in the user field work?
@@ -85,7 +85,7 @@ shares accepted? Does `address.worker` in the user field work?
 - [ ] The official `xelis_miner` (getwork, port 8090)
 - [ ] A miner over TLS (port 3334, self-signed certificate)
 
-## 5. Alerts
+## 6. Alerts
 
 - [ ] Settings, Alerts: set up Discord, save, press "Send a test message". It arrives.
 - [ ] The same for Telegram and for a generic webhook.
@@ -95,7 +95,7 @@ shares accepted? Does `address.worker` in the user field work?
 - [ ] When one of your blocks loses the race for its height, a "side block for now" event and alert
       arrive well before the block is final. Note whether it fires. If only the later "final as a side block" alert arrives, report it.
 
-## 5b. Database outage
+## 7. Database outage
 
 - [ ] With a rig mining, stop PostgreSQL (`docker compose stop postgres`) for a minute: the rig stays connected and
       keeps finding shares, and the dashboard shows "Dashboard offline: the database is not reachable. Mining continues."
@@ -104,7 +104,7 @@ shares accepted? Does `address.worker` in the user field work?
 - [ ] Restart the mining server (`docker compose restart stratum`) in the middle of an outage: the rig reconnects and
       keeps mining, and everything is recorded once the database is back.
 
-## 5c. Two-server cluster (needs two Linux computers with Docker Engine on the same network)
+## 8. Two-server cluster (needs two Linux computers with Docker Engine on the same network)
 
 Only the failover logic has been tested so far, with containers on one machine; none of this has run on real hardware.
 
@@ -131,10 +131,10 @@ Only the failover logic has been tested so far, with containers on one machine; 
       failover alert within a minute or two, and none while the main server is on.
 - [ ] Both servers on a Raspberry Pi (arm64), if you have one.
 
-The container-level checks of the sections below, on one computer, are automated: `npm run e2e` (see CONTRIBUTING). What remains for people is
+The container-level checks of the sections below, on one computer, are automated: `npm run e2e` (see [CONTRIBUTING](../CONTRIBUTING.md)). What remains for people is
 what only real machines show.
 
-## Release installs and updates
+## 9. Release installs and updates
 
 Tested with a local stand-in for GitHub (`npm test`); not yet with real releases.
 
@@ -144,7 +144,7 @@ Tested with a local stand-in for GitHub (`npm test`); not yet with real releases
 - [ ] A pre-release install (`-rc`) moves on to the next pre-release, and to the final release when it comes; a final release install ignores pre-releases.
 - [ ] On Windows too (the same flow; `xeldash.cmd` is not replaced while it runs).
 
-## 5d. Front door (needs a Linux computer with Docker Engine, and the main server on the same network; Windows is the interesting case)
+## 10. Front door (needs a Linux computer with Docker Engine, and the main server on the same network; Windows is the interesting case)
 
 Tested on a devnet with the real Stratum, API and HAProxy images on one machine and the devnet test miner (Stratum and getwork): the main server saw the miner's own address, stopping the main Stratum moved the miner to the standby within seconds, blocks mined there were ingested into the main database, and the miner went back when the main returned. Not tested on separate computers, with a Windows main server, or with real miners.
 
@@ -166,28 +166,18 @@ Tested on a devnet with the real Stratum, API and HAProxy images on one machine 
       mines, and sees the same certificate when the main server is switched off.
 - [ ] `frontdoor off` on the main server: miners pointed at the main server mine again.
 
-## 6. Nodes and upgrades
+## 11. Nodes and upgrades
 
 - [ ] Add a second local node, then a rolling update to a newer version. Mining continues.
 - [ ] Schedule an upgrade for a block height.
 - [ ] Automatic updates (optional, off by default) with two nodes.
 - [ ] Download the official snapshot from the Nodes page.
 
-## 7. Linux and macOS launcher
+## 12. Linux and macOS launcher
 
 - [ ] `./xeldash.sh install`, `start`, `stop`, `update`, `lan on`, `lan off`, `status`.
 - [ ] Note anything that assumes Windows.
 - [ ] On Apple Silicon or a Raspberry Pi (arm64): do the containers start? The images are published for arm64 but have not been run on real hardware.
-
-## 8. Release workflow (maintainer)
-
-- [x] Push a release candidate tag and check the release workflow, including the arm64 build (done with the `-rc` tags).
-- [ ] A fresh install using the published images pulls them instead of building.
-- [x] The published images are public: GitHub creates container packages as private, so set each
-      one (api, stratum, web, node-admin, daemon) to public, then confirm a pull works while logged out (the packages were made public).
-- [ ] A release candidate tag (for example `v0.1.0-rc.1`) does not take the `latest` tag.
-- [x] Enable GitHub private vulnerability reporting (the security policy points to it).
-- [x] Confirm CI passes on the default branch.
 
 ## Known limits (not bugs)
 

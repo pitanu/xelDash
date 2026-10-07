@@ -210,5 +210,5 @@ One computer: a Ryzen 9 7900X (12 cores, 24 threads) with 28 GB given to Docker,
 the mainnet stack for several days with two nodes and one rig (about 8 KH/s). Memory and processor figures are from
 `docker stats` while it mined; disk figures are the volume sizes; traffic is the difference in each node's counters over
 2.7 hours. **Nothing has been measured on a low-end computer yet**, so the minimums are cautious rather than proven; the
-[pre-release testing list](PRE-RELEASE-TESTING.md) asks for a first start on a 2-core, 4 GB computer and on a Raspberry
+[community testing list](COMMUNITY-TESTING.md) asks for a first start on a 2-core, 4 GB computer and on a Raspberry
 Pi to confirm or lower them.

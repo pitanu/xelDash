@@ -16,7 +16,7 @@
 | Document | For |
 |----------|-----|
 | [Architecture](ARCHITECTURE.md) | Services, protocols, data model and the security model |
-| [Pre-release testing](PRE-RELEASE-TESTING.md) | What still needs testing on real systems, for testers |
+| [Community testing](COMMUNITY-TESTING.md) | What still needs testing on real systems, and how to help |
 
 **Per service**
 

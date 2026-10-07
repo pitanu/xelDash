@@ -235,8 +235,10 @@ users. [Connecting miners](docs/MINERS.md) has the settings for each kind of min
 ## Status
 
 xelDash is a release candidate for 0.1.0. It has been run on XELIS mainnet with two nodes, failover, rolling and scheduled
-upgrades, and a GPU mining through it, and it has an automated test suite (`npm test`, run in CI). The
-[pre-release testing list](docs/PRE-RELEASE-TESTING.md) says what is still unverified.
+upgrades, and a GPU mining through it, and it has an automated test suite (`npm test`, run in CI). Some of it has only been
+tried on one Windows PC. The [community testing list](docs/COMMUNITY-TESTING.md) says what is still unverified and how to help: a
+result from your own hardware or miner, good or bad, is a real contribution (the
+[miner compatibility template](https://github.com/pitanu/xelDash/issues/new?template=miner_compatibility.yml) is the quickest way to report a miner).
 
 **Known limits**
 

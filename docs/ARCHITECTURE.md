@@ -215,7 +215,7 @@ versions, the fallback) needs `XELDASH_ADMIN_TOKEN`. Nothing can control Docker.
   rigs, for the capacity numbers in [REQUIREMENTS.md](REQUIREMENTS.md)). CI runs the tests, the typecheck, the dashboard build, Compose
   validation and the image builds; the end-to-end test has its own workflow.
 - By hand: the devnet checks in [DEVNET.md](DEVNET.md) (the official miner over getwork, two-node failover, snapshots) and the
-  [pre-release list](PRE-RELEASE-TESTING.md). Not covered: the dashboard's components, and real hardware.
+  [community testing list](COMMUNITY-TESTING.md). Not covered: the dashboard's components, and real hardware.
 
 ## 11. Open-source project setup
 
@@ -259,8 +259,7 @@ docs/             guides, this document, security, devnet notes
 2. **Release signatures:** the XELIS release signing key is not published, so dashboard
    upgrades rely on checksums from GitHub, like the official images.
 3. **Upstream daemon images:** releases from 1.22.0 on need the Debian 13 re-base
-   ([docker/daemon/README.md](../docker/daemon/README.md)); fixed upstream (f6ea12c), not yet
-   released.
+   ([docker/daemon/README.md](../docker/daemon/README.md)); fixed upstream (f6ea12c), not in a release as of 2026-10-07 (the newest is 1.25.0).
 4. **Few miners tested:** Rigel, xelis_miner and our own miner; others may differ in details.
 5. **A cluster needs two Linux servers.** Docker Desktop (Windows, macOS) cannot hold a shared address; a Windows or macOS
    server can run alone, with the node-level redundancy of the `redundant` profile, but not as part of a cluster.

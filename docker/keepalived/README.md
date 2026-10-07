@@ -17,5 +17,5 @@ Holds the shared address of a two-server cluster. Linux with Docker Engine only:
 
 Tested in simulation with two containers on a bridge network: the address moved in about 3 seconds when a server was killed,
 in about 8 when its health check failed, and a returning server did not take it back. It has not been run on a real network;
-see [docs/PRE-RELEASE-TESTING.md](../../docs/PRE-RELEASE-TESTING.md). VRRP has no strong authentication, which is covered in
+see [docs/COMMUNITY-TESTING.md](../../docs/COMMUNITY-TESTING.md). VRRP has no strong authentication, which is covered in
 [docs/SECURITY.md](../../docs/SECURITY.md).
