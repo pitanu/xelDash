@@ -7,7 +7,9 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
-First public version, planned as 0.1.0.
+## [0.1.0] - 2026-10-07
+
+First public version.
 
 ### Mining
 
