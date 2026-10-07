@@ -240,14 +240,15 @@ upgrades, and a GPU mining through it, and it has an automated test suite (`npm 
 
 **Known limits**
 
-- **Miners.** Rigel 1.23.0 is tested on mainnet with a GPU, and the official `xelis_miner` (getwork) on a devnet. SRBMiner, lolMiner,
-  OneZeroMiner and others follow the same Stratum protocol and should work, but nobody has tried them yet: reports are welcome.
+- **Miners.** Rigel 1.23.0 is tested on mainnet with a GPU, and the official `xelis_miner` (getwork) on a devnet. SRBMiner connects, logs in
+  and receives jobs but was not seen sending shares (cause unknown, see [Connecting miners](docs/MINERS.md)). lolMiner, OneZeroMiner and
+  others follow the same Stratum protocol and should work, but nobody has tried them yet: reports are welcome.
 - **Systems.** The Windows installer has been run end to end. The Linux and macOS launcher's setup step has been run only in a
   Linux container (not on real Linux or macOS machines), and the Raspberry Pi (arm64) images and the Intel macOS case have not been run.
 - **Two-server redundancy and the front door** are tested with containers on one computer (failover timing, data kept and replayed,
   real miner addresses preserved), not yet on separate computers or with a Windows main server. Treat them as new.
 - **Wallets.** xelDash does not handle wallets or keys; rewards go straight to your address.
-- **Not covered by automated tests:** the dashboard's components, the PowerShell launcher beyond a syntax check, and anything that
+- **Not covered by automated tests:** the dashboard's components, the PowerShell launcher beyond its update flow and a syntax check, and anything that
   needs real hardware.
 
 ## Documentation

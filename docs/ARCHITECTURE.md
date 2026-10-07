@@ -84,8 +84,8 @@ The standby's web page (`docker/standby-web`) proxies to the main dashboard, or 
   `[user, password]` logins, which most third-party miners use. The password
   may carry a fixed difficulty (`d=50000`).
 - **Miner compatibility:** verified with our devnet test miner and xelis_miner
-  1.21.3 over getwork, and with Rigel 1.23.0 over Stratum on mainnet. SRBMiner, lolMiner,
-  OneZeroMiner and others have not been tested yet (issue template: "Miner compatibility report").
+  1.21.3 over getwork, and with Rigel 1.23.0 over Stratum on mainnet. SRBMiner logs in and
+  gets jobs but was not seen sending shares (see MINERS.md); lolMiner, OneZeroMiner and others have not been tested yet (issue template: "Miner compatibility report").
 - **Who may connect:** `XELDASH_ALLOWED_NETWORKS` (default: private networks and this computer).
   Connections from elsewhere are refused and recorded, so the dashboard can say why a miner could not
   connect. Docker Desktop hides the real address of a client; see [SECURITY.md](SECURITY.md).
