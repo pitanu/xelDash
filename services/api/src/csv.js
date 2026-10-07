@@ -17,7 +17,7 @@ export function toCsv(rows) {
   return `${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}\r\n`;
 }
 
-/** Atomic units (10^-8) as a decimal XEL string without floating point. @param {string | null} atomic */
+/** Atomic units (10^-8) as a decimal coin amount (XEL, or XET on a test network) without floating point. @param {string | null} atomic */
 export function atomicToXel(atomic) {
   if (atomic === null || atomic === undefined || atomic === "") return "";
   const padded = String(atomic).padStart(9, "0");

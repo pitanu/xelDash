@@ -43,6 +43,8 @@ First public version, planned as 0.1.0.
 
 ### Dashboard and API
 
+- On a test network (testnet or devnet) amounts are shown in XET, the name of the coin there, instead of XEL: the Blocks and miner pages,
+  the expected earnings, and the alert messages. The CSV's reward column is named `reward_xet` there (it stays `reward_xel` on mainnet).
 - A "Dashboard offline" notice when the database or the server cannot be reached; it says mining continues when
   only the database is down, and goes away by itself.
 - "Download all as CSV" on the Blocks and miner pages: every block with its time, height, hash, status,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePolled } from "../api.js";
+import { useCoin } from "../coin.js";
 import { formatXel } from "../format.js";
 import { Segmented } from "./ui.jsx";
 
@@ -37,6 +38,7 @@ function formatDay(iso) {
  * @param {{ address?: string | null, rewardPerBlock: number | null }} props rewardPerBlock in atomic units
  */
 export default function RewardsChart({ address = null, rewardPerBlock }) {
+  const coin = useCoin();
   const [range, setRange] = useState("90d");
   const history = usePolled(`/api/v1/rewards?range=${range}${address ? `&address=${encodeURIComponent(address)}` : ""}`);
   const frame = useRef(/** @type {HTMLDivElement | null} */ (null));
@@ -98,7 +100,7 @@ export default function RewardsChart({ address = null, rewardPerBlock }) {
   }
 
   const tooltipLeft = active === null ? 0 : Math.min(Math.max(x(active) - 88, 0), Math.max(0, width - 176));
-  const xel = (/** @type {number} */ v) => formatXel(String(Math.round(v * ATOMIC)));
+  const xel = (/** @type {number} */ v) => formatXel(String(Math.round(v * ATOMIC)), coin);
 
   return (
     <div>

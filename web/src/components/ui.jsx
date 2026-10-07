@@ -1,3 +1,4 @@
+import { useCoin } from "../coin.js";
 import { XEL_DECIMALS, formatAgo, formatEffort, formatHashrate, formatInteger, formatTime, formatXel, shorten } from "../format.js";
 import { useBlockUrl } from "../explorer.js";
 import { formatMoney, usePrice } from "../price.js";
@@ -114,6 +115,7 @@ const td = "whitespace-nowrap px-4 py-2 sm:px-5";
 
 /** @param {{ blocks: any[], showMiner?: boolean }} props */
 export function BlocksTable({ blocks, showMiner = true }) {
+  const coin = useCoin();
   const blockUrl = useBlockUrl();
   const { price } = usePrice();
   if (blocks.length === 0) return <p className="text-sm text-muted">No blocks found yet.</p>;
@@ -141,7 +143,7 @@ export function BlocksTable({ blocks, showMiner = true }) {
             )}
             <td className={`${td} text-right text-ink-2`}>{b.effort === null || b.effort === undefined ? "—" : formatEffort(b.effort)}</td>
             <td className={`${td} text-right`}>
-              {formatXel(b.reward)}
+              {formatXel(b.reward, coin)}
               {price && b.reward && (
                 <span className="block text-xs text-muted" title="At the current price">
                   ≈ {formatMoney((Number(b.reward) / 10 ** XEL_DECIMALS) * price.price, price.currency, "amount")}

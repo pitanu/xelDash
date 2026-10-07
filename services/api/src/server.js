@@ -8,6 +8,7 @@ import { getBlockEfforts, getLuck, getMedianBlockEffort, getRewardsHistory } fro
 import { callAnyNode, fallbackUrl, rpcUrlsFromEnv } from "./nodes.js";
 import { getConnectInfo } from "./connect.js";
 import { CURRENCIES, getPrice } from "./price.js";
+import { coinSymbol } from "./coin.js";
 import { atomicToXel, toCsv } from "./csv.js";
 import { handleIngest } from "./ingest.js";
 import { getStatus } from "./status.js";
@@ -279,7 +280,7 @@ const server = createServer(async (request, response) => {
         getBlockEfforts(pool, { address }),
       ]);
       const body = toCsv([
-        ["found_at_utc", "height", "topoheight", "hash", "status", "reward_xel", "reward_atomic", "miner_address", "worker", "round_effort_percent"],
+        ["found_at_utc", "height", "topoheight", "hash", "status", `reward_${coinSymbol(network).toLowerCase()}`, "reward_atomic", "miner_address", "worker", "round_effort_percent"],
         ...list.map((b) => [
           b.foundAt, b.height, b.topoheight, b.hash, b.status, atomicToXel(b.reward), b.reward, b.address, b.worker,
           efforts.get(b.hash) == null ? "" : (Number(efforts.get(b.hash)) * 100).toFixed(2),

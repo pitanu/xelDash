@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatAgo, formatBucket, formatBytes, formatCompact, formatDiskBytes, formatDuration, formatEffort, formatHashrate, formatInteger, formatXel, shorten } from "../src/format.js";
+import { formatAgo, formatBucket, formatBytes, formatCompact, formatDiskBytes, formatDuration, formatEffort, formatHashrate, formatInteger, formatXel, coinSymbol, shorten } from "../src/format.js";
 
 // Numbers are shown in the viewer's language (1,234 or 1 234), so expectations are built the same way.
 const n = (value, options) => value.toLocaleString(undefined, options);
@@ -36,6 +36,15 @@ test("XEL amounts are exact, from atomic units, with no trailing zeros", () => {
   assert.equal(formatXel("1"), `0${sep}00000001 XEL`);
   assert.equal(formatXel("0"), "0 XEL");
   assert.equal(formatXel("123456789012345678"), `${n(1234567890)}${sep}12345678 XEL`);
+});
+
+test("the coin is XEL on mainnet and XET on testnet and devnet", () => {
+  assert.equal(coinSymbol("mainnet"), "XEL");
+  assert.equal(coinSymbol("testnet"), "XET");
+  assert.equal(coinSymbol("devnet"), "XET");
+  assert.equal(coinSymbol(undefined), "XET", "an unknown network is not assumed to be mainnet");
+  assert.equal(formatXel("150000000", "XET"), `1${sep}5 XET`);
+  assert.equal(formatXel("0", coinSymbol("devnet")), "0 XET");
 });
 
 test("durations switch units at sensible points", () => {

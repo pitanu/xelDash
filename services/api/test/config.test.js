@@ -4,6 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { alertConfigFromEnv, loadAlertConfig } from "../src/alerts.js";
+import { coinSymbol } from "../src/coin.js";
 import { getConnectInfo } from "../src/connect.js";
 import { ADDRESS_PATTERN, clampLimit } from "../src/queries.js";
 import { rpcUrlsFromEnv, nodeLabel } from "../src/nodes.js";
@@ -33,6 +34,16 @@ test("alert settings from .env: every kind on by default, unknown kinds and half
   assert.throws(() => alertConfigFromEnv({ ALERT_WORKER_OFFLINE_MINUTES: "0" }), /positive integer/);
   assert.equal(alertConfigFromEnv({ XELIS_NETWORK: "mainnet" }).explorerUrl, "https://explorer.xelis.io");
   assert.equal(alertConfigFromEnv({ XELIS_NETWORK: "devnet" }).explorerUrl, null, "devnet has no explorer");
+  assert.equal(alertConfigFromEnv({ XELIS_NETWORK: "mainnet" }).coin, "XEL");
+  for (const network of ["devnet", "testnet", undefined]) assert.equal(alertConfigFromEnv({ XELIS_NETWORK: network }).coin, "XET", `${network}: the coin is XET`);
+});
+
+test("the coin's symbol follows the network", () => {
+  assert.equal(coinSymbol("mainnet"), "XEL");
+  assert.equal(coinSymbol("MAINNET"), "XEL");
+  assert.equal(coinSymbol("testnet"), "XET");
+  assert.equal(coinSymbol("devnet"), "XET");
+  assert.equal(coinSymbol(undefined), "XET");
 });
 
 test("alert settings saved on the dashboard win over .env, and an empty list means nothing, not everything", async () => {

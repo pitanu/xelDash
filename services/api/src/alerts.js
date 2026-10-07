@@ -1,4 +1,5 @@
 import { readFile, stat } from "node:fs/promises";
+import { coinSymbol } from "./coin.js";
 const SEND_INTERVAL_MS = 1_000;
 const MAX_QUEUE = 20;
 const FINAL_BATCH_MS = 5_000;
@@ -15,12 +16,12 @@ function message(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** @param {string | number | null | undefined} atomic */
-function formatXel(atomic) {
+/** @param {string | number | null | undefined} atomic @param {string} coin XEL on mainnet, XET on a test network */
+function formatXel(atomic, coin) {
   if (atomic === null || atomic === undefined) return "unknown";
   const padded = String(atomic).padStart(XEL_DECIMALS + 1, "0");
   const fraction = padded.slice(-XEL_DECIMALS).replace(/0+$/, "");
-  return `${padded.slice(0, -XEL_DECIMALS)}${fraction ? `.${fraction}` : ""} XEL`;
+  return `${padded.slice(0, -XEL_DECIMALS)}${fraction ? `.${fraction}` : ""} ${coin}`;
 }
 
 /** @param {string} address */
@@ -31,7 +32,7 @@ function shortAddress(address) {
 /**
  * @typedef {{ discordWebhookUrl: string | null, telegramBotToken: string | null, telegramChatId: string | null,
  *   webhookUrl: string | null, events: Set<string>, workerOfflineMinutes: number, dashboardUrl: string | null,
- *   explorerUrl: string | null }} AlertConfig
+ *   explorerUrl: string | null, coin: string }} AlertConfig
  */
 
 /** @param {Partial<Record<string, string | undefined>>} env @returns {AlertConfig} */
@@ -53,6 +54,7 @@ export function alertConfigFromEnv(env) {
     dashboardUrl: value("ALERT_DASHBOARD_URL"),
     // The official block explorer for this network (devnet has none), for links to found blocks.
     explorerUrl: EXPLORERS[value("XELIS_NETWORK") ?? ""] ?? null,
+    coin: coinSymbol(value("XELIS_NETWORK")),
   };
   if (Boolean(config.telegramBotToken) !== Boolean(config.telegramChatId)) {
     throw new Error("Set both ALERT_TELEGRAM_BOT_TOKEN and ALERT_TELEGRAM_CHAT_ID for Telegram alerts");
@@ -246,9 +248,9 @@ export function startAlerts({ pool, config, logger = console }) {
     if (batch.length === 1) {
       const p = batch[0];
       const text = p.status === "main-chain"
-        ? `✅ Block ${p.height} is final on the main chain. Reward: ${formatXel(p.reward)}.`
+        ? `✅ Block ${p.height} is final on the main chain. Reward: ${formatXel(p.reward, config.coin)}.`
         : p.status === "side"
-          ? `🟡 Block ${p.height} is final as a side block. Reward: ${formatXel(p.reward)}.`
+          ? `🟡 Block ${p.height} is final as a side block. Reward: ${formatXel(p.reward, config.coin)}.`
           : `❌ Block ${p.height} was orphaned; it earns no reward.`;
       send({ event: "block_final", data: p, text: `${text}${link("/blocks")}` });
       return;
@@ -265,7 +267,7 @@ export function startAlerts({ pool, config, logger = console }) {
       event: "block_final",
       data: { blocks: batch },
       text: `✅ ${batch.length} blocks are final (heights ${heights[0]}–${heights.at(-1)}): ${parts.join(", ")}. `
-        + `Total reward: ${formatXel(reward.toString())}.${link("/blocks")}`,
+        + `Total reward: ${formatXel(reward.toString(), config.coin)}.${link("/blocks")}`,
     });
   }
 
