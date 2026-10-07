@@ -79,7 +79,7 @@ minute:
 Only Rigel has been tested on mainnet. For each miner: does it connect, get work, and have
 shares accepted? Does `address.worker` in the user field work?
 
-- [ ] SRBMiner-MULTI
+- [ ] SRBMiner-MULTI (it logs in and gets jobs but was not seen sending shares; see [MINERS.md](MINERS.md))
 - [ ] lolMiner
 - [ ] OneZeroMiner
 - [ ] The official `xelis_miner` (getwork, port 8090)
@@ -93,8 +93,7 @@ shares accepted? Does `address.worker` in the user field work?
 - [ ] Turning an alert type off stops it (for example, "A worker stops sending shares").
 - [ ] Restart the stack: the saved settings are still there.
 - [ ] When one of your blocks loses the race for its height, a "side block for now" event and alert
-      arrive well before the block is final. This has not been seen against a real daemon yet, so
-      note whether it fires. If only the later "final as a side block" alert arrives, report it.
+      arrive well before the block is final. Note whether it fires. If only the later "final as a side block" alert arrives, report it.
 
 ## 5b. Database outage
 
@@ -178,23 +177,22 @@ Tested on a devnet with the real Stratum, API and HAProxy images on one machine 
 
 - [ ] `./xeldash.sh install`, `start`, `stop`, `update`, `lan on`, `lan off`, `status`.
 - [ ] Note anything that assumes Windows.
-- [ ] On Apple Silicon or a Raspberry Pi (arm64): do the containers start? No arm64 image has
-      been built yet.
+- [ ] On Apple Silicon or a Raspberry Pi (arm64): do the containers start? The images are published for arm64 but have not been run on real hardware.
 
 ## 8. Release workflow (maintainer)
 
-- [ ] Push a `v0.1.0-rc.1` tag and check the release workflow, including the arm64 build.
+- [x] Push a release candidate tag and check the release workflow, including the arm64 build (done with the `-rc` tags).
 - [ ] A fresh install using the published images pulls them instead of building.
-- [ ] The published images are public: GitHub creates container packages as private, so set each
-      one (api, stratum, web, node-admin, daemon) to public, then confirm a pull works while logged out.
+- [x] The published images are public: GitHub creates container packages as private, so set each
+      one (api, stratum, web, node-admin, daemon) to public, then confirm a pull works while logged out (the packages were made public).
 - [ ] A release candidate tag (for example `v0.1.0-rc.1`) does not take the `latest` tag.
-- [ ] Enable GitHub private vulnerability reporting (the security policy points to it).
-- [ ] Confirm CI passes on the default branch.
+- [x] Enable GitHub private vulnerability reporting (the security policy points to it).
+- [x] Confirm CI passes on the default branch.
 
 ## Known limits (not bugs)
 
 - On Docker Desktop, xelDash cannot tell a LAN computer from an internet one; the Windows
   firewall rules and the router are what protect it. See [SECURITY.md](SECURITY.md).
-- There are no automated tests yet.
+- Automated tests cover the services, the launchers and a container-level end-to-end run (`npm test`, `npm run e2e`); they do not cover the dashboard's components or real hardware.
 - Node upgrades check checksums but not a PGP signature, because XELIS has not published a
   signing key.

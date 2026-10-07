@@ -119,7 +119,7 @@ default, which is fine).
 | | Status |
 |---|---|
 | **Windows 10 or 11, 64-bit, Docker Desktop (WSL 2)** | The main tested setup: Windows 10 Pro with Docker Desktop (Docker 29.7, Compose 5.3). Docker Desktop needs virtualization turned on in the BIOS, which most computers already have. |
-| **Linux, 64-bit x86, Docker Engine** | The images are the same ones; the launcher's Linux path has only been run in a shell on Windows so far. Needed for a two-server cluster. |
+| **Linux, 64-bit x86, Docker Engine** | The images are the same ones; the launcher's Linux setup step has only been run in a Linux container so far, not on a real Linux computer. Needed for a two-server cluster. |
 | **macOS (Intel or Apple Silicon), Docker Desktop** | Should work; not tested. |
 | **Linux on ARM64 (Raspberry Pi 4 or 5, 64-bit OS)** | The images are published for ARM64, but they have never been run on real hardware. A Pi needs the 8 GB model and an **SSD** (not an SD card). Treat it as experimental until a tester confirms it. |
 | 32-bit systems | Not supported. |
