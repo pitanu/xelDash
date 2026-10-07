@@ -75,7 +75,7 @@ export class BlockTracker {
 
   /**
    * A block that another block beat to the same height is a side block right away, well before it
-   * is final. Its miner is told then, since side blocks are paid too (a reduced reward) and it will
+   * is final. Its miner is told then, since side blocks are paid too (in the amount the node credits) and it will
    * not be shown as a main-chain block. Told once per block, also after a restart.
    * @param {string} hash @param {number} height
    */

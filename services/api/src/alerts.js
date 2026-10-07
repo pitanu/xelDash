@@ -286,7 +286,7 @@ export function startAlerts({ pool, config, logger = console }) {
         text: `⚠️ The node rejected a block candidate at height ${p.height}${p.workerName ? ` from ${p.workerName}` : ""}: ${p.error}` });
     } else if (type === "block_side" && config.events.has("block_side")) {
       send({ event: "block_side", data: p,
-        text: `🟡 Your block at height ${p.height} is a side block for now: another block was found at the same height. Side blocks are still paid, with a reduced reward, once they are final.${link("/blocks")}` });
+        text: `🟡 Your block at height ${p.height} is a side block for now: another block was found at the same height. Side blocks are still paid once they are final, in the amount the node credits.${link("/blocks")}` });
     } else if (type === "block_final" && config.events.has("block_final")) {
       queueFinal(p);
     } else if ((type === "node_syncing" || type === "node_unreachable") && config.events.has("mining_paused")) {

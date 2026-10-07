@@ -11,6 +11,8 @@ First public version, planned as 0.1.0.
 
 ### Mining
 
+- Side blocks are no longer described as paid "at a reduced reward". The first side block seen on mainnet was credited in full (checked in the node's account
+  history), so the dashboard, the alert and the docs now say it is paid in the amount the node credits.
 - Fixed: a computer on your network that reset its connection while the getwork port was refusing it (a browser, a bad address) could stop the whole
   Stratum server. Found by a flaky test.
 - Logins from miners that do not follow the Stratum specification to the letter are accepted: a session id or an algorithm name (or nothing) where the

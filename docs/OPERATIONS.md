@@ -34,7 +34,9 @@ Events:
 - `cluster`: in a two-server cluster, this server took over the shared address, cannot mine and gave it up, or is
   standing by again (see [Redundancy](#redundancy-two-servers)).
 - `block_side`: one of your blocks lost the race for its height and is a side block for now. Side
-  blocks are paid too, with a reduced reward, once final; this comes well before that.
+  blocks are paid too once final, in the amount the node credits, which is shown on the Blocks page; this comes well before that. (The first
+  one seen on mainnet was credited in full, the same as a main-chain block, so do not expect a smaller amount: the daemon's account history is
+  the authority on what was paid.)
 - `block_final`: a block reached the stable height, as main chain, side or orphaned, with its
   reward. Blocks that become final within 5 seconds of each other arrive as one summary.
 - `mining_paused`: Stratum paused work because no node is usable, when it resumes, and

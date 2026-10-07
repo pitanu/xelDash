@@ -4,7 +4,7 @@ import { Card } from "./ui.jsx";
 const EVENT_LABELS = /** @type {Record<string, string>} */ ({
   block_found: "A block is found",
   block_rejected: "The node rejects a block",
-  block_side: "A block of yours is a side block (paid, but less)",
+  block_side: "A block of yours is a side block (still paid once final)",
   block_final: "A block becomes final (paid or orphaned)",
   mining_paused: "Mining pauses or moves to another node",
   worker_offline: "A worker stops sending shares",

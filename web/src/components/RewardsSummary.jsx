@@ -17,7 +17,7 @@ export default function RewardsSummary({ totals }) {
       <StatTile icon="block" label="Rewards found" value={<span className="whitespace-nowrap text-xl sm:text-2xl">{formatXel(totals.reward).replace(/ XEL$/, "")}<span className="ml-1 text-sm font-medium text-ink-2">XEL</span></span>}
         detail={price && xel > 0 ? `≈ ${formatMoney(xel * price.price, price.currency, "amount")} at today's price` : "Main-chain and side blocks"} />
       <StatTile label="Main chain" value={formatInteger(count("main-chain"))} detail={formatXel(totals.byStatus["main-chain"]?.reward ?? "0")} />
-      <StatTile label="Side blocks" value={formatInteger(count("side"))} detail={count("side") > 0 ? `${formatXel(totals.byStatus.side?.reward ?? "0")} (reduced reward)` : "Paid at a reduced reward"} />
+      <StatTile label="Side blocks" value={formatInteger(count("side"))} detail={count("side") > 0 ? formatXel(totals.byStatus.side?.reward ?? "0") : "Paid once final, as the node credits it"} />
       <StatTile label="Waiting to be final" value={formatInteger(count("submitted"))} detail={count("orphaned") > 0 ? `${count("orphaned")} orphaned, no reward` : "Reward known once final"} />
     </div>
   );
