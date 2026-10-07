@@ -135,8 +135,8 @@ truth for columns, types and constraints; this section only summarizes them.
 | `worker_stats_1m` | Per-worker, per-minute accepted, rejected and stale counts, difficulty sum and effort sum | Stratum, with each share | 90 days |
 | `worker_stats_1h` | Hourly rollup of the minute stats | Stratum's hourly retention job | Forever |
 | `blocks` | Block candidates with status, topoheight and miner reward | Stratum (submit and block tracker) | Forever |
-| `bans` | Stratum IP bans with reason and expiry | Stratum | Forever |
-| `service_events` | Blocks (submitted, side, final), bans, node switches and pauses, Stratum starts, rejected connections and logins, failovers | Stratum, node-admin | Forever |
+| `bans` | Stratum IP bans with reason and expiry | Stratum | 1 year |
+| `service_events` | Blocks (submitted, side, final), bans, node switches and pauses, Stratum starts, rejected connections and logins, failovers | Stratum, node-admin | 1 year |
 | `ingest_progress` | The last sequence number applied from each standby server, so a resent batch is not counted twice | API (ingest) | Forever |
 
 Notes:
@@ -152,7 +152,7 @@ Notes:
 - `stale` and the journal above also explain a gap that is not one: a record written during an outage is stored with its
   original time, so charts show no hole.
 - Every `service_events` insert is announced on the `xeldash_live` channel for live updates.
-- Retention periods are set with `RETENTION_*`. There is no partitioning at this size.
+- Retention periods are set with `RETENTION_*` (raw shares 7 days, minute stats 90 days, events and bans 365 days). There is no partitioning at this size.
 - There are no balance, payout or wallet tables: rewards go straight to each miner's address.
 
 ## 6. Difficulty and stats
@@ -193,7 +193,7 @@ versions, the fallback) needs `XELDASH_ADMIN_TOKEN`. Nothing can control Docker.
 - REST endpoints (all `GET`; `address` must be a valid `xel:`/`xet:` address; `worker` needs
   `address`): `/api/v1/overview`, `/api/v1/status`, `/api/v1/hashrate`, `/api/v1/miners`,
   `/api/v1/miners/{address}`, `/api/v1/miners/{address}/workers/{name}`, `/api/v1/blocks`,
-  `/api/v1/blocks.csv`, `/api/v1/events`, `/api/v1/rewards`, `/api/v1/uptime`, `/api/v1/version`, `/api/v1/problems`, `/api/v1/price`, `/api/v1/connect`. `POST /api/v1/ingest` (and its `/ping`) is not for the dashboard: it is where a standby server sends its records, behind the cluster secret. The overview, miner and blocks responses include effort
+  `/api/v1/blocks.csv`, `/api/v1/events`, `/api/v1/rewards`, `/api/v1/uptime`, `/api/v1/version`, `/api/v1/problems`, `/api/v1/price`, `/api/v1/connect`, `/api/v1/front-door`, `/api/v1/mining-health`. `POST /api/v1/ingest` (and its `/ping`) is not for the dashboard: it is where a standby server sends its records, behind the cluster secret. The overview, miner and blocks responses include effort
   and luck. node-admin serves `/api/v1/node/*` (see services/node-admin/README.md).
 - Alerts to Discord, Telegram or a JSON webhook: blocks found, side and final, mining paused,
   resumed or switched, workers offline, node updates, low disk space, failovers between servers. Set up on the Settings page, with a test message. See [OPERATIONS.md](OPERATIONS.md#alerts).
@@ -210,10 +210,12 @@ versions, the fallback) needs `XELDASH_ADMIN_TOKEN`. Nothing can control Docker.
 
 ## 10. Testing
 
-- Today: the devnet checks in [DEVNET.md](DEVNET.md) (our test miner, the official miner over
-  getwork, two-node failover, snapshots), plus typecheck and image builds in CI.
-- Not yet built: unit tests for Stratum parsing, vardiff and hashrate math; hash test vectors;
-  integration tests against the Compose stack; a load test with many simulated miners.
+- Automated: `npm test` (Node's built-in runner, per service and for the launchers, Compose files and docs; the database tests run when
+  `TEST_DATABASE_URL` is set), `npm run e2e` (the real images on a devnet, with a simulated miner) and `npm run load` (many simulated
+  rigs, for the capacity numbers in [REQUIREMENTS.md](REQUIREMENTS.md)). CI runs the tests, the typecheck, the dashboard build, Compose
+  validation and the image builds; the end-to-end test has its own workflow.
+- By hand: the devnet checks in [DEVNET.md](DEVNET.md) (the official miner over getwork, two-node failover, snapshots) and the
+  [pre-release list](PRE-RELEASE-TESTING.md). Not covered: the dashboard's components, and real hardware.
 
 ## 11. Open-source project setup
 
@@ -241,6 +243,8 @@ docker/
   daemon/         daemon image wrapper and supervisor entrypoint
   keepalived/     the cluster's shared-address manager (Alpine, keepalived)
   standby-web/    the standby server's web page (nginx: main dashboard, or an offline page)
+  frontdoor/      the front door's HAProxy image (miners connect here; see OPERATIONS.md)
+  proxy/          the optional HTTPS and login in front of the dashboard (Caddy)
   hostdisk/       a read-only mount that lets node-admin read the computer's drive's free space
   backup/         backup script
   stratum-tls/    optional Stratum TLS certificate
