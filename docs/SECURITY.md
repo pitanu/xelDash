@@ -26,7 +26,8 @@ Leave it unset if you do not need these features.
   internal Compose network. The dashboard, API and Stratum bind to `127.0.0.1` unless you set
   a LAN address.
 - **Stratum and getwork abuse limits.** Per IP: 64 connections, 20 messages per second per
-  connection, and a 15-minute ban after 50 invalid submissions or failed logins in 5 minutes.
+  connection, and a 15-minute ban after 50 or more invalid submissions or failed logins in 5 minutes, when over half of that
+  client's submissions in that time were invalid.
   At most 32 workers per connection; worker names may not contain control characters.
   Malformed requests are refused without affecting other miners.
 - **Browsers cannot reach getwork**, and the live-update WebSocket only accepts the
@@ -74,7 +75,7 @@ Leave it unset if you do not need these features.
   would share it.
 - **The database is unreachable from outside.** Containers sit on three networks: `edge`
   (dashboard and proxy), `node` (daemons) and `data`, which is internal (no route to the
-  host or the internet). Only the API, Stratum, and the migration and backup jobs join `data`;
+  host or the internet). Only the API, Stratum, node-admin, and the migration and backup jobs join `data`;
   the web container cannot reach PostgreSQL, and PostgreSQL publishes no port.
 - **Alerts** do not let worker names trigger Discord mentions such as `@everyone`.
 - **Containers.** The API and Stratum run as an unprivileged user. Backups are owner-only

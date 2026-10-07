@@ -43,7 +43,7 @@ retargeting; a good value gives one share every few seconds.
 |-------|----------|--------|
 | Rigel 1.23.0 | Stratum | Tested on mainnet with a GPU |
 | `xelis_miner` 1.21.3 | Getwork | Tested on devnet |
-| xelDash test miner | Stratum, TLS | Tested on devnet and mainnet |
+| xelDash test miner (a development tool, not for mining) | Stratum, TLS | Tested on devnet |
 | SRBMiner-MULTI 3.0.6 and 3.7.1 | Stratum | Logs in and receives jobs, but **no shares were seen**; see below |
 | BzMiner, OneZeroMiner, lolMiner | Stratum | **Not tested** (see below) |
 
