@@ -45,10 +45,12 @@ test("an update is offered only for a newer version; a release candidate is olde
   assert.ok(!isNewer("0.1.0", "garbage"));
 });
 
-test("the newest stable tag ignores pre-releases and junk", () => {
-  const tags = [{ name: "v0.1.0-rc.4" }, { name: "v0.1.0" }, { name: "v0.10.0" }, { name: "v0.9.9" }, { name: "latest" }, { name: "v1.0.0-beta" }, null, {}];
-  assert.equal(newestStable(tags), "0.10.0");
-  assert.equal(newestStable([{ name: "v0.1.0-rc.1" }]), null);
+test("the newest stable release ignores pre-releases, drafts and junk", () => {
+  const releases = [{ tag_name: "v0.1.0-rc.4" }, { tag_name: "v0.1.0" }, { tag_name: "v0.10.0" }, { tag_name: "v0.9.9" }, { tag_name: "latest" }, { tag_name: "v1.0.0-beta" }, null, {}];
+  assert.equal(newestStable(releases), "0.10.0");
+  assert.equal(newestStable([...releases, { tag_name: "v0.11.0", draft: true }, { tag_name: "v0.12.0", prerelease: true }]), "0.10.0", "a draft or flagged pre-release is not offered");
+  assert.equal(newestStable([{ name: "v2.0.0" }]), null, "a bare tag (no release) is not offered");
+  assert.equal(newestStable([{ tag_name: "v0.1.0-rc.1" }]), null);
   assert.equal(newestStable("nope"), null);
 });
 

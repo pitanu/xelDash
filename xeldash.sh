@@ -374,7 +374,7 @@ newest_tag() {
     [[ "$name" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || continue
     if [[ "$name" == *-* && "$current" != *-* ]]; then continue; fi
     if [ -z "$best" ] || version_newer "${name#v}" "${best#v}"; then best="$name"; fi
-  done < <(grep -o '"name"[[:space:]]*:[[:space:]]*"v[^"]*"' | sed -E 's/.*"(v[^"]*)"$/\1/')
+  done < <(grep -o '"tag_name"[[:space:]]*:[[:space:]]*"v[^"]*"' | sed -E 's/.*"(v[^"]*)"$/\1/')
   printf '%s' "$best"
 }
 
@@ -386,7 +386,7 @@ update_release() {
   [[ "$repo" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || die "XELDASH_UPDATE_REPO must look like owner/name."
   api="${XELDASH_RELEASE_API:-https://api.github.com/repos/$repo}"
   say "Looking for a newer release..."
-  tag="$(curl -fsSL -m 20 -H 'accept: application/vnd.github+json' "$api/tags?per_page=100" 2>/dev/null | newest_tag "$current")" || tag=""
+  tag="$(curl -fsSL -m 20 -H 'accept: application/vnd.github+json' "$api/releases?per_page=100" 2>/dev/null | newest_tag "$current")" || tag=""
   [ -n "$tag" ] || die "Could not find a release to update to. Check your internet connection, or look at https://github.com/$repo/releases"
   version="${tag#v}"
   if ! version_newer "$version" "$current"; then ok "You already have the newest release ($current)."; return 0; fi

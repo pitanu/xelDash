@@ -26,7 +26,7 @@ async function fakeGithub(archiveVersion) {
   assert.equal(ps(["-Command", `Compress-Archive -LiteralPath '${pack}' -DestinationPath '${zip}'`]).status, 0);
   const archive = readFileSync(zip);
   const server = createServer((request, response) => {
-    if (request.url.startsWith("/tags")) response.end(JSON.stringify([{ name: "v9.9.9" }, { name: "v0.1.0" }, { name: "v10.0.0-rc.1" }]));
+    if (request.url.startsWith("/releases")) response.end(JSON.stringify([{ tag_name: "v9.9.9" }, { tag_name: "v0.1.0" }, { tag_name: "v10.0.0-rc.1", prerelease: true }]));
     else if (request.url === "/release.zip") response.end(archive);
     else response.writeHead(404).end();
   });

@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { compareVersions, parseVersion } from "./release.js";
 
-// Is a newer xelDash available? Asks GitHub for the project's tags (the release workflow creates
-// one per version), at most every six hours. XELDASH_VERSION_CHECK=off keeps the server from asking.
-// Pre-release tags (0.2.0-rc.1) are ignored while looking for the newest version.
+// Is a newer xelDash available? Asks GitHub for the project's published releases (the release workflow creates
+// one per version, after its images are published), at most every six hours. XELDASH_VERSION_CHECK=off keeps the
+// server from asking. Pre-releases (0.2.0-rc.1) are ignored while looking for the newest version.
 
 const REPO = process.env.XELDASH_UPDATE_REPO || "pitanu/xelDash";
 const CACHE_MS = 6 * 60 * 60_000;
@@ -41,12 +41,13 @@ export function isNewer(current, latest) {
   return /^v?\d+\.\d+\.\d+-/.test(current);
 }
 
-/** @param {unknown} tags GitHub's tag list */
-export function newestStable(tags) {
+/** @param {unknown} releases GitHub's list of published releases */
+export function newestStable(releases) {
   /** @type {{ version: string, parsed: number[] } | null} */
   let best = null;
-  for (const tag of Array.isArray(tags) ? tags : []) {
-    const name = typeof tag?.name === "string" ? tag.name : "";
+  for (const release of Array.isArray(releases) ? releases : []) {
+    if (release?.draft || release?.prerelease) continue;
+    const name = typeof release?.tag_name === "string" ? release.tag_name : "";
     if (!/^v\d+\.\d+\.\d+$/.test(name)) continue;
     const parsed = parseVersion(name);
     if (parsed && (!best || compareVersions(best.parsed, parsed) < 0)) best = { version: name.replace(/^v/, ""), parsed };
@@ -55,11 +56,11 @@ export function newestStable(tags) {
 }
 
 async function refresh() {
-  const response = await fetch(`https://api.github.com/repos/${REPO}/tags?per_page=100`, {
+  const response = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, {
     headers: { accept: "application/vnd.github+json", "user-agent": "xelDash" },
     signal: AbortSignal.timeout(10_000),
   });
-  // A repository that is still private (or has no tags) is simply "nothing newer".
+  // A repository that is still private (or has no releases) is simply "nothing newer".
   if (response.status === 404) {
     cached = null;
     return;

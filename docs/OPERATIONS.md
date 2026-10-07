@@ -165,7 +165,7 @@ first recorded anything, and the few seconds a restart of the mining server take
 ## Updating xelDash
 
 The dashboard shows a notice under the header when a newer xelDash has been released (it asks GitHub for the
-project's tags every six hours; `XELDASH_VERSION_CHECK=off` stops that). To update, run `xeldash update`
+project's published releases every six hours; `XELDASH_VERSION_CHECK=off` stops that). To update, run `xeldash update`
 (`./xeldash.sh update`) in the xelDash folder. On a release install it finds the newest release on GitHub (a pre-release install follows pre-releases
 too, a final release only final ones), downloads it, puts its files over the folder, and restarts on its images; on a development copy it runs
 `git pull` and rebuilds. Your `.env`, backups and data are kept either way, and a failed download or a wrong archive changes nothing. Pre-releases do not trigger the notice. If you run a fork, set `XELDASH_UPDATE_REPO`
@@ -489,7 +489,7 @@ server's default address, as the standby of the cluster does. Alerts, the offlin
 - The Linux box must be Linux with Docker Engine, not Docker Desktop, or it cannot see the miners' real addresses.
 - Remove it with `./xeldash.sh frontdoor off` on the main server, then point the miners back at the main server and delete
   the front door.
-- Not yet run on real hardware: see the pre-release checklist.
+- Not yet run on real hardware: see the [community testing list](COMMUNITY-TESTING.md).
 
 ## Redundant nodes
 

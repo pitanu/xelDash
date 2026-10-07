@@ -454,11 +454,12 @@ function Test-VersionNewer([string]$A, [string]$B) {
     return $false
 }
 
-# The newest release tag in GitHub's tag list. A pre-release counts only when the running version is one too.
-function Get-NewestTag([object[]]$Tags, [string]$Current) {
+# The newest tag among GitHub's published releases (a tag whose images are not published yet has no release, so it is not offered).
+# A pre-release counts only when the running version is one too.
+function Get-NewestTag([object[]]$Releases, [string]$Current) {
     $best = ""
-    foreach ($t in $Tags) {
-        $name = [string]$t.name
+    foreach ($t in $Releases) {
+        $name = [string]$t.tag_name
         if ($name -notmatch '^v\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') { continue }
         if ($name.Contains("-") -and -not $Current.Contains("-")) { continue }
         if (-not $best -or (Test-VersionNewer $name.Substring(1) $best.Substring(1))) { $best = $name }
@@ -474,7 +475,7 @@ function Update-Release([string]$Current) {
     $api = $env:XELDASH_RELEASE_API; if (-not $api) { $api = "https://api.github.com/repos/$repo" }
     Say "Looking for a newer release..."
     $tags = $null
-    try { $tags = Invoke-RestMethod -Uri "$api/tags?per_page=100" -TimeoutSec 20 -Headers @{ accept = "application/vnd.github+json"; "user-agent" = "xelDash" } } catch { }
+    try { $tags = Invoke-RestMethod -Uri "$api/releases?per_page=100" -TimeoutSec 20 -Headers @{ accept = "application/vnd.github+json"; "user-agent" = "xelDash" } } catch { }
     $tag = ""
     if ($tags) { $tag = Get-NewestTag @($tags) $Current }
     if (-not $tag) { Die "Could not find a release to update to. Check your internet connection, or look at https://github.com/$repo/releases" }

@@ -43,8 +43,8 @@ test("which version is newer", { skip: skipBash }, () => {
   assert.deepEqual(r.out.split("\n").filter((l) => l !== "ok"), []);
 });
 
-test("the newest release is picked from the tag list; pre-releases only count for a pre-release install", { skip: skipBash }, () => {
-  const json = JSON.stringify([{ name: "v0.1.0-rc.5" }, { name: "v0.1.0-rc.10" }, { name: "v0.0.9" }, { name: "latest" }, { name: "v0.1.0" }, { name: "v0.2.0-rc.1" }, { name: "vX" }]);
+test("the newest release is picked from the published releases; pre-releases only count for a pre-release install", { skip: skipBash }, () => {
+  const json = JSON.stringify([{ tag_name: "v0.1.0-rc.5" }, { tag_name: "v0.1.0-rc.10" }, { tag_name: "v0.0.9" }, { tag_name: "latest" }, { tag_name: "v0.1.0" }, { tag_name: "v0.2.0-rc.1" }, { tag_name: "vX" }]);
   const pick = (current) => bash(`printf '%s' '${json}' | newest_tag '${current}'`).out;
   assert.equal(pick("0.1.0-rc.4"), "v0.2.0-rc.1", "a pre-release install follows pre-releases, and moves on to the release");
   assert.equal(pick("0.0.5"), "v0.1.0", "a release install sees releases only");
@@ -73,7 +73,7 @@ async function fakeGithub({ archiveVersion }) {
   assert.equal(spawnSync("tar", ["-czf", toPosix(tgz), "-C", toPosix(root), "xelDash-9.9.9"]).status, 0);
   const archive = readFileSync(tgz);
   const server = createServer((request, response) => {
-    if (request.url.startsWith("/tags")) response.end(JSON.stringify([{ name: "v9.9.9" }, { name: "v0.1.0" }, { name: "v10.0.0-rc.1" }]));
+    if (request.url.startsWith("/releases")) response.end(JSON.stringify([{ tag_name: "v9.9.9" }, { tag_name: "v0.1.0" }, { tag_name: "v10.0.0-rc.1", prerelease: true }]));
     else if (request.url === "/release.tar.gz") response.end(archive);
     else response.writeHead(404).end();
   });
