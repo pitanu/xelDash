@@ -210,7 +210,7 @@ install it as a trusted root on each device that opens the dashboard. It is kept
 `proxy-data` volume, so this is needed once.
 
 The proxy's login is separate from the admin token: after logging in, node changes still need
-`XELDASH_ADMIN_TOKEN`. If both lines are not set, the proxy refuses to start rather than run
+`XELDASH_ADMIN_TOKEN`. If the host name or the password hash is not set, the proxy refuses to start rather than run
 without a login.
 
 ## Daemon settings
@@ -322,7 +322,7 @@ page.
 2. Pull the new version and read the changelog for anything marked as breaking.
 3. A release: `xeldash update` does all of this (it also keeps your `.env`). By hand: set `XELDASH_VERSION` (for example `0.1.0`) in `.env`, then run
    `docker compose pull && docker compose up -d`. A development copy: `docker compose up -d --build`. Images are at
-   `ghcr.io/pitanu/xeldash/{api,stratum,web,daemon}` (`XELDASH_IMAGE_REGISTRY` overrides the
+   `ghcr.io/pitanu/xeldash/{api,stratum,web,node-admin,daemon}` (`XELDASH_IMAGE_REGISTRY` overrides the
    prefix), for amd64 and arm64.
 
 The one-shot `migrate` service applies new migrations before the API and Stratum start.
