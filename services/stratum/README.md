@@ -76,7 +76,7 @@ server. This is the second server of a two-server cluster (`docker-compose.stand
 [docs/OPERATIONS.md](../../docs/OPERATIONS.md#redundancy-two-servers)). `STRATUM_INSTANCE` names the sender. `STRATUM_PROXY_FROM` (a front door, `src/proxy-protocol.js`): connections from the listed addresses
 (or `private`, or `gateway` for Docker Desktop) must begin with a PROXY protocol v1 line naming the real miner; from anyone else it is
 never believed. The plain Stratum and getwork ports support it, the TLS port does not.
-`STRATUM_INSTANCE` names the sender. A standby also asks the main server's readiness endpoint every 30 seconds, and keeps the
+A standby also asks the main server's readiness endpoint every 30 seconds, and keeps the
 default mining address it reports in `XELDASH_MINING_ADDRESS_FILE` (on its own volume), where the default-address watcher reads it.
 
 **Health.** A small HTTP server on `STRATUM_HEALTH_PORT` (8096): `/healthz` answers 200 while a node is ready to issue work
@@ -84,5 +84,5 @@ and 503 with the reason otherwise (the cluster's address manager asks it, so the
 cannot mine); `/status` adds the instance, mode (`main` or `standby`), connected rigs and the journal's size, for the
 standby's offline page. It is published on this computer's loopback only, and only when the cluster is set up.
 
-**Retention.** Raw shares are kept 7 days, per-minute stats 90 days and events a year; hourly rollups and blocks are
+**Retention.** Raw shares are kept 7 days, per-minute stats 90 days, and events and bans a year; hourly rollups and blocks are
 kept (`RETENTION_*`).
