@@ -28,5 +28,6 @@
 | [Daemon image](../docker/daemon/README.md) | The node container and its supervisor |
 | [Address manager](../docker/keepalived/README.md) | The cluster's shared-address container (keepalived) |
 | [Standby web](../docker/standby-web/README.md) | The second server's page: the main dashboard, or an offline notice |
+| [Front door](../docker/frontdoor/README.md) | The HAProxy box miners connect to, and how it chooses a server |
 
 Contributing: [CONTRIBUTING.md](../CONTRIBUTING.md). Changes: [CHANGELOG.md](../CHANGELOG.md).

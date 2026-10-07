@@ -15,13 +15,13 @@ are all welcome.
 You need Docker (with Compose) and Node.js 26.
 
 ```sh
-cp .env.example .env        # then set POSTGRES_PASSWORD
+cp .env.example .env        # then set POSTGRES_PASSWORD, XELIS_NETWORK=devnet and XELIS_SNAPSHOT_AUTO=false
 docker compose up -d --build
 npm ci
 npm run typecheck
 ```
 
-The stack runs on a private devnet by default. [docs/DEVNET.md](docs/DEVNET.md) shows how to
+For development, run the stack on a private devnet (the `.env` lines above; the example file defaults to mainnet). [docs/DEVNET.md](docs/DEVNET.md) shows how to
 mine the first blocks and check that Stratum produces blocks the daemon accepts; run that
 check for any change to jobs, hashing, shares or block submission.
 
@@ -49,7 +49,7 @@ docker run -d --name xeldash-test-db -e POSTGRES_PASSWORD=test -p 127.0.0.1:5543
 TEST_DATABASE_URL=postgres://postgres:test@127.0.0.1:55432/postgres npm test
 ```
 
-`npm run load` is the capacity test: it connects simulated rigs to the real stack on a private devnet, 100 up to 4,000 at a time, and
+`npm run load` is the capacity test: it connects simulated rigs to the real stack on a private devnet, 100 up to 2,000 at a time by default (`LOAD_STAGES` sets others), and
 prints what it costs (see `docs/REQUIREMENTS.md`). It needs Docker and about 15 minutes and is not part of CI.
 
 `npm run e2e` is the end-to-end check: it starts the real stack in Docker on a private devnet (its own project and ports, so a stack
