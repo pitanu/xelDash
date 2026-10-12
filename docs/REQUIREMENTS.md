@@ -96,8 +96,8 @@ Measured on the mainnet stack (one rig mining, two nodes, all services running):
 | **The whole stack** | **about 0.7 GB with two nodes; roughly half that with one** | a few percent of one core |
 
 Checking a share costs about 830 hash calculations per second per core on a modern desktop processor (a Ryzen 9 7900X in the
-test), and uses a pool of threads. A rig normally sends one share every 10 seconds, so a hundred rigs need about
-1% of one core. **The mining server will not be your bottleneck.** The heavy work is the node's first sync (validating
+test), and uses a pool of threads. A rig normally sends one share every 5 seconds, so a hundred rigs need about
+2.5% of one core. **The mining server will not be your bottleneck.** The heavy work is the node's first sync (validating
 blocks), which is why starting from the official snapshot, as xelDash does by default, matters on a small computer.
 
 Not measured yet, so allow room: the peak memory of the node while it unpacks and first syncs. The 4 GB minimum is the whole
@@ -133,33 +133,42 @@ until it is back. If that matters to you, a second Linux server removes the prob
 ## How many rigs one server carries
 
 A home mining setup has a handful of rigs; even a large one has dozens. xelDash is measured far beyond that, with a capacity test
-(`npm run load`) that connects simulated rigs to the real stack on a private devnet. Each rig sends one accepted share every 10 seconds,
-like a real one at a steady difficulty, and a miner keeps finding blocks in the background, which makes the server refresh every rig's work.
+(`npm run load`) that connects simulated rigs to the real stack on a private devnet. Each rig sends one accepted share every 5 seconds,
+XELIS's block time and what Stratum asks of a real rig, and a miner keeps finding blocks in the background, which makes the server
+refresh every rig's work.
 
 Measured on a Ryzen 9 7900X (24 threads, 31 GB) with Docker Desktop on Windows (2026-10-13), with blocks found about as
-often as on mainnet (12 to 22 a minute; `LOAD_CHAIN_THREADS=8`), each rig sending a share every 10 seconds:
+often as on mainnet (11 to 26 a minute; `LOAD_CHAIN_THREADS=8`), each rig sending a share every 5 seconds:
 
-| Rigs | Addresses | Shares per second | Stratum processor use (of one core, average / peak) | Time to answer a share (typical / 95% / 99%) |
+| Rigs | Addresses | Shares per second | Stratum processor use (cores, average / peak) | Time to answer a share (typical / 95% / 99%) |
 |---:|---:|---:|---|---|
-| 1,000 | 1 | 100 | 26% / 32% | 3.3 / 4.7 / 26 ms |
-| 2,000 | 1 | 200 | 46% / 56% | 3.3 / 5.1 / 81 ms |
-| 4,000 | 1 | 400 | 89% / 107% | 3.5 / 41 / 188 ms |
-| 4,000 | 200 | 400 | 91% / 122% | 3.6 / 16 / 185 ms |
+| 1,000 | 1 | 200 | 0.45 / 0.49 | 3.3 / 4.9 / 55 ms |
+| 2,000 | 1 | 400 | 0.87 / 1.07 | 3.4 / 5.5 / 91 ms |
+| 3,000 | 1 | 600 | 1.31 / 1.49 | 3.6 / 29 / 148 ms |
+| 4,000 | 1 | 800 | 1.72 / 2.00 | 3.9 / 160 / 227 ms |
+| 3,000 | 200 | 600 | 1.27 / 1.46 | 3.7 / 13 / 151 ms |
+| 4,000 | 200 | 800 | 1.79 / 2.14 | 4.0 / 123 / 221 ms |
 
-No share was stale or rejected at any size, and the node's processor use stayed at about 1% or less. Rigs share their work from
+No share was stale or rejected at any size, with one address, 200 addresses, or 200 addresses as a public server
+(`XELDASH_PUBLIC_MODE`, all limits on), and the node's processor use stayed at about 1% or less. Rigs share their work from
 the node: one template per block serves every rig and every address (each rig writes its own extra nonce and miner key into its
 copy, and the node takes the miner from the submitted work), so the node is asked a few times per block whatever the number of
 rigs or miners. xelDash checks on the running node that its work is the same for every address before sharing between addresses,
-and falls back to per-address work if it is not. What limits a server is the Stratum process checking shares on one core: about
-3,000 rigs comfortably on this computer, with 4,000 at the edge. Before work sharing, the same test was overloaded at 2,000 rigs
-(answers took up to 16 s) and a request to the node failed at 4,000. The database (about a third of a core at 4,000 rigs) and the
-dashboard (about 40 ms to load the overview) were not the limit. A slower computer, a Raspberry Pi, or a mainnet node (which is busier than the devnet node used here) will carry fewer; the test is in the repository so you can run it on yours.
+and falls back to per-address work if it is not. When one of its own rigs finds a block, Stratum gives every rig new work as soon
+as the node accepts it.
+
+What limits a server is the Stratum process: checking shares (spread over a pool of hash threads, so it uses more than one core) and
+sending every rig new work on each block. About 3,000 rigs run comfortably on this computer and 4,000 work, with the slowest answers
+growing to about a quarter of a second. Before work sharing, the same test was overloaded at 2,000 rigs (answers took up to 16 s) and a
+request to the node failed at 4,000. The database (0.7 to 0.8 of a core at 4,000 rigs, 800 rows a second) and the dashboard (about
+50 ms to load the overview) were not the limit. A slower computer, a Raspberry Pi, or a mainnet node (which is busier than the devnet
+node used here) will carry fewer; the test is in the repository so you can run it on yours.
 
 ### Shares per second
 
-The table above counts rigs, and a share every 10 seconds per rig is a small load; what each rig costs most is its work being refreshed.
+The table above counts rigs, and a share every 5 seconds per rig is a small load; what each rig costs most is its work being refreshed.
 To measure how many **shares** the server can check and record by themselves, the same test was run with few rigs sending shares very
-fast (a share every 0.2 seconds each, a hundred times what a real rig sends), every one a valid share that is hashed, checked and written
+fast (a share every 0.2 seconds each, 25 times what a real rig sends), every one a valid share that is hashed, checked and written
 to the database:
 
 | Shares per second | Rigs sending | Accepted | Time to answer a share (typical / slowest 5%) | Stratum processor use | Database processor use |
@@ -184,7 +193,7 @@ mostly the hash that proves it is valid work.
   handles every connection's messages (not profiled).
 
 So on this computer the limit is roughly 3,000 shares a second through Stratum, with the hash able to do about twice that on 8 threads. Real rigs
-send far fewer: Stratum asks each one for about a share every 10 seconds, so 3,000 shares a second would be around 30,000 rigs' worth of steady
+send far fewer: Stratum asks each one for about a share every 5 seconds, so 3,000 shares a second would be around 15,000 rigs' worth of steady
 shares. The rig count above is what limits a server first, not the share rate.
 
 ## Two servers (redundancy)
