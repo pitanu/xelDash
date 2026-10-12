@@ -1,12 +1,22 @@
 # HTTPS for a public server (Compose profile "public-https", with XELDASH_PUBLIC_MODE=true).
 # A real certificate from Let's Encrypt for XELDASH_PUBLIC_DOMAIN, and no login: everyone may look. The dashboard behind it is the
-# public view (no IP addresses, no node administration). See docs/OPERATIONS.md#public-mode.
+# public view (no IP addresses, no node administration, requests limited per visitor). See docs/OPERATIONS.md#public-mode.
 {
 	# No Caddy admin API; this proxy is configured only by this file.
 	admin off
+	servers {
+		# Slow or idle clients are closed soon, so they cannot hold connections open. (No write timeout: live updates stay open.)
+		timeouts {
+			read_header 10s
+			read_body 30s
+			idle 2m
+		}
+		max_header_size 16KB
+	}
 }
 
-# Only this host name is answered.
+# Only this host name is answered. The visitor's address goes to the dashboard in X-Forwarded-For (Caddy's default), which the
+# dashboard trusts only from its own Docker network, for its per-visitor request limits.
 {$XELDASH_PUBLIC_DOMAIN} {
 	reverse_proxy web:8080 {
 		flush_interval -1

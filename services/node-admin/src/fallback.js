@@ -13,8 +13,12 @@ const OFFICIAL_NODES = /** @type {Record<string, string>} */ ({
  * the API read it every few seconds, so a change needs no restart.
  */
 export class MiningFallback {
-  /** @param {{ configDir: string, network: string, env: Partial<Record<string, string | undefined>> }} options */
-  constructor({ configDir, network, env }) {
+  /**
+   * @param {{ configDir: string, network: string, env: Partial<Record<string, string | undefined>>, publicMode?: () => boolean }} options
+   *   publicMode: a public server never uses the official node (its miners' load must not reach node.xelis.io)
+   */
+  constructor({ configDir, network, env, publicMode = () => false }) {
+    this.publicMode = publicMode;
     this.file = join(configDir, "mining-nodes.json");
     this.configDir = configDir;
     const url = env.XELIS_OFFICIAL_NODE_URL?.trim() || OFFICIAL_NODES[network] || null;
@@ -29,6 +33,10 @@ export class MiningFallback {
   /** Write the .env default on first start, so a headless setup works without the dashboard. */
   async init() {
     const saved = await this.read();
+    if (this.publicMode()) {
+      if (!saved || saved.fallback?.enabled) await this.write(false);
+      return;
+    }
     if (!saved) await this.write(this.defaultEnabled && this.url !== null);
   }
 
@@ -42,11 +50,15 @@ export class MiningFallback {
 
   async status() {
     const saved = await this.read();
-    return { available: this.url !== null, url: this.url, enabled: Boolean(saved?.fallback?.enabled && this.url) };
+    const publicMode = this.publicMode();
+    return { available: this.url !== null && !publicMode, url: this.url, enabled: Boolean(saved?.fallback?.enabled && this.url && !publicMode), publicMode };
   }
 
   /** @param {boolean} enabled */
   async write(enabled) {
+    if (enabled && this.publicMode()) {
+      throw new Error("This is a public server: it never mines through the official node, so its miners' load cannot reach node.xelis.io");
+    }
     if (enabled && !this.url) throw new Error("There is no official node for this network");
     await mkdir(this.configDir, { recursive: true });
     const body = { fallback: { enabled, url: this.url }, updatedAt: new Date().toISOString() };

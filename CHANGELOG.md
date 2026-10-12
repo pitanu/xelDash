@@ -7,6 +7,12 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Mining
+
+- Rigs mining to the same address share their work from the node: two calls to the node per block for each address instead of
+  for each rig. On the capacity test (one address) 2,000 rigs went from overloaded (answers up to 16 s) to smooth (3 ms typical),
+  and 4,000 rigs now work; see docs/REQUIREMENTS.md.
+
 ### Dashboard and API
 
 - **Public mode** (`XELDASH_PUBLIC_MODE=true`), for a server anyone may solo mine on, each to their own address: visitors get
@@ -15,7 +21,10 @@ breaking changes; they are marked **Breaking**.
   `public-https` profile adds HTTPS with a Let's Encrypt certificate. Recent events are the operator's only; there are no
   alerts about individual workers, and cluster alerts leave out the shared address. A standby server or front door follows the
   main server's public mode by itself. Automatic node updates on a public server run only while `.env` allows them
-  (`XELIS_AUTO_UPDATE=true`) and wait at least 36 hours. See docs/OPERATIONS.md#public-mode.
+  (`XELIS_AUTO_UPDATE=true`) and wait at least 36 hours. Everything reachable from the internet is limited: Stratum asks the
+  XELIS node at most 100 times a second whatever miners do, allows 1,000 connections and 32 addresses per IP address and 5,000 in
+  all; the API asks the node at most once every 2 seconds per question; the dashboard limits each visitor and all visitors
+  together; and the official node fallback is never used. See docs/OPERATIONS.md#public-mode.
 
 ## [0.1.0] - 2026-10-07
 

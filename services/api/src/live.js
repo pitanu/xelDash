@@ -2,6 +2,7 @@ import { LIVE_CHANNEL } from "@xeldash/db";
 import { WebSocketServer } from "ws";
 
 const PATH = "/api/v1/live";
+// Open live connections in all; a public server allows more (each visitor's own count is limited by the web server instead).
 const MAX_CLIENTS = 100;
 const HEARTBEAT_MS = 30_000;
 const RELISTEN_MS = 5_000;
@@ -41,9 +42,9 @@ function message(error) {
  * hints to refetch ({ type: "block" | "event", ... }); the REST endpoints stay the source of
  * truth. Clients fall back to polling whenever the socket is down.
  * @param {{ server: import("node:http").Server, pool: import("pg").Pool,
- *   onNotification?: (payload: string) => void, logger?: Pick<Console, "info" | "warn"> }} options
+ *   onNotification?: (payload: string) => void, logger?: Pick<Console, "info" | "warn">, maxClients?: number }} options
  */
-export function startLiveUpdates({ server, pool, onNotification = () => {}, logger = console }) {
+export function startLiveUpdates({ server, pool, onNotification = () => {}, logger = console, maxClients = MAX_CLIENTS }) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
   /** @type {WeakSet<import("ws").WebSocket>} */
   const alive = new WeakSet();
@@ -56,8 +57,8 @@ export function startLiveUpdates({ server, pool, onNotification = () => {}, logg
     // absorbed here. (Refusals below destroy the socket at once, so this is a safeguard; getwork.js had a real case of it.)
     socket.on("error", () => {});
     const pathname = safePathname(request.url);
-    if (pathname !== PATH || wss.clients.size >= MAX_CLIENTS || !sameOrigin(request)) {
-      const status = pathname !== PATH ? "404 Not Found" : wss.clients.size >= MAX_CLIENTS ? "503 Service Unavailable" : "403 Forbidden";
+    if (pathname !== PATH || wss.clients.size >= maxClients || !sameOrigin(request)) {
+      const status = pathname !== PATH ? "404 Not Found" : wss.clients.size >= maxClients ? "503 Service Unavailable" : "403 Forbidden";
       socket.write(`HTTP/1.1 ${status}\r\n\r\n`);
       socket.destroy();
       return;

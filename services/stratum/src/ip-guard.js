@@ -47,7 +47,9 @@ export function parseAllowedNetworks(text) {
 /**
  * @typedef {{ maxConnectionsPerIp: number, messagesPerSecond: number, messageBurst: number,
  *   invalidWindowSeconds: number, invalidMinCount: number, invalidRatio: number,
- *   banMinutes: number, exemptIps: string[], allowedNetworks: string }} IpGuardConfig
+ *   banMinutes: number, exemptIps: string[], allowedNetworks: string, maxConnections?: number,
+ *   explicit?: { maxConnectionsPerIp: boolean, maxConnections: boolean } }} IpGuardConfig
+ * maxConnections: all connections together (0: no limit); explicit: which limits were set in .env (public mode changes the others)
  */
 
 /** @type {IpGuardConfig} */
@@ -61,6 +63,7 @@ export const DEFAULT_IP_GUARD = Object.freeze({
   banMinutes: 15,
   exemptIps: [],
   allowedNetworks: "private",
+  maxConnections: 0,
 });
 
 /** @param {Partial<Record<string, string | undefined>>} env @returns {IpGuardConfig} */
@@ -73,7 +76,12 @@ export function ipGuardConfigFromEnv(env) {
   };
   const invalidRatio = read("STRATUM_BAN_INVALID_RATIO", DEFAULT_IP_GUARD.invalidRatio);
   if (invalidRatio > 1) throw new Error("STRATUM_BAN_INVALID_RATIO must be between 0 and 1");
+  const given = (/** @type {string} */ name) => env[name] !== undefined && String(env[name]).trim() !== "";
+  const total = given("STRATUM_MAX_CONNECTIONS") ? Number(env.STRATUM_MAX_CONNECTIONS) : 0;
+  if (!Number.isSafeInteger(total) || total < 0) throw new Error("STRATUM_MAX_CONNECTIONS must be 0 (no limit) or a positive number");
   return {
+    maxConnections: total,
+    explicit: { maxConnectionsPerIp: given("STRATUM_MAX_CONNECTIONS_PER_IP"), maxConnections: given("STRATUM_MAX_CONNECTIONS") },
     maxConnectionsPerIp: read("STRATUM_MAX_CONNECTIONS_PER_IP", DEFAULT_IP_GUARD.maxConnectionsPerIp),
     messagesPerSecond: read("STRATUM_MESSAGES_PER_SECOND", DEFAULT_IP_GUARD.messagesPerSecond),
     messageBurst: read("STRATUM_MESSAGE_BURST", DEFAULT_IP_GUARD.messageBurst),
@@ -126,6 +134,8 @@ export class IpGuard {
   constructor(config, { onBan = () => {} } = {}) {
     this.config = config;
     this.onBan = onBan;
+    /** Open connections from every address together. */
+    this.total = 0;
     this.exempt = new Set(config.exemptIps);
     this.allowed = parseAllowedNetworks(config.allowedNetworks);
     /** @type {Map<string, number>} */
@@ -164,12 +174,16 @@ export class IpGuard {
     if (this.isBanned(ip, now)) return "banned";
     const open = this.connections.get(ip) ?? 0;
     if (open >= this.config.maxConnectionsPerIp && !this.exempt.has(ip)) return "too many connections";
+    // All connections together, so many addresses at once cannot take more than the server is meant to carry.
+    if ((this.config.maxConnections ?? 0) > 0 && this.total >= /** @type {number} */ (this.config.maxConnections)) return "server full";
     this.connections.set(ip, open + 1);
+    this.total++;
     return null;
   }
 
   /** @param {string} ip */
   disconnect(ip) {
+    if (this.connections.has(ip)) this.total = Math.max(0, this.total - 1);
     const open = (this.connections.get(ip) ?? 1) - 1;
     if (open <= 0) this.connections.delete(ip);
     else this.connections.set(ip, open);

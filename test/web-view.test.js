@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -52,4 +52,31 @@ test("the dashboard's nginx config uses the view on every route to the API", () 
   assert.ok(apiLocations.length >= 2);
   for (const block of apiLocations) assert.match(block, /proxy_set_header X-Xeldash-View \$xeldash_view;/, block.slice(0, 80));
   assert.doesNotMatch(conf, /proxy_pass \$admin_upstream/, "node administration is only routed through the generated node-route.conf");
+});
+
+test("the public view limits requests per visitor and trusts only its own Docker networks to name the visitor", { skip }, () => {
+  const dir = mkdtempSync(join(tmpdir(), "xeldash-route-"));
+  const route = join(dir, "route");
+  // eth0 on 172.22.0.0/16, and a default route through 172.22.0.1.
+  writeFileSync(route, "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\n"
+    + "eth0\t00000000\t010016AC\t0003\t0\t0\t0\t00000000\t0\t0\t0\neth0\t000016AC\t00000000\t0001\t0\t0\t0\t0000FFFF\t0\t0\t0\n");
+  const pub = run({ XELDASH_PUBLIC_MODE: "true", XELDASH_ROUTE_FILE: route.replace(/\\/g, "/") }).view;
+  assert.match(pub, /set \$limit_ip \$binary_remote_addr;/);
+  assert.match(pub, /set \$limit_all "all";/);
+  assert.match(pub, /set_real_ip_from 172\.22\.0\.0\/16;/);
+  assert.doesNotMatch(pub, /set_real_ip_from 0\.0\.0\.0/, "never the default route: anyone could name an address then");
+  assert.match(pub, /limit_conn conn_per_ip 20;/);
+  assert.match(pub, /client_header_timeout 10s;/);
+  for (const env of [{}, { XELDASH_PUBLIC_MODE: "true", XELDASH_WEB_VIEW: "admin" }]) {
+    const view = run({ ...env, XELDASH_ROUTE_FILE: route.replace(/\\/g, "/") }).view;
+    assert.match(view, /set \$limit_ip "";/, "no limits for a normal dashboard or the operator");
+    assert.doesNotMatch(view, /set_real_ip_from|limit_conn/);
+  }
+});
+
+test("every route of the dashboard is limited by the public view's keys", () => {
+  const conf = readFileSync(fileURLToPath(new URL("../web/nginx.conf", import.meta.url)), "utf8");
+  for (const zone of ["api_per_ip", "csv_per_ip", "page_per_ip", "api_all"]) assert.match(conf, new RegExp(`limit_req_zone \\$limit_(ip|all) zone=${zone}:`));
+  const locations = conf.split(/\n\s*location /).slice(1);
+  for (const block of locations) assert.match(block, /limit_(req|conn) /, `unlimited location: ${block.slice(0, 40)}`);
 });

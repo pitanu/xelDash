@@ -25,9 +25,14 @@ test("IPv4-mapped addresses are normalised", () => {
 });
 
 test("settings come from the environment and are checked", () => {
-  assert.deepEqual(ipGuardConfigFromEnv({}), { ...DEFAULT_IP_GUARD, exemptIps: [], allowedNetworks: "private" });
+  assert.deepEqual(ipGuardConfigFromEnv({}), { ...DEFAULT_IP_GUARD, exemptIps: [], allowedNetworks: "private",
+    explicit: { maxConnectionsPerIp: false, maxConnections: false } });
   const c = ipGuardConfigFromEnv({ STRATUM_MAX_CONNECTIONS_PER_IP: "3", STRATUM_BAN_EXEMPT_IPS: "10.0.0.1, ::ffff:10.0.0.2", XELDASH_ALLOWED_NETWORKS: "private,tailscale" });
   assert.equal(c.maxConnectionsPerIp, 3);
+  assert.deepEqual(c.explicit, { maxConnectionsPerIp: true, maxConnections: false }, "an empty or missing setting is not explicit");
+  assert.equal(ipGuardConfigFromEnv({ STRATUM_MAX_CONNECTIONS_PER_IP: "" }).explicit?.maxConnectionsPerIp, false);
+  assert.equal(ipGuardConfigFromEnv({ STRATUM_MAX_CONNECTIONS: "5000" }).maxConnections, 5000);
+  assert.throws(() => ipGuardConfigFromEnv({ STRATUM_MAX_CONNECTIONS: "-1" }), /STRATUM_MAX_CONNECTIONS/);
   assert.deepEqual(c.exemptIps, ["10.0.0.1", "10.0.0.2"]);
   assert.equal(c.allowedNetworks, "private,tailscale");
   assert.throws(() => ipGuardConfigFromEnv({ STRATUM_MESSAGES_PER_SECOND: "0" }), /positive number/);
@@ -94,4 +99,16 @@ test("saved bans are loaded, and pruning keeps the maps small", () => {
   g.record("10.0.0.8", false, 0);
   g.prune(1_000_000);
   assert.equal(g.windows.size, 0);
+});
+
+test("a global connection cap: all addresses together, freed again on disconnect", () => {
+  const guard = new IpGuard({ ...DEFAULT_IP_GUARD, exemptIps: [], allowedNetworks: "any", maxConnectionsPerIp: 1000, maxConnections: 3 });
+  assert.equal(guard.connect("203.0.113.1"), null);
+  assert.equal(guard.connect("203.0.113.1"), null);
+  assert.equal(guard.connect("203.0.113.2"), null);
+  assert.equal(guard.connect("203.0.113.3"), "server full");
+  guard.disconnect("203.0.113.1");
+  assert.equal(guard.connect("203.0.113.3"), null, "room again after one left");
+  guard.disconnect("203.0.113.9");
+  assert.equal(guard.total, 3, "an address that was never connected does not lower the count");
 });

@@ -88,7 +88,12 @@ Leave it unset if you do not need these features.
   published on 127.0.0.1 only (fixed in the Compose file). Recent events are the operator's only. Alerts never carry a miner's
   IP address; on a public server there are none about individual workers, and cluster alerts leave out the shared address. A
   standby or front door learns public mode from the main server over the cluster's secret connection and keeps it across restarts
-  (an unreadable record keeps it on). See [OPERATIONS.md](OPERATIONS.md#public-mode).
+  (an unreadable record keeps it on). Everything reachable from the internet is limited (see
+  [OPERATIONS.md](OPERATIONS.md#public-mode)): Stratum asks the XELIS node at most 100 times a second whatever miners do (found
+  blocks never wait; rigs on one address share their work; checked addresses are remembered), with 32 different addresses and
+  1,000 connections per IP address and 5,000 in all; the API asks the node at most once every 2 seconds per kind of question; the
+  dashboard limits each visitor and all visitors together, with short timeouts; and the official node fallback is never used. A
+  test floods Stratum with fresh addresses from many IP addresses and checks the node budget holds.
 - **Containers.** The API and Stratum run as an unprivileged user. Backups are owner-only
   files.
 
@@ -96,7 +101,9 @@ Leave it unset if you do not need these features.
 
 - **A public server keeps miners' IP addresses.** Public mode hides them from visitors, but the database records them for the
   per-address limits and bans, and backups contain them. On Docker Desktop every internet client looks like one address, so those
-  limits cannot work: run a public server on Linux with Docker Engine. The public dashboard has no request limits of its own yet.
+  limits cannot work: run a public server on Linux with Docker Engine. Floods large enough to fill the server's network
+  connection are for the hosting provider to stop; the dashboard's per-visitor limits trust the visitor address named by the HTTPS
+  proxy only from the dashboard's own Docker network.
 
 The first three are solved by the optional `proxy` service (HTTPS, a login, and a host-name
 check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:

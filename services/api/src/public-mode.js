@@ -45,7 +45,7 @@ export function publicModeWarnings(env) {
   const warnings = [];
   const allowed = (env.XELDASH_ALLOWED_NETWORKS ?? "private").trim().toLowerCase();
   if (allowed === "private" || allowed === "") {
-    warnings.push("XELDASH_ALLOWED_NETWORKS is \"private\": Stratum and getwork turn away miners on the internet. Set it to \"any\" for a public server.");
+    warnings.push("XELDASH_ALLOWED_NETWORKS is \"private\": miners and dashboard visitors on the internet are turned away. Set it to \"any\" for a public server.");
   }
   if (!(env.XELDASH_PUBLIC_DOMAIN ?? "").trim()) {
     warnings.push("XELDASH_PUBLIC_DOMAIN is empty, so the built-in HTTPS (profile public-https) is not set up: unless your own HTTPS reverse proxy is in front, visitors use plain HTTP. See docs/OPERATIONS.md#public-mode.");

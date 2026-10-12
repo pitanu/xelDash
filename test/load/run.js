@@ -8,6 +8,7 @@
 //   LOAD_STOP_DB=1 npm run load        stop the database first: shares are checked and answered but not written (Stratum keeps a journal), to
 //                                      measure the checking alone
 //   LOAD_KEEP=1 npm run load           leave the stack running afterwards
+//   LOAD_PUBLIC=1 npm run load         as a public server (XELDASH_PUBLIC_MODE): its node-call budget and connection limits apply
 //
 // Needs Docker and about 15 minutes. Results are printed as a table; they depend on the computer it runs on, so read them as an
 // order of magnitude and say what hardware they came from.
@@ -27,6 +28,7 @@ const HOLD = process.env.LOAD_HOLD ?? "60";
 const SHARE_SECONDS = process.env.LOAD_SHARE_SECONDS ?? "10";
 const CHAIN = (process.env.LOAD_CHAIN ?? "1") === "1";
 const STOP_DB = process.env.LOAD_STOP_DB === "1";
+const PUBLIC = process.env.LOAD_PUBLIC === "1";
 const SERVICES = ["stratum", "daemon", "postgres", "api", "web"];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -118,7 +120,9 @@ async function main() {
     "XELDASH_VERSION_CHECK=off", "XELDASH_PRICE=off",
     // Every simulated rig comes from one address, and mines at share difficulty 1 so that a share costs the server what a real one does.
     "STRATUM_START_DIFFICULTY=1", "STRATUM_MIN_DIFFICULTY=1", "STRATUM_MAX_CONNECTIONS_PER_IP=100000",
-    `XELIS_DEFAULT_ADDRESS=${ADDRESS}`, "",
+    `XELIS_DEFAULT_ADDRESS=${ADDRESS}`,
+    ...(PUBLIC ? ["XELDASH_PUBLIC_MODE=true", "XELDASH_ALLOWED_NETWORKS=any"] : []),
+    "",
   ].join("\n"));
   console.log(`Computer: ${cpus().length} threads (${cpus()[0].model.trim()}), ${(totalmem() / 2 ** 30).toFixed(1)} GiB memory, ${process.platform}`);
   console.log(`Stages: ${STAGES} rigs, ${HOLD} s each, one share per rig every ${SHARE_SECONDS} s${CHAIN ? ", with a miner producing blocks in the background" : ""}`);

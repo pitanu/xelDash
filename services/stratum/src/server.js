@@ -15,8 +15,9 @@ import { startGetworkServer } from "./getwork.js";
 import { acceptWithProxyHeader, proxyTrustFromEnv } from "./proxy-protocol.js";
 import { startHealthServer } from "./health.js";
 import { readDefaultGateway } from "./gateway.js";
-import { IpGuard, MessageRateLimiter, ipGuardConfigFromEnv, normalizeIp } from "./ip-guard.js";
+import { DEFAULT_IP_GUARD, IpGuard, MessageRateLimiter, ipGuardConfigFromEnv, normalizeIp } from "./ip-guard.js";
 import { MiningJobProvider } from "./job-provider.js";
+import { NodeBudget, burstFor } from "./node-budget.js";
 import { NodePool, rpcUrlsFromEnv } from "./node-pool.js";
 import { LineFramer } from "./line-framer.js";
 import { StratumSession } from "./session.js";
@@ -123,8 +124,45 @@ const store = new DurableStore({
   ...(Number.isFinite(journalMegabytes) && journalMegabytes > 0 ? { maxBytes: journalMegabytes * 1048576 } : {}),
 });
 await store.init();
-const authorizeAddress = createWorkerAuthorizer({ daemon: nodes, store });
-const jobProvider = new MiningJobProvider({ nodes });
+// Limits for a public server (docs/OPERATIONS.md#public-mode). Each follows public mode (which a standby can learn while running)
+// unless it is set in .env: the node-call budget (100 a second; found blocks never wait), different addresses per IP address (32),
+// connections per IP address (1000, so a farm behind one address fits) and in all (5000).
+/** @param {string} name @returns {number | null} */
+function optionalSetting(name) {
+  const text = (process.env[name] ?? "").trim();
+  if (!text) return null;
+  const n = Number(text);
+  if (!Number.isFinite(n) || n < 0) throw new Error(`${name} must be 0 (no limit) or a positive number`);
+  return n;
+}
+const nodeCallsSetting = optionalSetting("STRATUM_NODE_CALLS_PER_SECOND");
+const addressesPerIpSetting = optionalSetting("STRATUM_MAX_ADDRESSES_PER_IP");
+const nodeBudget = new NodeBudget({ perSecond: 0 });
+/** @type {boolean | null} */
+let limitsForPublic = null;
+function applyModeLimits() {
+  const pub = isPublic();
+  if (pub === limitsForPublic) return;
+  limitsForPublic = pub;
+  if (!ipGuardConfig.explicit?.maxConnectionsPerIp) ipGuardConfig.maxConnectionsPerIp = pub ? 1000 : DEFAULT_IP_GUARD.maxConnectionsPerIp;
+  if (!ipGuardConfig.explicit?.maxConnections) ipGuardConfig.maxConnections = pub ? 5000 : 0;
+  const perSecond = nodeCallsSetting ?? (pub ? 100 : 0);
+  nodeBudget.perSecond = perSecond;
+  nodeBudget.burst = burstFor(perSecond);
+  nodeBudget.tokens = nodeBudget.burst;
+  if (pub) {
+    removeFallbackNodes(null);
+    console.info(`Public-server limits: ${perSecond || "no"} node calls a second, ${addressesPerIpSetting ?? 32} addresses and `
+      + `${ipGuardConfig.maxConnectionsPerIp} connections per IP address, ${ipGuardConfig.maxConnections || "no limit to"} connections in all`);
+    if (ipGuardConfig.explicit?.maxConnectionsPerIp && ipGuardConfig.maxConnectionsPerIp < 600) {
+      console.warn(`STRATUM_MAX_CONNECTIONS_PER_IP is ${ipGuardConfig.maxConnectionsPerIp}: a farm behind one IP address can connect only `
+        + "that many rigs. Leave it empty for the public default (1000).");
+    }
+  }
+}
+const authorizeAddress = createWorkerAuthorizer({ daemon: nodes, store, budget: nodeBudget,
+  maxAddressesPerIp: () => addressesPerIpSetting ?? (isPublic() ? 32 : 0) });
+const jobProvider = new MiningJobProvider({ nodes, beforeNodeCall: () => nodeBudget.take() });
 const submitShare = createShareSubmitter({ daemon: nodes, store });
 /** @type {Map<{ remoteAddress?: string, destroy: () => void }, StratumSession>} */
 const sessions = new Map();
@@ -252,7 +290,8 @@ const hashrateWrites = new Map();
 function newSession(socket, ip, onAuthorized = () => {}) {
   return new StratumSession({
     socket,
-    authorizeAddress,
+    // The connection's real address (a front door's PROXY line, getwork's own), for the per-IP address limit.
+    authorizeAddress: (input) => authorizeAddress({ ...input, ip }),
     createJob: (input) => jobProvider.create(input),
     submitShare,
     jobRefreshIntervalMs,
@@ -381,13 +420,11 @@ await nodes.start();
 // none of our own nodes can issue work.
 const fallbackWatch = watchFallbackConfig({
   file: process.env.XELDASH_MINING_NODES_FILE ?? "/config/mining-nodes.json",
-  onChange: async (url) => {
-    for (const node of nodes.nodes.filter((n) => n.fallback && n.url !== url)) {
-      chainWatchers.get(node)?.stop();
-      chainWatchers.delete(node);
-      nodes.remove(node);
-      console.info(`Mining fallback off: ${node.label}`);
-    }
+  onChange: async (setting) => {
+    // A public server never sends its miners' load to the official node (node.xelis.io): the fallback is ignored.
+    const url = isPublic() ? null : setting;
+    if (setting && !url) console.info("Mining fallback ignored: this is a public server");
+    removeFallbackNodes(url);
     if (url) {
       const node = await nodes.addFallback(url);
       if (node) {
@@ -398,6 +435,18 @@ const fallbackWatch = watchFallbackConfig({
   },
 });
 fallbackConfig = fallbackWatch;
+applyModeLimits();
+setInterval(applyModeLimits, 5_000).unref();
+
+/** Stop mining through fallback nodes other than `keepUrl`. @param {string | null} keepUrl */
+function removeFallbackNodes(keepUrl) {
+  for (const node of nodes.nodes.filter((n) => n.fallback && n.url !== keepUrl)) {
+    chainWatchers.get(node)?.stop();
+    chainWatchers.delete(node);
+    nodes.remove(node);
+    console.info(`Mining fallback off: ${node.label}`);
+  }
+}
 await fallbackWatch.ready;
 nodesStarted = true;
 

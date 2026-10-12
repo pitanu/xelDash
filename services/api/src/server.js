@@ -16,6 +16,7 @@ import { getStatus } from "./status.js";
 import { updateStatus } from "./update.js";
 import { getUptime } from "./uptime.js";
 import { isPublicView, publicModeFromEnv, publicModeWarnings, scrubIps } from "./public-mode.js";
+import { ShortCache, publicCacheKey } from "./public-cache.js";
 
 const port = Number.parseInt(process.env.API_PORT ?? "8081", 10);
 const host = process.env.API_HOST ?? "0.0.0.0";
@@ -77,14 +78,25 @@ function estimateMining(activity, network) {
   }));
 }
 
+// On a public server: answers by URL, and node calls by method, each worked out at most once every 2 seconds, so no amount or mix
+// of requests from the internet makes this API call the XELIS node more often than that (see public-cache.js).
+const publicAnswers = new ShortCache({ ttlMs: 2_000 });
+const nodeAnswers = new ShortCache({ ttlMs: 2_000 });
+
+/** The official node as a fallback, if it is switched on; never on a public server (its load must not reach node.xelis.io). */
+async function officialFallback() {
+  return publicMode ? null : fallbackUrl();
+}
+
 /** Our nodes in priority order, then the official node if it is on as the mining fallback. */
 async function allNodeUrls() {
-  const fallback = await fallbackUrl();
+  const fallback = await officialFallback();
   return fallback && !nodeUrls.includes(fallback) ? [...nodeUrls, fallback] : nodeUrls;
 }
 
 /** @param {string} method @param {number} [timeoutMs] */
 async function daemonCall(method, timeoutMs = 5_000) {
+  if (publicMode) return nodeAnswers.get(`call:${method}`, async () => callAnyNode(await allNodeUrls(), method, timeoutMs));
   return callAnyNode(await allNodeUrls(), method, timeoutMs);
 }
 
@@ -158,8 +170,32 @@ function writeJson(response, statusCode, value) {
 
 export const server = createServer(async (request, response) => {
   const publicView = isPublicView(publicMode, request);
+  // A public visitor's GET: the answer another visitor just got, or the one being worked out right now.
+  const key = publicView ? publicCacheKey(request) : null;
+  const cached = key ? await publicAnswers.lookup(key) : undefined;
+  if (cached) {
+    writeJson(response, cached.status, cached.body);
+    return;
+  }
+  const entry = key ? publicAnswers.begin(key) : null;
   /** Every JSON answer; in the public view without IP addresses. @param {import("node:http").ServerResponse} res @param {number} statusCode @param {unknown} value */
-  const sendJson = (res, statusCode, value) => writeJson(res, statusCode, publicView ? scrubIps(value) : value);
+  const sendJson = (res, statusCode, value) => {
+    const body = publicView ? scrubIps(value) : value;
+    entry?.complete({ status: statusCode, body });
+    writeJson(res, statusCode, body);
+  };
+  try {
+    await route(request, response, publicView, sendJson);
+  } finally {
+    entry?.abandon();
+  }
+});
+
+/**
+ * @param {import("node:http").IncomingMessage} request @param {import("node:http").ServerResponse} response @param {boolean} publicView
+ * @param {(res: import("node:http").ServerResponse, statusCode: number, value: unknown) => void} sendJson
+ */
+async function route(request, response, publicView, sendJson) {
   /** @type {URL} */
   let url;
   try {
@@ -210,13 +246,15 @@ export const server = createServer(async (request, response) => {
     }
 
     if (pathname === "/api/v1/status") {
-      const status = await getStatus({
+      const work = async () => getStatus({
         pool,
         nodeUrls,
-        fallbackUrl: await fallbackUrl(),
+        fallbackUrl: await officialFallback(),
         stratumHost,
         stratumPort,
       });
+      // Each status asks every node twice and probes Stratum: once every 2 seconds at most on a public server.
+      const status = publicMode ? await nodeAnswers.get("status", work) : await work();
       // Bans are a list of IP addresses: the public view does not list them at all.
       sendJson(response, 200, publicView ? { ...status, bans: [] } : status);
       return;
@@ -386,7 +424,7 @@ export const server = createServer(async (request, response) => {
     console.error("API request failed:", error instanceof Error ? error.message : String(error));
     sendJson(response, 503, { error: "dependency_unavailable" });
   }
-});
+}
 
 // Started only when run as the API (`node src/server.js`); tests import `server` and drive it themselves.
 // import.meta.main is Node 24+; the path comparison covers older versions.
@@ -397,7 +435,8 @@ async function start() {
   for (const warning of publicModeWarnings(process.env)) console.warn(`Public mode: ${warning}`);
   if (publicMode) console.info("Public mode: visitors get no IP addresses, no connection problems and no node administration.");
   const alerts = watchAlerts({ pool, env: process.env, file: join(process.env.CONFIG_DIR ?? "/config", "alerts.json") });
-  const live = startLiveUpdates({ server, pool, onNotification: (payload) => alerts?.handleNotification(payload) });
+  // A public server has many more visitors: 1000 live connections in all (each visitor's own few are limited by the web server).
+  const live = startLiveUpdates({ server, pool, onNotification: (payload) => alerts?.handleNotification(payload), maxClients: publicMode ? 1_000 : 100 });
 
   server.listen(port, host, () => {
     console.info(`xelDash API listening on ${host}:${port}`);

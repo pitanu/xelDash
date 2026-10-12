@@ -1,4 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import { LoginRefused } from "./authorize-worker.js";
+import { NodeBusy } from "./node-budget.js";
 import {
   STRATUM_ERRORS,
   encodeMessage,
@@ -262,6 +264,14 @@ export class StratumSession {
     try {
       identity = await this.authorizeAddress({ address, workerName, password, ip: this.socket.remoteAddress });
     } catch (error) {
+      // Refused by this server's own rules (too many addresses from one connection, or busy): say why. Only abuse counts
+      // against the connection.
+      if (error instanceof LoginRefused) {
+        if (error.abusive) this.onSubmission(false);
+        this.onProblem({ reason: error.reason, address, worker: workerName });
+        this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, error.message));
+        return;
+      }
       // The node rejecting a malformed address counts like any failed login; the node being
       // unreachable is not the miner's fault and does not.
       if (!(error instanceof DaemonRpcError)) throw error;
@@ -292,13 +302,22 @@ export class StratumSession {
     // A difficulty asked for in the password applies to the connection from its first login.
     const fixedDifficulty = this.miningAddress === null ? requestedDifficulty(password) : null;
     if (fixedDifficulty !== null) this.vardiff.fix(fixedDifficulty);
-    const job = await this.createJob({
-      address: miningAddress,
-      publicKey: identity.publicKey,
-      extraNonce: this.extranonce,
-      algorithm: this.algorithm,
-      shareDifficulty: this.vardiff.difficulty,
-    });
+    let job;
+    try {
+      job = await this.createJob({
+        address: miningAddress,
+        publicKey: identity.publicKey,
+        extraNonce: this.extranonce,
+        algorithm: this.algorithm,
+        shareDifficulty: this.vardiff.difficulty,
+      });
+    } catch (error) {
+      // The node-call budget is used up for now (public mode): not the miner's fault; it logs in again shortly.
+      if (!(error instanceof NodeBusy)) throw error;
+      this.onProblem({ reason: "busy", address, worker: workerName });
+      this.send(errorResponse(request.id, STRATUM_ERRORS.UNKNOWN, error.message));
+      return;
+    }
     if (this.miningAddress === null) this.vardiff.reset(Date.now());
     this.miningAddress = miningAddress;
     this.miningIdentity = identity;
@@ -396,6 +415,8 @@ export class StratumSession {
         params: [job.jobId, job.timestampHex, job.headerWorkHash, job.algorithm, cleanJobs],
       });
     } catch (error) {
+      // A busy node-call budget just means the current work stays a little longer: expected under load, not worth a log line.
+      if (error instanceof NodeBusy) return;
       this.logger.warn?.("Unable to refresh Stratum job", {
         error: error instanceof Error ? error.message : String(error),
       });

@@ -285,7 +285,27 @@ checksums come with the release; there is no signature to check). On a public se
 and a release waits at least 36 hours (`XELIS_AUTO_UPDATE_DELAY_HOURS` can make that longer, not shorter), time for the XELIS
 community to notice a bad or tampered release. node-admin logs a warning at startup while they are on.
 
-**Not covered yet:** request limits on the public dashboard itself (Stratum and getwork have their own).
+**Limits against overload and abuse.** Everything reachable from the internet is limited, and the XELIS node behind a public server
+(possibly one the network depends on) can never be asked for more than a set amount, whatever miners or visitors do:
+
+- **Calls to the node:** at most 100 a second from Stratum (`STRATUM_NODE_CALLS_PER_SECOND`); found blocks never wait. Rigs on the
+  same address share their work, so a farm of hundreds of rigs on one address costs two calls per block. A checked address is
+  remembered, so rigs reconnecting cost nothing. Over the limit, rigs keep their current work a little longer and new logins are
+  told the server is busy. The dashboard's API asks the node at most once every 2 seconds per kind of question, and its public
+  answers are each worked out at most once every 2 seconds, whatever the number of visitors.
+- **Miners:** up to 1,000 connections per IP address (a farm behind one address fits; `STRATUM_MAX_CONNECTIONS_PER_IP`), 5,000
+  in all (`STRATUM_MAX_CONNECTIONS`), and at most 32 different addresses per IP address (`STRATUM_MAX_ADDRESSES_PER_IP`): made-up
+  addresses are what an attack on the node would need, and a connection that keeps trying them is banned like one sending bad shares.
+  The usual per-connection message limits and bans apply as well.
+- **Visitors of the dashboard:** per visitor, 10 API requests a second (bursts of 20), 6 CSV exports a minute, 20 open connections
+  and 4 live-update connections; 200 API requests a second from all visitors together. Over a limit the answer is `429`. Slow or
+  idle connections are closed soon (the HTTPS proxy and the web server both have short timeouts).
+- **The official node fallback is never used** by a public server, so its miners' load cannot reach node.xelis.io.
+
+Leave a limit empty in `.env` to get its public default (`.env.example` explains each); a value you set is kept (a server
+warns if `STRATUM_MAX_CONNECTIONS_PER_IP` is set below what a farm needs). Floods large enough to fill the server's network
+connection itself are for the hosting provider to stop. `npm run load` with `LOAD_PUBLIC=1` measures a public server's limits
+under load.
 
 ## Daemon settings
 

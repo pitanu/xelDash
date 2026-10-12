@@ -46,7 +46,9 @@ export default function MiningFallback({ token, onUnauthorized }) {
     return (
       <Card title="Official node fallback">
         <p className="text-sm text-ink-2">
-          The XELIS team runs public nodes for mainnet and testnet only, so there is no fallback on this network.
+          {data.publicMode
+            ? "This is a public server: it never mines through the official node, so its miners' load cannot reach the XELIS team's public node."
+            : "The XELIS team runs public nodes for mainnet and testnet only, so there is no fallback on this network."}
         </p>
       </Card>
     );

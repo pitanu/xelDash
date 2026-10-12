@@ -44,7 +44,7 @@ const primary = nodes[0];
 const releases = new Releases();
 const upgrade = new RollingUpgrade({ releases });
 const configDir = process.env.CONFIG_DIR ?? "/config";
-const fallback = new MiningFallback({ configDir, network, env: process.env });
+const fallback = new MiningFallback({ configDir, network, env: process.env, publicMode: () => envPublicMode || (standbyAlerts?.publicMode ?? false) });
 for (const node of nodes) await node.snapshots.init().catch((error) => console.warn(`${node.id}: ${message(error)}`));
 const miningAddress = new MiningAddress({ configDir, network, env: process.env });
 const alertSettings = new AlertSettings({ configDir, env: process.env });
