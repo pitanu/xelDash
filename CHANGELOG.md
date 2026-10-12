@@ -9,6 +9,10 @@ breaking changes; they are marked **Breaking**.
 
 ### Mining
 
+- Vardiff now aims for one share every 5 seconds, XELIS's block time (it was 10). An existing `.env` that sets
+  `STRATUM_TARGET_SHARE_SECONDS=10` keeps 10 until changed.
+- When the node accepts a block found by one of our rigs, every rig gets new work at once instead of waiting for the node's
+  new-block event.
 - Rigs share the node's work between all addresses (one template per block for every miner), once the node is seen to give
   the same work to each address; a devnet test checks every block pays the rig that found it. The node's load no longer grows
   with the number of miners: 4,000 rigs on 200 different addresses used about 1% of a core on the node.

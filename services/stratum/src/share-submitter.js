@@ -26,9 +26,11 @@ function errorMessage(error) {
 }
 
 /**
- * @param {{ daemon: import("./node-pool.js").NodePool, store: import("./store.js").DurableStore, logger?: Pick<Console, "warn" | "info"> }} dependencies
+ * @param {{ daemon: import("./node-pool.js").NodePool, store: import("./store.js").DurableStore, logger?: Pick<Console, "warn" | "info">,
+ *   onBlockAccepted?: (block: { hash: string, height: number }) => void, hashMinerWork?: (work: Buffer) => Promise<Buffer> }} dependencies
+ *   onBlockAccepted: told the moment the node accepts one of our blocks, so every rig gets new work at once (see server.js)
  */
-export function createShareSubmitter({ daemon, store, logger = console }) {
+export function createShareSubmitter({ daemon, store, logger = console, onBlockAccepted = () => {}, hashMinerWork = hashMinerWorkAsync }) {
   /**
    * Submit first, then record: a database outage must never keep a solved block from the daemon.
    * The store keeps what it cannot record yet and records it when the database is back.
@@ -44,6 +46,14 @@ export function createShareSubmitter({ daemon, store, logger = console }) {
       const submitted = await daemon.submitBlock(job.template, minerWork.toString("hex"), job.nodeId);
       status = submitted ? "submitted" : "rejected";
       if (!submitted) failure = "daemon returned false";
+      // Our block is the new tip: every rig's work is for the old one now. Do not wait for the node's new_block event.
+      if (submitted) {
+        try {
+          onBlockAccepted({ hash, height: job.height });
+        } catch (error) {
+          logger.warn?.("Refreshing work after a found block failed", { hash, error: errorMessage(error) });
+        }
+      }
     } catch (error) {
       status = "rejected";
       failure = errorMessage(error);
@@ -85,7 +95,7 @@ export function createShareSubmitter({ daemon, store, logger = console }) {
     }
 
     const minerWork = submittedWork ?? job.buildMinerWork(nonce);
-    const hash = asU256(await hashMinerWorkAsync(minerWork));
+    const hash = asU256(await hashMinerWork(minerWork));
     const shareDifficulty = BigInt(job.shareDifficulty);
     const networkDifficulty = BigInt(job.networkDifficulty);
     const meetsShareTarget = hash <= MAX_U256 / shareDifficulty;

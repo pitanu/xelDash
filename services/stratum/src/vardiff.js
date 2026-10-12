@@ -7,7 +7,7 @@
 export const DEFAULT_VARDIFF = Object.freeze({
   startDifficulty: 100_000,
   minDifficulty: 1_000,
-  targetShareSeconds: 10,
+  targetShareSeconds: 5,
   retargetSeconds: 60,
   retargetShares: 20,
 });

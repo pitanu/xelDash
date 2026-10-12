@@ -27,7 +27,7 @@ const ADDRESS = "xet:vs3mfyywt0fjys0rgslue7mm4wr23xdgejsjk0ld7f2kxng4d4nqqt98v9u
 const MINER_IMAGE = "xelis/miner:1.21.3";
 const STAGES = process.env.LOAD_STAGES ?? "100,500,1000,2000";
 const HOLD = process.env.LOAD_HOLD ?? "60";
-const SHARE_SECONDS = process.env.LOAD_SHARE_SECONDS ?? "10";
+const SHARE_SECONDS = process.env.LOAD_SHARE_SECONDS ?? "5";
 const CHAIN = (process.env.LOAD_CHAIN ?? "1") === "1";
 // CPU threads of the background miner. One thread is below the devnet's minimum difficulty (2 KH/s), so blocks come slower than
 // mainnet's ~5 s; more threads bring the block rate up to mainnet's (the table's blocks/min shows what a run really had).

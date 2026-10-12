@@ -32,7 +32,7 @@ rigel -a xelishashv3 -o stratum+tcp://192.168.1.10:3333 -u xel:YOUR_ADDRESS -w r
 
 ## Difficulty
 
-Share difficulty adjusts to each rig automatically (one share about every 10 seconds). To fix
+Share difficulty adjusts to each rig automatically (one share about every 5 seconds, the block time). To fix
 it instead, put `d=<difficulty>` in the Stratum password, for example `-p d=50000`. It is
 never set below `STRATUM_MIN_DIFFICULTY`. A fixed difficulty helps GPUs that dislike
 retargeting; a good value gives one share every few seconds.

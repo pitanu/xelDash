@@ -29,7 +29,7 @@ mines to the address chosen on the dashboard's setup page (`src/default-address.
 seconds), else `XELIS_DEFAULT_ADDRESS`.
 
 **Difficulty.** Vardiff per connection (`src/vardiff.js`): starts at 100,000, aims for one
-share every 10 seconds, capped at the network difficulty. A miner can fix it with
+share every 5 seconds (the block time), capped at the network difficulty. A miner can fix it with
 `d=<difficulty>` (or `diff=`) in the password, never below `STRATUM_MIN_DIFFICULTY`.
 
 **Late shares.** A new block replaces the job, but shares on the previous one are accepted for

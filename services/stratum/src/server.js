@@ -163,7 +163,9 @@ function applyModeLimits() {
 const authorizeAddress = createWorkerAuthorizer({ daemon: nodes, store, budget: nodeBudget,
   maxAddressesPerIp: () => addressesPerIpSetting ?? (isPublic() ? 32 : 0) });
 const jobProvider = new MiningJobProvider({ nodes, beforeNodeCall: () => nodeBudget.take() });
-const submitShare = createShareSubmitter({ daemon: nodes, store });
+// A block one of our rigs found is the new tip as soon as the node accepts it: new work for every rig right away (the node's
+// new_block event for it follows, and is announced only once).
+const submitShare = createShareSubmitter({ daemon: nodes, store, onBlockAccepted: (block) => handleNewBlock(block) });
 /** @type {Map<{ remoteAddress?: string, destroy: () => void }, StratumSession>} */
 const sessions = new Map();
 // Why a connection or login was turned away, recorded for the dashboard's connection help. The

@@ -163,7 +163,7 @@ Notes:
   24 hours), divided by its length. Expected time-to-block is network difficulty divided by
   that hashrate; the API returns `null` when a window has no accepted shares. Miners'
   self-reported hashrate is shown next to it.
-- Vardiff per connection: start at 100,000 and aim for one share every 10 seconds; retarget
+- Vardiff per connection: start at 100,000 and aim for one share every 5 seconds (the block time); retarget
   after 60 seconds or 20 accepted shares, by at most 2x, skipping changes under 50%, between
   1,000 and the network difficulty.
 - A miner can ask for a fixed difficulty in its password (`d=`), never below the minimum.
