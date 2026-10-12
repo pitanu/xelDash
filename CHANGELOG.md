@@ -7,6 +7,13 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Dashboard and API
+
+- **Public mode** (`XELDASH_PUBLIC_MODE=true`), for a server anyone may solo mine on, each to their own address: visitors get
+  no IP addresses, no connection problems and no node administration, a "Mine here" page shows how to connect, and a login
+  without an address is refused. The operator's full dashboard is on 127.0.0.1 only (Compose profile `public`), and the
+  `public-https` profile adds HTTPS with a Let's Encrypt certificate. See docs/OPERATIONS.md#public-mode.
+
 ## [0.1.0] - 2026-10-07
 
 First public version.

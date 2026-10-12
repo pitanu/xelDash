@@ -213,6 +213,57 @@ The proxy's login is separate from the admin token: after logging in, node chang
 `XELDASH_ADMIN_TOKEN`. If the host name or the password hash is not set, the proxy refuses to start rather than run
 without a login.
 
+## Public mode
+
+Public mode is for a server that anyone on the internet may mine on, solo, each to their own address: the dashboard is open to
+everyone, like a pool's statistics page, but without a pool: every block pays the rig that found it, and the server holds no coins.
+It is off by default; xelDash is otherwise meant for your own network.
+
+With `XELDASH_PUBLIC_MODE=true`:
+
+- **No IP addresses for visitors.** The API leaves every IP address out of what it sends to the public dashboard (workers' last
+  address, bans, events), and the connection problems card is not shown. The operator's own dashboard (below) still has them.
+- **Every miner must use its own address.** A login without an address is refused with a message saying so; the default address
+  (`XELIS_DEFAULT_ADDRESS` or the one chosen on the setup page) is never used, so a misconfigured rig cannot mine for the server.
+- **No node administration from the public site.** The public dashboard has no Nodes, Settings or setup pages, and its web server
+  answers 404 for node administration. Visitors get a **Mine here** page with the settings for each miner instead.
+- **Warnings, not refusals.** At startup the API logs a warning if `XELDASH_ALLOWED_NETWORKS` is still `private`, if
+  `XELDASH_PUBLIC_DOMAIN` is empty (no built-in HTTPS), or if a default address is set (it is ignored). It starts anyway, for
+  setups with their own reverse proxy.
+
+Use a Linux server with Docker Engine. Docker Desktop (Windows, macOS) shows every computer from the internet as one address, so the
+per-address connection limits and bans cannot work there (see [SECURITY.md](SECURITY.md)).
+
+1. Point a domain at the server, for example `solo.example.org`.
+2. In `.env`:
+
+   ```sh
+   XELDASH_PUBLIC_MODE=true
+   COMPOSE_PROFILES=public,public-https
+   XELDASH_PUBLIC_DOMAIN=solo.example.org   # HTTPS with a Let's Encrypt certificate (ports 80 and 443)
+   XELDASH_PUBLIC_HOST=solo.example.org     # what the Mine here page tells miners to connect to
+   XELDASH_ALLOWED_NETWORKS=any
+   XELDASH_STRATUM_BIND_IP=0.0.0.0
+   ```
+
+   Leave `XELDASH_WEB_BIND_IP` and `XELDASH_API_BIND_IP` at `127.0.0.1`: visitors come in through HTTPS only.
+3. `docker compose up -d`, then open `https://solo.example.org`.
+4. Open to the internet only ports 80 and 443 (HTTPS), 3333 (Stratum), 8090 (getwork) and, if you set up Stratum TLS, 3334.
+
+**The operator's dashboard.** The `public` profile adds `admin-web`: the full dashboard, with Nodes, Settings, connection problems
+and IP addresses, published on the server's loopback only (`127.0.0.1:8089`, `XELDASH_ADMIN_WEB_PORT` to change the port). From
+your own computer, tunnel to it with `ssh -L 8089:127.0.0.1:8089 you@solo.example.org` and open `http://localhost:8089`. Node changes
+there still need `XELDASH_ADMIN_TOKEN`.
+
+**Still public, as on any pool:** miner addresses (they are on the chain anyway), worker names, hashrates and blocks. The Health page
+names your nodes as written in `XELIS_RPC_URLS`, so use host names there rather than private IP addresses.
+
+**Kept on the server:** the database still records miners' IP addresses, because the per-address limits and bans need them; they are
+in backups too. Treat backups and the operator's dashboard as private.
+
+**Not covered yet:** a redundancy cluster or a front door together with public mode, and request limits on the public dashboard
+itself (Stratum and getwork have their own).
+
 ## Daemon settings
 
 Every option of the XELIS daemon can be changed from the dashboard: open **Settings** in the

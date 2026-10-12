@@ -1,0 +1,14 @@
+# HTTPS for a public server (Compose profile "public-https", with XELDASH_PUBLIC_MODE=true).
+# A real certificate from Let's Encrypt for XELDASH_PUBLIC_DOMAIN, and no login: everyone may look. The dashboard behind it is the
+# public view (no IP addresses, no node administration). See docs/OPERATIONS.md#public-mode.
+{
+	# No Caddy admin API; this proxy is configured only by this file.
+	admin off
+}
+
+# Only this host name is answered.
+{$XELDASH_PUBLIC_DOMAIN} {
+	reverse_proxy web:8080 {
+		flush_interval -1
+	}
+}

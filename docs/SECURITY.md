@@ -78,10 +78,20 @@ Leave it unset if you do not need these features.
   host or the internet). Only the API, Stratum, node-admin, and the migration and backup jobs join `data`;
   the web container cannot reach PostgreSQL, and PostgreSQL publishes no port.
 - **Alerts** do not let worker names trigger Discord mentions such as `@everyone`.
+- **Public mode** (`XELDASH_PUBLIC_MODE`, for a server open to the internet): the API removes every IP-address field from what
+  the public dashboard receives, at the one place it sends JSON, and leaves out bans and connection problems; a test calls every
+  API route against a database full of IP addresses and fails on any it finds. The public web server answers 404 for node
+  administration and replaces any view header a visitor sends, so a visitor cannot ask for the operator's view. A login without
+  an address is refused, so no one mines for the server by mistake. The operator's full dashboard is a separate container
+  published on 127.0.0.1 only (fixed in the Compose file). See [OPERATIONS.md](OPERATIONS.md#public-mode).
 - **Containers.** The API and Stratum run as an unprivileged user. Backups are owner-only
   files.
 
 ## Remaining risks
+
+- **A public server keeps miners' IP addresses.** Public mode hides them from visitors, but the database records them for the
+  per-address limits and bans, and backups contain them. On Docker Desktop every internet client looks like one address, so those
+  limits cannot work: run a public server on Linux with Docker Engine. The public dashboard has no request limits of its own yet.
 
 The first three are solved by the optional `proxy` service (HTTPS, a login, and a host-name
 check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:

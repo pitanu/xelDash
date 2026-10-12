@@ -191,6 +191,11 @@ services:
       ALERT_EVENTS: ${ALERT_EVENTS:-}
       ALERT_WORKER_OFFLINE_MINUTES: ${ALERT_WORKER_OFFLINE_MINUTES:-10}
       ALERT_DASHBOARD_URL: ${ALERT_DASHBOARD_URL:-}
+      # Public mode: visitors get no IP addresses, no connection problems and no node administration (docs/OPERATIONS.md#public-mode).
+      XELDASH_PUBLIC_MODE: ${XELDASH_PUBLIC_MODE:-false}
+      # Read only to warn about risky public-mode settings at startup.
+      XELDASH_PUBLIC_DOMAIN: ${XELDASH_PUBLIC_DOMAIN:-}
+      XELDASH_ALLOWED_NETWORKS: ${XELDASH_ALLOWED_NETWORKS:-private}
       # XEL price from CoinGecko, for viewers who switch it on; "off" disables it for everyone.
       XELDASH_PRICE: ${XELDASH_PRICE:-on}
       # What the dashboard's "Connect a miner" page shows: the published ports and this machine's
@@ -251,6 +256,8 @@ services:
       UV_THREADPOOL_SIZE: ${STRATUM_HASH_THREADS:-8}
       # Addresses of a front door (xeldash frontdoor setup) whose PROXY line names the real miner; empty = none.
       STRATUM_PROXY_FROM: ${STRATUM_PROXY_FROM:-}
+      # Public mode: every miner must log in with its own address; the default address is not used.
+      XELDASH_PUBLIC_MODE: ${XELDASH_PUBLIC_MODE:-false}
       STRATUM_HANDSHAKE_TIMEOUT_MS: ${STRATUM_HANDSHAKE_TIMEOUT_MS:-10000}
       STRATUM_MAX_QUEUED_REQUESTS: ${STRATUM_MAX_QUEUED_REQUESTS:-32}
       # Where Stratum keeps records while the database cannot be reached, and replays them when it is back.
@@ -318,6 +325,8 @@ services:
   web:
     environment:
       XELDASH_ALLOWED_NETWORKS: ${XELDASH_ALLOWED_NETWORKS:-private}
+      # In public mode this is the public view: no node administration, and no IP addresses from the API.
+      XELDASH_PUBLIC_MODE: ${XELDASH_PUBLIC_MODE:-false}
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/web:${XELDASH_VERSION:-local}
     build:
       context: .
@@ -331,6 +340,34 @@ services:
         condition: service_started
     ports:
       - "${XELDASH_WEB_BIND_IP:-127.0.0.1}:${XELDASH_WEB_PORT:-8088}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - edge
+
+  # Public mode only (profile "public"): the operator's own dashboard, with node administration, connection problems and
+  # miners' IP addresses. Published on this computer's loopback only (fixed here, not a setting), so reach it on the server or
+  # through an SSH tunnel. See docs/OPERATIONS.md#public-mode.
+  admin-web:
+    image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/web:${XELDASH_VERSION:-local}
+    profiles: ["public"]
+    environment:
+      XELDASH_PUBLIC_MODE: ${XELDASH_PUBLIC_MODE:-false}
+      XELDASH_WEB_VIEW: admin
+      # Your own network only, whatever XELDASH_ALLOWED_NETWORKS says for the public site.
+      XELDASH_ALLOWED_NETWORKS: private
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+      node-admin:
+        condition: service_started
+    ports:
+      - "127.0.0.1:${XELDASH_ADMIN_WEB_PORT:-8089}:8080"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
       interval: 10s
@@ -371,6 +408,34 @@ services:
     networks:
       - edge
 
+  # Public mode only (profile "public-https"): HTTPS for the public dashboard with a real Let's Encrypt certificate for
+  # XELDASH_PUBLIC_DOMAIN, and no login. Needs ports 80 and 443 reachable from the internet and the domain pointing at this server.
+  # Not the "proxy" profile: that one asks for a login and uses a local certificate, for a private dashboard.
+  public-https:
+    image: caddy:2.11-alpine
+    profiles: ["public-https"]
+    restart: unless-stopped
+    environment:
+      XELDASH_PUBLIC_DOMAIN: ${XELDASH_PUBLIC_DOMAIN:-}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        if [ -z "$$XELDASH_PUBLIC_DOMAIN" ]; then
+        echo "Set XELDASH_PUBLIC_DOMAIN in .env (see docs/OPERATIONS.md#public-mode)"; exit 1; fi;
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    volumes:
+      - ./docker/proxy/Caddyfile.public:/etc/caddy/Caddyfile:ro
+      # Keeps the certificate, so it is not requested again on every restart.
+      - public-https-data:/data
+    ports:
+      - "${XELDASH_PUBLIC_HTTPS_BIND_IP:-0.0.0.0}:80:80"
+      - "${XELDASH_PUBLIC_HTTPS_BIND_IP:-0.0.0.0}:443:443"
+    depends_on:
+      web:
+        condition: service_healthy
+    networks:
+      - edge
+
   # Optional: `docker compose --profile backup up -d`. Dumps the database to ./backups every
   # BACKUP_INTERVAL_HOURS and keeps the newest BACKUP_KEEP. See docs/OPERATIONS.md.
   backup:
@@ -402,6 +467,7 @@ volumes:
   xeldash-spool:
   postgres-data:
   proxy-data:
+  public-https-data:
 
 # Three networks, so a service can only reach what it needs:
 #   edge  the dashboard and the HTTPS proxy: they reach the API and node admin, nothing else.
