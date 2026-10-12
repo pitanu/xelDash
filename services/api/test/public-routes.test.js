@@ -98,4 +98,8 @@ test("the operator's admin web still sees miners' IP addresses (so the test abov
   const events = await body("/api/v1/events?limit=200", admin);
   assert.ok(events.text.includes(BAN_EVENT_IP));
   assert.equal(JSON.parse((await body("/api/v1/connect", admin)).text).view, "operator");
+  // The node is unreachable in this test: the dashboard is told so, not that the API failed.
+  const overview = await body("/api/v1/overview", admin);
+  assert.equal(overview.status, 503);
+  assert.equal(JSON.parse(overview.text).error, "node_unavailable");
 });

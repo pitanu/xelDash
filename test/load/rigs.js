@@ -6,9 +6,12 @@
 // Stages add rigs and hold; after each stage one JSON line with the results goes to stdout.
 //
 //   node rigs.js ADDRESS HOST PORT STAGES HOLD_SECONDS SHARE_SECONDS      e.g. node rigs.js xet:... stratum 3333 100,500,1000 60 10
+import { readFileSync } from "node:fs";
 import net from "node:net";
 
-const [address, host, portText, stagesText, holdText = "60", shareText = "10"] = process.argv.slice(2);
+const [addressArg, host, portText, stagesText, holdText = "60", shareText = "10"] = process.argv.slice(2);
+// One address, or "@file" with one address per line: rig n then mines to address n of the list (many different miners).
+const ADDRESSES = addressArg.startsWith("@") ? readFileSync(addressArg.slice(1), "utf8").split(/\s+/).filter(Boolean) : [addressArg];
 const PORT = Number(portText);
 const STAGES = stagesText.split(",").map(Number);
 const HOLD_MS = Number(holdText) * 1000;
@@ -26,6 +29,7 @@ function fresh() {
 
 class Rig {
   constructor(index) {
+    this.index = index;
     this.name = `load-${index}`;
     this.jobId = null;
     this.buffer = "";
@@ -38,7 +42,7 @@ class Rig {
     this.socket.on("connect", () => {
       this.open = true;
       this.send(1, "mining.subscribe", [`rig-sim/${index}`, ["xel/v3"]]);
-      this.send(2, "mining.authorize", [address, this.name, "d=1"]);
+      this.send(2, "mining.authorize", [ADDRESSES[this.index % ADDRESSES.length], this.name, "d=1"]);
     });
     this.socket.on("data", (chunk) => this.onData(chunk));
     this.socket.on("error", () => { if (!this.open) stage.connectFailed += 1; });

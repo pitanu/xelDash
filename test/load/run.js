@@ -8,6 +8,7 @@
 //   LOAD_STOP_DB=1 npm run load        stop the database first: shares are checked and answered but not written (Stratum keeps a journal), to
 //                                      measure the checking alone
 //   LOAD_KEEP=1 npm run load           leave the stack running afterwards
+//   LOAD_ADDRESSES_FILE=path npm run load  rigs mine to the addresses in that file (one per line, valid devnet addresses), in turn
 //   LOAD_PUBLIC=1 npm run load         as a public server (XELDASH_PUBLIC_MODE): its node-call budget and connection limits apply
 //
 // Needs Docker and about 15 minutes. Results are printed as a table; they depend on the computer it runs on, so read them as an
@@ -29,6 +30,7 @@ const SHARE_SECONDS = process.env.LOAD_SHARE_SECONDS ?? "10";
 const CHAIN = (process.env.LOAD_CHAIN ?? "1") === "1";
 const STOP_DB = process.env.LOAD_STOP_DB === "1";
 const PUBLIC = process.env.LOAD_PUBLIC === "1";
+const ADDRESSES_FILE = process.env.LOAD_ADDRESSES_FILE ?? "";
 const SERVICES = ["stratum", "daemon", "postgres", "api", "web"];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -158,8 +160,9 @@ async function main() {
 
   console.log("Starting the rigs...");
   docker(["rm", "-f", "load-rigs"], { allowFail: true });
-  docker(["run", "-d", "--name", "load-rigs", "--network", `${PROJECT}_node`, "-v", `${join(root, "test/load")}:/load:ro`, "ghcr.io/pitanu/xeldash/stratum:local",
-    "node", "/load/rigs.js", ADDRESS, "stratum", "3333", STAGES, HOLD, SHARE_SECONDS]);
+  docker(["run", "-d", "--name", "load-rigs", "--network", `${PROJECT}_node`, "-v", `${join(root, "test/load")}:/load:ro`,
+    ...(ADDRESSES_FILE ? ["-v", `${ADDRESSES_FILE}:/addresses.txt:ro`] : []), "ghcr.io/pitanu/xeldash/stratum:local",
+    "node", "/load/rigs.js", ADDRESSES_FILE ? "@/addresses.txt" : ADDRESS, "stratum", "3333", STAGES, HOLD, SHARE_SECONDS]);
   const results = [];
   const stagesCount = STAGES.split(",").length;
   const deadline = Date.now() + (Number(HOLD) + 240) * 1000 * stagesCount;
@@ -208,6 +211,16 @@ async function main() {
   const stratumLogs = compose(["logs", "stratum", "--tail", "400"], { allowFail: true }).text;
   const warnings = [...new Set(stratumLogs.split("\n").filter((l) => /warn|error|fail|Banning|Closing|limit/i.test(l)).map((l) => l.replace(/^.*?\| /, "").slice(0, 160)))].slice(0, 8);
   if (warnings.length) console.log(`\nStratum warnings during the run:\n  ${warnings.join("\n  ")}`);
+  // How the node's work was shared: between all addresses (one template per block) or per address. See job-provider.js.
+  const sharing = [...new Set(stratumLogs.split("\n").filter((l) => /work is the same for every address|work differs between addresses/.test(l))
+    .map((l) => l.replace(/^.*?\| /, "").trim()))];
+  console.log(`\nWork sharing: ${sharing.length ? sharing.join(" / ") : "not decided during the run (fewer than two addresses asked at once)"}`);
+  // A run where the rigs could not connect measured nothing: say so loudly instead of printing a table of zeros as a result.
+  const empty = results.filter((r) => !(r.connected > 0));
+  if (empty.length) {
+    console.error(`\nNo rigs connected at ${empty.map((r) => r.stage).join(", ")}: these numbers are not a measurement. Check \`docker logs load-rigs\`.`);
+    process.exitCode = 1;
+  }
   void heightsFrom;
 }
 

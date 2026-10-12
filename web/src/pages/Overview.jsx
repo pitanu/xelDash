@@ -40,7 +40,10 @@ export default function Overview() {
     <div className="space-y-6">
       {operator && <SetupBanner />}
       {operator && <DiskWarning />}
-      {overview.error && !o && <p className="text-sm text-critical">Unable to reach the xelDash API.</p>}
+      {overview.error && !o && (/** @type {any} */ (overview.error).code === "node_unavailable"
+        ? <p className="text-sm text-ink-2">The XELIS node is not answering yet. On a first start that takes a while: the blockchain is
+          downloaded and then caught up with the network. <a href="#/health" className="underline decoration-line underline-offset-2 hover:text-ink">Health</a> shows how it is going.</p>
+        : <p className="text-sm text-critical">Unable to reach the xelDash API.</p>)}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="col-span-2">
           <StatTile hero icon="hashrate" aside={miningBadge} label="Hashrate, last hour" value={formatHashrate(o?.miningEstimates?.["1h"]?.estimatedHashesPerSecond)}

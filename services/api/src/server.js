@@ -94,10 +94,17 @@ async function allNodeUrls() {
   return fallback && !nodeUrls.includes(fallback) ? [...nodeUrls, fallback] : nodeUrls;
 }
 
+/** The XELIS node did not answer (still starting, downloading or catching up, or stopped): not the API's own fault. */
+class NodeUnavailable extends Error {}
+
 /** @param {string} method @param {number} [timeoutMs] */
 async function daemonCall(method, timeoutMs = 5_000) {
-  if (publicMode) return nodeAnswers.get(`call:${method}`, async () => callAnyNode(await allNodeUrls(), method, timeoutMs));
-  return callAnyNode(await allNodeUrls(), method, timeoutMs);
+  try {
+    if (publicMode) return await nodeAnswers.get(`call:${method}`, async () => callAnyNode(await allNodeUrls(), method, timeoutMs));
+    return await callAnyNode(await allNodeUrls(), method, timeoutMs);
+  } catch (error) {
+    throw new NodeUnavailable(error instanceof Error ? error.message : String(error));
+  }
 }
 
 async function getOverview() {
@@ -422,7 +429,8 @@ async function route(request, response, publicView, sendJson) {
     sendJson(response, 404, { error: "not_found" });
   } catch (error) {
     console.error("API request failed:", error instanceof Error ? error.message : String(error));
-    sendJson(response, 503, { error: "dependency_unavailable" });
+    // Say which: the dashboard tells "the node is not answering yet" apart from "the API cannot work".
+    sendJson(response, 503, { error: error instanceof NodeUnavailable ? "node_unavailable" : "dependency_unavailable" });
   }
 }
 

@@ -9,12 +9,17 @@ breaking changes; they are marked **Breaking**.
 
 ### Mining
 
+- Rigs share the node's work between all addresses (one template per block for every miner), once the node is seen to give
+  the same work to each address; a devnet test checks every block pays the rig that found it. The node's load no longer grows
+  with the number of miners: 4,000 rigs on 200 different addresses used about 1% of a core on the node.
 - Rigs mining to the same address share their work from the node: two calls to the node per block for each address instead of
   for each rig. On the capacity test (one address) 2,000 rigs went from overloaded (answers up to 16 s) to smooth (3 ms typical),
   and 4,000 rigs now work; see docs/REQUIREMENTS.md.
 
 ### Dashboard and API
 
+- While the XELIS node is not answering yet (a first start: downloading and catching up), the Overview says so instead of
+  "Unable to reach the xelDash API".
 - **Public mode** (`XELDASH_PUBLIC_MODE=true`), for a server anyone may solo mine on, each to their own address: visitors get
   no IP addresses, no connection problems and no node administration, a "Mine here" page shows how to connect, and a login
   without an address is refused. The operator's full dashboard is on 127.0.0.1 only (Compose profile `public`), and the

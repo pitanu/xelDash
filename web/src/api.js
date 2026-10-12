@@ -10,7 +10,13 @@ const LIVE_DEBOUNCE_MS = 400;
 /** @param {string} path */
 async function getJson(path) {
   const response = await fetch(path, { headers: { accept: "application/json" } });
-  if (!response.ok) throw new Error(`${path} returned HTTP ${response.status}`);
+  if (!response.ok) {
+    // Keep the API's reason ("node_unavailable", ...) so a page can say what is actually wrong.
+    const body = await response.json().catch(() => null);
+    const error = /** @type {Error & { code?: string }} */ (new Error(`${path} returned HTTP ${response.status}`));
+    error.code = typeof body?.error === "string" ? body.error : undefined;
+    throw error;
+  }
   return response.json();
 }
 
