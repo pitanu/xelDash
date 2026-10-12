@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AdminUnlock, useAdminToken } from "./AdminUnlock.jsx";
 import { Card, WorkersTable } from "./ui.jsx";
+import { useOperatorView } from "../server-mode.js";
 
 /**
  * A miner's workers. Workers without shares for 7 days drop off by themselves; "Remove workers"
@@ -8,6 +9,8 @@ import { Card, WorkersTable } from "./ui.jsx";
  * @param {{ address: string, workers: any[] | undefined, onChanged: () => void, title?: React.ReactNode }} props
  */
 export default function WorkersCard({ address, workers, onChanged, title = "Workers" }) {
+  // Removing workers is node administration: the operator's view only.
+  const operator = useOperatorView();
   const admin = useAdminToken();
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState(/** @type {string | null} */ (null));
@@ -28,7 +31,7 @@ export default function WorkersCard({ address, workers, onChanged, title = "Work
 
   return (
     <Card title={title} subtitle="Workers without shares for 7 days are left out."
-      action={workers && workers.length > 0 && (
+      action={operator && workers && workers.length > 0 && (
         <button type="button" onClick={() => setEditing((v) => !v)} className="inline-flex min-h-6 items-center text-xs text-ink-2 hover:text-ink hover:underline">
           {editing ? "Done" : "Remove workers"}
         </button>

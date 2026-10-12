@@ -7,6 +7,7 @@ import DiskWarning from "../components/DiskWarning.jsx";
 import { EffortSummary } from "../components/LuckCard.jsx";
 import SetupBanner from "../components/SetupBanner.jsx";
 import { SupportNudge } from "../components/SupportCard.jsx";
+import { useOperatorView } from "../server-mode.js";
 import { BlocksTable, Card, EventsList, HealthBadge, StatTile } from "../components/ui.jsx";
 import { formatCompact, formatDuration, formatHashrate, formatInteger, formatBucket } from "../format.js";
 
@@ -16,6 +17,8 @@ function countOf(rows, status) {
 }
 
 export default function Overview() {
+  // The setup guide, disk warning and "you found a block" note are for the server's operator, not a public server's visitors.
+  const operator = useOperatorView();
   const [range, setRange] = useState("24h");
   const overview = usePolled("/api/v1/overview");
   const history = usePolled(`/api/v1/hashrate?range=${range}`);
@@ -35,8 +38,8 @@ export default function Overview() {
 
   return (
     <div className="space-y-6">
-      <SetupBanner />
-      <DiskWarning />
+      {operator && <SetupBanner />}
+      {operator && <DiskWarning />}
       {overview.error && !o && <p className="text-sm text-critical">Unable to reach the xelDash API.</p>}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="col-span-2">
@@ -60,7 +63,7 @@ export default function Overview() {
           detail={o ? `${o.node.network} · ${o.node.version}` : undefined} />
       </div>
 
-      <SupportNudge network={o?.node?.network} blocks={countOf(blockRows, "main-chain")} />
+      {operator && <SupportNudge network={o?.node?.network} blocks={countOf(blockRows, "main-chain")} />}
 
       <EffortSummary luck={o?.luck} />
 

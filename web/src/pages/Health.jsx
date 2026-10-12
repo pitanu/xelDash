@@ -6,6 +6,7 @@ import FrontDoorCard from "../components/FrontDoorCard.jsx";
 import DiskWarning from "../components/DiskWarning.jsx";
 import ProblemsCard from "../components/ProblemsCard.jsx";
 import UptimeCard from "../components/UptimeCard.jsx";
+import { useOperatorView } from "../server-mode.js";
 
 /** @param {{ label: string, children: React.ReactNode, detail?: React.ReactNode }} props */
 function ServiceTile({ label, children, detail }) {
@@ -60,6 +61,8 @@ function NodesList({ nodes }) {
 }
 
 export default function Health() {
+  // Disk, cluster, front door and connection problems (with miners' IP addresses) are for the operator only.
+  const operator = useOperatorView();
   const status = usePolled("/api/v1/status");
   const events = usePolled("/api/v1/events?limit=30");
   const s = status.data;
@@ -121,10 +124,10 @@ export default function Health() {
         </Card>
       )}
 
-      <DiskWarning />
-      <ClusterCard />
-      <FrontDoorCard />
-      <ProblemsCard network={node?.network ?? "mainnet"} />
+      {operator && <DiskWarning />}
+      {operator && <ClusterCard />}
+      {operator && <FrontDoorCard />}
+      {operator && <ProblemsCard network={node?.network ?? "mainnet"} />}
       <UptimeCard />
 
       <div className="grid gap-6 lg:grid-cols-2">

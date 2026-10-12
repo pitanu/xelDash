@@ -18,8 +18,14 @@ import { ThemeButton } from "./components/ThemeSetting.jsx";
 import { formatMoney, usePrice } from "./price.js";
 import { consumeTokenFromUrl } from "./session-token.js";
 import Setup from "./pages/Setup.jsx";
+import Connect from "./pages/Connect.jsx";
+import { useServerMode } from "./server-mode.js";
 
 const NAV = [["/", "Overview"], ["/miners", "Miners"], ["/blocks", "Blocks"], ["/health", "Health"], ["/nodes", "Nodes"], ["/settings", "Settings"]];
+// A public server's visitors: no node administration or settings, and a page on how to mine here instead.
+const PUBLIC_NAV = [["/", "Overview"], ["/miners", "Miners"], ["/blocks", "Blocks"], ["/health", "Health"], ["/connect", "Mine here"]];
+// Pages for the server's operator only (they need node administration, or set the server up).
+const OPERATOR_PAGES = ["/setup", "/nodes", "/node-data", "/settings"];
 
 /** The xelDash mark: a pickaxe-like X on the accent color. */
 function Logo() {
@@ -74,7 +80,7 @@ function useHashRoute() {
 }
 
 // Pages that show their own top-level heading; the others get one for screen readers.
-const PAGES_WITH_OWN_HEADING = ["/miners", "/miner", "/nodes", "/node-data", "/settings", "/setup"];
+const PAGES_WITH_OWN_HEADING = ["/miners", "/miner", "/nodes", "/node-data", "/settings", "/setup", "/connect"];
 const PAGE_NAMES = /** @type {Record<string, string>} */ ({ "/": "Overview", "/blocks": "Blocks", "/health": "Health" });
 
 function Blocks() {
@@ -102,6 +108,18 @@ function decode(segment) {
   }
 }
 
+/** An operator-only page opened on a public server's public view. */
+function OperatorOnly() {
+  return (
+    <Card title="Not available here">
+      <p className="text-sm text-ink-2">
+        This is a public mining server: its administration is only open to its operator. To mine here, see{" "}
+        <a href="#/connect" className="underline decoration-line underline-offset-2 hover:text-ink">Mine here</a>.
+      </p>
+    </Card>
+  );
+}
+
 /** Shown for an address that is not a page, such as a mistyped or very old link. */
 function NotFound() {
   return (
@@ -116,6 +134,10 @@ function NotFound() {
 
 export default function App() {
   const route = useHashRoute();
+  const mode = useServerMode();
+  const operator = mode.known && !mode.publicView;
+  // Until the mode is known, the operator's links stay hidden (they flash up for nobody on a public server).
+  const nav = mode.publicView ? PUBLIC_NAV : operator ? NAV : NAV.filter(([href]) => !OPERATOR_PAGES.includes(href));
   const workerMatch = /^\/miner\/([^/]+)\/worker\/(.+)$/.exec(route);
   const minerMatch = /^\/miner\/([^/]+)$/.exec(route);
   let page = <NotFound />;
@@ -134,8 +156,11 @@ export default function App() {
   // #/node-data is the page's old address, kept for bookmarks.
   else if (route === "/nodes" || route === "/node-data") page = <NodeData />;
   else if (route === "/settings") page = <Settings />;
+  else if (route === "/connect") page = <Connect />;
+  // On a public server's public view the operator's pages are not offered (node-admin is not even reachable from it).
+  if (OPERATOR_PAGES.includes(route) && !operator) page = mode.known ? <OperatorOnly /> : null;
 
-  const section = ["/miners", "/blocks", "/health", "/nodes", "/settings"].includes(route) ? route
+  const section = ["/miners", "/blocks", "/health", "/nodes", "/settings", "/connect"].includes(route) ? route
     : route === "/node-data" ? "/nodes" : route.startsWith("/miner/") ? "/miners" : "/";
   return (
     <div>
@@ -154,7 +179,7 @@ export default function App() {
           <div className="flex w-full min-w-0 items-center gap-1 sm:w-auto">
             {/* Scrolls sideways on very narrow screens instead of clipping a link. */}
             <nav className="flex min-w-0 gap-0.5 overflow-x-auto text-[13px] sm:gap-1 sm:text-sm">
-              {NAV.map(([href, label]) => (
+              {nav.map(([href, label]) => (
                 <a key={href} href={`#${href}`} aria-current={section === href ? "page" : undefined}
                   className={`shrink-0 rounded-md px-1.5 py-1 sm:px-2.5 ${section === href ? "bg-wash font-semibold text-ink" : "text-ink-2 hover:bg-wash hover:text-ink"}`}>
                   {label}
@@ -166,8 +191,8 @@ export default function App() {
         </div>
       </header>
       <OfflineNotice />
-      <ClusterBanner />
-      <UpdateNotice />
+      {operator && <ClusterBanner />}
+      {operator && <UpdateNotice />}
       <BlockBanner />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         {!PAGES_WITH_OWN_HEADING.some((p) => route === p || route.startsWith(`${p}/`)) && <h1 className="sr-only">{PAGE_NAMES[route] ?? "Page not found"}</h1>}

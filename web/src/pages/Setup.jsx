@@ -148,7 +148,7 @@ function Field({ label, value, hint }) {
 }
 
 /** What to type into a mining program. @param {{ info: any }} props */
-function ConnectPanel({ info }) {
+export function ConnectPanel({ info }) {
   const [miner, setMiner] = useState("rigel");
   const frontDoor = usePolled("/api/v1/front-door", { intervalMs: 30_000 }).data;
   if (!info) return null;
