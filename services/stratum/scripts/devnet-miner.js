@@ -151,6 +151,13 @@ async function submit(work, bytes, value, hash) {
   await new Promise((resolve) => setTimeout(resolve, 500));
   try {
     const block = await rpc("get_block_by_hash", { hash: blockHash });
+    // The block must pay this miner's address: Stratum may build work from a template fetched for another address (it is
+    // shared between addresses), and the node takes the miner from the submitted work, so this proves the reward lands right.
+    if (String(block.miner).toLowerCase() !== address.toLowerCase()) {
+      failures += 1;
+      console.warn(`block ${blockHash} pays ${block.miner}, not ${address}`);
+      return;
+    }
     found += 1;
     console.info(`OK block ${blockHash} height ${block.height} miner ${block.miner}`);
   } catch (error) {

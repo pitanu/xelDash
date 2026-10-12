@@ -412,7 +412,8 @@ function handleActiveChange(active, previous) {
     return;
   }
   record("node_switched", { from: previous.label, to: active.label, nodes: states });
-  jobProvider.invalidate();
+  // The other node may run another XELIS release: check again whether its work can be shared between addresses.
+  jobProvider.recheck();
   for (const session of sessions.values()) void session.refreshJob(true);
 }
 await nodes.start();

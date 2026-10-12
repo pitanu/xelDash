@@ -11,7 +11,7 @@
 // Runs in its own Docker Compose project (xeldash-e2e) on its own ports, so it does not touch a stack that is already running.
 import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,6 +22,8 @@ const root = fileURLToPath(new URL("../..", import.meta.url));
 const PROJECT = "xeldash-e2e";
 const WEB = "http://127.0.0.1:28088";
 const ADDRESS = "xet:vs3mfyywt0fjys0rgslue7mm4wr23xdgejsjk0ld7f2kxng4d4nqqt98v9u";
+// A second miner: the public key of the project's donation address, written for a test network (bech32 with the "xet" prefix).
+const ADDRESS_2 = "xet:060exlhsp28xzkxf8zpa04kw33dgs7tcqu8sq8zntddf9h7wmvusqu5q0yg";
 const SECRET = "e2e0123456789abcdef0123456789abc";
 const MINER_IMAGE = "xelis/miner:1.21.3";
 
@@ -80,6 +82,24 @@ function mine(blocks, { host = "stratum", worker = "e2e", network = `${PROJECT}_
   ], { timeout: 900_000 });
   assert.match(out.text, new RegExp(`${blocks} blocks verified, 0 failed`), out.text.slice(-800));
   return out.text;
+}
+
+/** Like mine(), for one address, run alongside others. @param {string} address @param {number} blocks @param {string} worker */
+function mineAt(address, blocks, worker) {
+  return new Promise((resolve, reject) => {
+    const child = spawn("docker", [
+      "run", "--rm", "--network", `${PROJECT}_edge`, "--network", `${PROJECT}_node`,
+      "-v", `${join(root, "services/stratum/scripts")}:/app/services/stratum/scripts:ro`, "-w", "/app/services/stratum",
+      "-e", "MINER_STRATUM_HOST=stratum", "-e", `MINER_WORKER=${worker}`, "-e", "XELIS_RPC_URL=http://daemon:8080/json_rpc",
+      "ghcr.io/pitanu/xeldash/stratum:local", "node", "scripts/devnet-miner.js", address, String(blocks),
+    ], { cwd: root });
+    let text = "";
+    child.stdout.on("data", (d) => { text += d; });
+    child.stderr.on("data", (d) => { text += d; });
+    const timer = setTimeout(() => { child.kill(); reject(new Error(`${worker} timed out:
+${text.slice(-800)}`)); }, 900_000);
+    child.on("close", () => { clearTimeout(timer); resolve(text); });
+  });
 }
 
 const blockCount = async () => (await api("/api/v1/blocks?limit=500")).blocks.length;
@@ -150,6 +170,25 @@ test("a miner through Stratum finds blocks the daemon accepts, and the dashboard
   const csv = await (await get(`${WEB}/api/v1/blocks.csv`)).text();
   assert.match(csv, /^found_at_utc,height,/);
   assert.ok(csv.split("\r\n").length >= before + 4, "the CSV has a row per block");
+});
+
+test("rigs on two different addresses share one template, and every block pays the rig that found it", { skip }, async () => {
+  // Both rigs ask for work at the same moments, so Stratum compares their work, finds it the same (XELIS does not put the miner
+  // in the header work hash), and from then on fetches one template for both. Each devnet miner checks with the node that every
+  // block it found pays its own address (the node takes the miner from the submitted work, not from the template).
+  const [one, two] = await Promise.all([mineAt(ADDRESS, 3, "e2e-addr-1"), mineAt(ADDRESS_2, 3, "e2e-addr-2")]);
+  for (const [address, out] of [[ADDRESS, one], [ADDRESS_2, two]]) {
+    assert.match(out, /3 blocks verified, 0 failed/, `${address}:
+${out.slice(-800)}`);
+    assert.doesNotMatch(out, / pays /, "no block paid another address");
+  }
+  const log = docker(["logs", `${PROJECT}-stratum-1`]).text;
+  assert.match(log, /its work is the same for every address, so it is shared between all miners/, "the work really was shared between the two addresses");
+  assert.doesNotMatch(log, /its work differs between addresses/);
+  // And xelDash recorded each block under the address the node says it pays.
+  const blocks = (await api("/api/v1/blocks?limit=500")).blocks.filter((b) => b.worker === "e2e-addr-1" || b.worker === "e2e-addr-2");
+  assert.ok(blocks.filter((b) => b.address === ADDRESS).length >= 3 && blocks.filter((b) => b.address === ADDRESS_2).length >= 3);
+  for (const b of blocks) assert.equal(b.address, b.worker === "e2e-addr-1" ? ADDRESS : ADDRESS_2);
 });
 
 test("the official miner through getwork shows up as its own worker", { skip }, async () => {
