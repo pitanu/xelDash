@@ -108,6 +108,18 @@ test("login styles: [address, worker, password], address.worker, options in the 
   for (const s of [a, b, c, d, e]) s.session.close();
 });
 
+test("on a public server a login without an address is refused, even with a default address set", async () => {
+  const pub = harness({ defaultAddress: ADDRESS, requireAddress: true }); await login(pub, []);
+  assert.equal(pub.reply(2).error.code, STRATUM_ERRORS.UNAUTHORIZED);
+  assert.match(pub.reply(2).error.message, /public server.*your own XELIS address/);
+  assert.equal(pub.session.miningAddress, null, "nothing mines to the operator's address");
+  assert.deepEqual(pub.events.problems, [{ reason: "no_address" }]);
+  const own = harness({ defaultAddress: ADDRESS, requireAddress: true }); await login(own, [`${ADDRESS}.rig1`]);
+  assert.equal(own.reply(2).result, true, "a miner with its own address mines as usual");
+  assert.equal(own.session.miningAddress, ADDRESS);
+  for (const s of [pub, own]) s.session.close();
+});
+
 test("bad login parameters are refused and counted against the miner", async () => {
   for (const params of [[ADDRESS, ""], [ADDRESS, "w".repeat(129)], [ADDRESS, "bad\nname"], [ADDRESS, "bad\u001b[31m"], [ADDRESS, "w", 5], [42, "w"]]) {
     const h = harness();

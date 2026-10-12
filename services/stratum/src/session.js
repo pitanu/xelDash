@@ -56,9 +56,10 @@ export class StratumSession {
    *   jobRefreshIntervalMs?: number,
    *   vardiff?: import("./vardiff.js").VardiffConfig,
    *   defaultAddress?: string,
+   *   requireAddress?: boolean,
    *   logger?: Pick<Console, "warn"> }} options
    */
-  constructor({ socket, authorizeAddress, createJob = null, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, onSubmission = () => {}, onProblem = () => {}, onStale = () => {}, staleGraceMs = DEFAULT_STALE_GRACE_MS, canMine = () => null, jobRefreshIntervalMs = 5000, vardiff = DEFAULT_VARDIFF, defaultAddress = "", logger = console }) {
+  constructor({ socket, authorizeAddress, createJob = null, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, onSubmission = () => {}, onProblem = () => {}, onStale = () => {}, staleGraceMs = DEFAULT_STALE_GRACE_MS, canMine = () => null, jobRefreshIntervalMs = 5000, vardiff = DEFAULT_VARDIFF, defaultAddress = "", requireAddress = false, logger = console }) {
     this.socket = socket;
     this.authorizeAddress = authorizeAddress;
     this.createJob = createJob;
@@ -79,6 +80,8 @@ export class StratumSession {
     this.canMine = canMine;
     this.jobRefreshIntervalMs = jobRefreshIntervalMs;
     this.defaultAddress = defaultAddress;
+    // Public mode: every miner must send its own address; the server's default is never used.
+    this.requireAddress = requireAddress;
     this.logger = logger;
     this.algorithm = null;
     this.subscribed = false;
@@ -216,13 +219,15 @@ export class StratumSession {
     }
     const address = typeof requestedAddress === "string" && requestedAddress.length > 0
       ? requestedAddress
-      : this.defaultAddress;
+      : this.requireAddress ? "" : this.defaultAddress;
     if (!address) {
       this.onProblem({ reason: "no_address" });
       this.send(errorResponse(
         request.id,
         STRATUM_ERRORS.UNAUTHORIZED,
-        "Provide a miner address or configure XELIS_DEFAULT_ADDRESS",
+        this.requireAddress
+          ? "This is a public server: log in with your own XELIS address as the user name (address.worker)"
+          : "Provide a miner address or configure XELIS_DEFAULT_ADDRESS",
       ));
       return;
     }

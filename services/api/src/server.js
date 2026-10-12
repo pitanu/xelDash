@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createPool } from "@xeldash/db";
 import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, getBlockTotals, listBlocks, listEvents, listMiners, listProblems } from "./queries.js";
 import { loadAlertConfig, watchAlerts } from "./alerts.js";
@@ -14,6 +15,7 @@ import { handleIngest } from "./ingest.js";
 import { getStatus } from "./status.js";
 import { updateStatus } from "./update.js";
 import { getUptime } from "./uptime.js";
+import { isPublicView, publicModeFromEnv, publicModeWarnings, scrubIps } from "./public-mode.js";
 
 const port = Number.parseInt(process.env.API_PORT ?? "8081", 10);
 const host = process.env.API_HOST ?? "0.0.0.0";
@@ -26,6 +28,8 @@ const stratumPort = Number.parseInt(process.env.STRATUM_PROBE_PORT ?? "3333", 10
 const network = (process.env.XELIS_NETWORK ?? "devnet").toLowerCase();
 const priceOff = (process.env.XELDASH_PRICE ?? "on").toLowerCase() === "off" ? "server" : network !== "mainnet" ? "network" : null;
 const pool = createPool();
+// Public mode: no IP addresses in anything a visitor receives (see public-mode.js).
+const publicMode = publicModeFromEnv(process.env);
 const HASHRATE_WINDOWS = Object.freeze([
   { key: "5m", seconds: 300, difficultyColumn: "difficulty_5m" },
   { key: "1h", seconds: 3600, difficultyColumn: "difficulty_1h" },
@@ -141,7 +145,7 @@ function safeDecode(segment) {
 }
 
 /** @param {import("node:http").ServerResponse} response @param {number} statusCode @param {unknown} value */
-function sendJson(response, statusCode, value) {
+function writeJson(response, statusCode, value) {
   const body = JSON.stringify(value);
   response.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
@@ -152,7 +156,10 @@ function sendJson(response, statusCode, value) {
   response.end(body);
 }
 
-const server = createServer(async (request, response) => {
+export const server = createServer(async (request, response) => {
+  const publicView = isPublicView(publicMode, request);
+  /** Every JSON answer; in the public view without IP addresses. @param {import("node:http").ServerResponse} res @param {number} statusCode @param {unknown} value */
+  const sendJson = (res, statusCode, value) => writeJson(res, statusCode, publicView ? scrubIps(value) : value);
   /** @type {URL} */
   let url;
   try {
@@ -203,18 +210,20 @@ const server = createServer(async (request, response) => {
     }
 
     if (pathname === "/api/v1/status") {
-      sendJson(response, 200, await getStatus({
+      const status = await getStatus({
         pool,
         nodeUrls,
         fallbackUrl: await fallbackUrl(),
         stratumHost,
         stratumPort,
-      }));
+      });
+      // Bans are a list of IP addresses: the public view does not list them at all.
+      sendJson(response, 200, publicView ? { ...status, bans: [] } : status);
       return;
     }
 
     if (pathname === "/api/v1/connect") {
-      sendJson(response, 200, await getConnectInfo());
+      sendJson(response, 200, await getConnectInfo(process.env, { publicMode, publicView }));
       return;
     }
 
@@ -335,7 +344,9 @@ const server = createServer(async (request, response) => {
       const healthUrl = (process.env.STRATUM_HEALTH_URL ?? "http://stratum:8096/healthz").replace(/\/healthz$/, "/status");
       try {
         const body = await (await fetch(healthUrl, { signal: AbortSignal.timeout(2_000) })).json();
-        sendJson(response, 200, body.frontDoor ? { configured: true, ...body.frontDoor } : { configured: false });
+        // `from` lists the operator's own forwarder addresses: not for the public view.
+        const frontDoor = body.frontDoor && publicView ? { viaFrontDoor: body.frontDoor.viaFrontDoor, direct: body.frontDoor.direct } : body.frontDoor;
+        sendJson(response, 200, frontDoor ? { configured: true, ...frontDoor } : { configured: false });
       } catch {
         sendJson(response, 200, { configured: false });
       }
@@ -353,7 +364,8 @@ const server = createServer(async (request, response) => {
     }
 
     if (pathname === "/api/v1/problems") {
-      sendJson(response, 200, { problems: await listProblems(pool) });
+      // Connection problems name the IP behind each failed login: the operator's view only.
+      sendJson(response, 200, publicView ? { problems: [], hidden: true } : { problems: await listProblems(pool) });
       return;
     }
 
@@ -369,19 +381,28 @@ const server = createServer(async (request, response) => {
   }
 });
 
-const alerts = watchAlerts({ pool, env: process.env, file: join(process.env.CONFIG_DIR ?? "/config", "alerts.json") });
-const live = startLiveUpdates({ server, pool, onNotification: (payload) => alerts?.handleNotification(payload) });
+// Started only when run as the API (`node src/server.js`); tests import `server` and drive it themselves.
+// import.meta.main is Node 24+; the path comparison covers older versions.
+const isMain = import.meta.main ?? (Boolean(process.argv[1]) && resolve(process.argv[1]) === fileURLToPath(import.meta.url));
+if (isMain) await start();
 
-server.listen(port, host, () => {
-  console.info(`xelDash API listening on ${host}:${port}`);
-});
+async function start() {
+  for (const warning of publicModeWarnings(process.env)) console.warn(`Public mode: ${warning}`);
+  if (publicMode) console.info("Public mode: visitors get no IP addresses, no connection problems and no node administration.");
+  const alerts = watchAlerts({ pool, env: process.env, file: join(process.env.CONFIG_DIR ?? "/config", "alerts.json") });
+  const live = startLiveUpdates({ server, pool, onNotification: (payload) => alerts?.handleNotification(payload) });
 
-async function shutdown() {
-  server.close();
-  alerts?.stop();
-  await live.stop();
-  await pool.end();
+  server.listen(port, host, () => {
+    console.info(`xelDash API listening on ${host}:${port}`);
+  });
+
+  async function shutdown() {
+    server.close();
+    alerts?.stop();
+    await live.stop();
+    await pool.end();
+  }
+
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
 }
-
-process.once("SIGINT", shutdown);
-process.once("SIGTERM", shutdown);

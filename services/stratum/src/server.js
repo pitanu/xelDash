@@ -61,6 +61,10 @@ if (!Number.isSafeInteger(handshakeTimeoutMs) || handshakeTimeoutMs < 1000
   throw new Error("Stratum handshake timeout, queue limit, or job refresh interval is invalid");
 }
 
+// Public mode (XELDASH_PUBLIC_MODE): anyone may mine here, so every miner must log in with its own address and there is no default.
+const publicMode = /^(1|true|yes|on)$/i.test((process.env.XELDASH_PUBLIC_MODE ?? "").trim());
+if (publicMode) console.info("Public mode: miners must log in with their own address; the default address is not used.");
+
 // The address for miners that send none: chosen on the dashboard's setup page, else .env.
 const defaultAddress = watchDefaultAddress({
   file: process.env.XELDASH_MINING_ADDRESS_FILE ?? "/config/mining-address.json",
@@ -236,7 +240,8 @@ function newSession(socket, ip, onAuthorized = () => {}) {
     submitShare,
     jobRefreshIntervalMs,
     vardiff,
-    defaultAddress: defaultAddress.get(),
+    defaultAddress: publicMode ? "" : defaultAddress.get(),
+    requireAddress: publicMode,
     onProblem: (problem) => reportProblem("login_problem", { ip, ...problem }),
     onAuthorized,
     onSubmission: (valid) => ipGuard.record(ip, valid),

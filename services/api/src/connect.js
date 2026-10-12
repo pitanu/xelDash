@@ -11,19 +11,22 @@ function port(value, fallback) {
   return Number.isInteger(n) && n > 0 && n < 65536 ? n : fallback;
 }
 
-/** The address chosen on the setup page, else the one from .env, else none. */
-async function savedAddress() {
+/** The address chosen on the setup page, else the one from .env, else none. @param {Partial<Record<string, string | undefined>>} env */
+async function savedAddress(env) {
   try {
     const saved = JSON.parse(await readFile(ADDRESS_FILE, "utf8"));
     if (typeof saved.address === "string" && saved.address) return saved.address;
   } catch {
     // Nothing saved yet.
   }
-  return process.env.XELIS_DEFAULT_ADDRESS?.trim() || null;
+  return env.XELIS_DEFAULT_ADDRESS?.trim() || null;
 }
 
-/** @param {Partial<Record<string, string | undefined>>} env */
-export async function getConnectInfo(env = process.env) {
+/**
+ * @param {Partial<Record<string, string | undefined>>} env
+ * @param {{ publicMode?: boolean, publicView?: boolean }} [mode] public mode, and whether this request gets the public view
+ */
+export async function getConnectInfo(env = process.env, { publicMode = false, publicView = false } = {}) {
   const bind = env.CONNECT_BIND_IP ?? "127.0.0.1";
   return {
     network: (env.XELIS_NETWORK ?? "devnet").toLowerCase(),
@@ -34,6 +37,10 @@ export async function getConnectInfo(env = process.env) {
     getworkPort: (env.GETWORK_ENABLED ?? "true").toLowerCase() === "false" ? null : port(env.CONNECT_GETWORK_PORT, 8090),
     // False while Stratum only listens on this machine: rigs elsewhere cannot connect yet.
     reachableFromNetwork: bind !== "127.0.0.1" && bind !== "localhost" && bind !== "::1",
-    address: await savedAddress(),
+    // On a public server every miner mines to its own address: the operator's default is never offered to visitors.
+    address: publicView ? null : await savedAddress(env),
+    publicMode,
+    // "public": a visitor of a public server (no administration, no IP addresses); "operator": everyone else.
+    view: publicView ? "public" : "operator",
   };
 }
