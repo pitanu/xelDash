@@ -4,6 +4,7 @@
 //
 //   npm run load                      stages 100, 500, 1000, 2000 for 60 s each, with a miner producing blocks in the background
 //   LOAD_STAGES=50,200 LOAD_HOLD=30 npm run load
+//   LOAD_CHAIN_THREADS=8 npm run load  the background miner on 8 threads: blocks about as often as on mainnet (~5 s)
 //   LOAD_CHAIN=0 npm run load          no blocks while it runs (jobs change only with the periodic refresh)
 //   LOAD_STOP_DB=1 npm run load        stop the database first: shares are checked and answered but not written (Stratum keeps a journal), to
 //                                      measure the checking alone
@@ -28,9 +29,16 @@ const STAGES = process.env.LOAD_STAGES ?? "100,500,1000,2000";
 const HOLD = process.env.LOAD_HOLD ?? "60";
 const SHARE_SECONDS = process.env.LOAD_SHARE_SECONDS ?? "10";
 const CHAIN = (process.env.LOAD_CHAIN ?? "1") === "1";
+// CPU threads of the background miner. One thread is below the devnet's minimum difficulty (2 KH/s), so blocks come slower than
+// mainnet's ~5 s; more threads bring the block rate up to mainnet's (the table's blocks/min shows what a run really had).
+const CHAIN_THREADS = process.env.LOAD_CHAIN_THREADS ?? "1";
 const STOP_DB = process.env.LOAD_STOP_DB === "1";
 const PUBLIC = process.env.LOAD_PUBLIC === "1";
 const ADDRESSES_FILE = process.env.LOAD_ADDRESSES_FILE ?? "";
+// All simulated rigs come from one IP address. On a public server that IP may use only 32 different addresses (then it is
+// refused and banned, as an attack would be); real miners come from many IP addresses, so a run that stands for many miners
+// raises this (like STRATUM_MAX_CONNECTIONS_PER_IP below).
+const ADDRESSES_PER_IP = process.env.LOAD_ADDRESSES_PER_IP ?? "";
 const SERVICES = ["stratum", "daemon", "postgres", "api", "web"];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -124,6 +132,7 @@ async function main() {
     "STRATUM_START_DIFFICULTY=1", "STRATUM_MIN_DIFFICULTY=1", "STRATUM_MAX_CONNECTIONS_PER_IP=100000",
     `XELIS_DEFAULT_ADDRESS=${ADDRESS}`,
     ...(PUBLIC ? ["XELDASH_PUBLIC_MODE=true", "XELDASH_ALLOWED_NETWORKS=any"] : []),
+    ...(ADDRESSES_PER_IP ? [`STRATUM_MAX_ADDRESSES_PER_IP=${ADDRESSES_PER_IP}`] : []),
     "",
   ].join("\n"));
   console.log(`Computer: ${cpus().length} threads (${cpus()[0].model.trim()}), ${(totalmem() / 2 ** 30).toFixed(1)} GiB memory, ${process.platform}`);
@@ -144,7 +153,7 @@ async function main() {
   if (CHAIN) {
     // Other miners on the network keep finding blocks, and every block makes the server refresh every rig's work: keep that going.
     docker(["rm", "-f", "load-chain"], { allowFail: true });
-    docker(["run", "-d", "--name", "load-chain", "--network", `${PROJECT}_node`, MINER_IMAGE, "--miner-address", ADDRESS, "--daemon-address", "ws://daemon:8080", "--num-threads", "1", "--disable-interactive-mode"]);
+    docker(["run", "-d", "--name", "load-chain", "--network", `${PROJECT}_node`, MINER_IMAGE, "--miner-address", ADDRESS, "--daemon-address", "ws://daemon:8080", "--num-threads", CHAIN_THREADS, "--disable-interactive-mode"]);
   }
   if (STOP_DB) {
     console.log("Stopping the database: shares are only checked and answered from here on.");
@@ -209,6 +218,16 @@ async function main() {
   }
   for (const r of rows) if (r.reasons && Object.keys(r.reasons).length) console.log(`\nRefused at ${r.rigs} rigs: ${JSON.stringify(r.reasons)}`);
   const stratumLogs = compose(["logs", "stratum", "--tail", "400"], { allowFail: true }).text;
+  // Why connections and logins were turned away, from the whole log (a flood of refusals would push everything else out of the
+  // tail above).
+  const fullLog = compose(["logs", "stratum"], { allowFail: true }).text;
+  /** @type {Record<string, number>} */
+  const refusals = {};
+  for (const line of fullLog.split("\n")) {
+    const m = /Refusing (?:Stratum|getwork) connection from \S+: (.+)$/.exec(line);
+    if (m) refusals[m[1].trim()] = (refusals[m[1].trim()] ?? 0) + 1;
+  }
+  console.log(`\nConnections refused by Stratum: ${Object.keys(refusals).length ? JSON.stringify(refusals) : "none"}`);
   const warnings = [...new Set(stratumLogs.split("\n").filter((l) => /warn|error|fail|Banning|Closing|limit/i.test(l)).map((l) => l.replace(/^.*?\| /, "").slice(0, 160)))].slice(0, 8);
   if (warnings.length) console.log(`\nStratum warnings during the run:\n  ${warnings.join("\n  ")}`);
   // How the node's work was shared: between all addresses (one template per block) or per address. See job-provider.js.

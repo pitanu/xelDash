@@ -136,22 +136,24 @@ A home mining setup has a handful of rigs; even a large one has dozens. xelDash 
 (`npm run load`) that connects simulated rigs to the real stack on a private devnet. Each rig sends one accepted share every 10 seconds,
 like a real one at a steady difficulty, and a miner keeps finding blocks in the background, which makes the server refresh every rig's work.
 
-Measured on a Ryzen 9 7900X (24 threads, 31 GB) with Docker Desktop on Windows, all rigs mining to one wallet address
-(2026-10-12):
+Measured on a Ryzen 9 7900X (24 threads, 31 GB) with Docker Desktop on Windows (2026-10-13), with blocks found about as
+often as on mainnet (12 to 22 a minute; `LOAD_CHAIN_THREADS=8`), each rig sending a share every 10 seconds:
 
-| Rigs | Shares per second | Stratum processor use (of one core) | Time to answer a share (typical / 95% / 99%) | What it means |
+| Rigs | Addresses | Shares per second | Stratum processor use (of one core, average / peak) | Time to answer a share (typical / 95% / 99%) |
 |---:|---:|---:|---|---|
-| 1,000 | 100 | about 24% | 3.5 / 4.5 / 5.5 ms | Nothing to notice |
-| 2,000 | 200 | about 45% | 3.3 / 4.6 / 35 ms | Comfortable |
-| 4,000 | 400 | about 88% | 3.4 / 5.3 / 131 ms | Works; close to one core |
+| 1,000 | 1 | 100 | 26% / 32% | 3.3 / 4.7 / 26 ms |
+| 2,000 | 1 | 200 | 46% / 56% | 3.3 / 5.1 / 81 ms |
+| 4,000 | 1 | 400 | 89% / 107% | 3.5 / 41 / 188 ms |
+| 4,000 | 200 | 400 | 91% / 122% | 3.6 / 16 / 185 ms |
 
-No share was stale or rejected at any size, and the node's processor use stayed at about 1%. Rigs mining to the same address share
-their work from the node (one template and one MinerWork per block for the address, each rig with its own extra nonce), so the node is
-asked twice per block for each address, not for each rig. Before that change the same test was overloaded at 2,000 rigs (answers
-took up to 16 s) and a request to the node failed at 4,000. What limits a server now is the Stratum process checking shares on one
-core. Rigs on many different addresses cost the node a little more (two calls per address per block). The database (about a third of
-a core at 4,000 rigs) and the dashboard (about 30 ms to load the overview) were not the limit. A slower computer, a Raspberry Pi, or a
-mainnet node (which is busier than the idle devnet node used here) will carry fewer; the test is in the repository so you can run it on yours.
+No share was stale or rejected at any size, and the node's processor use stayed at about 1% or less. Rigs share their work from
+the node: one template per block serves every rig and every address (each rig writes its own extra nonce and miner key into its
+copy, and the node takes the miner from the submitted work), so the node is asked a few times per block whatever the number of
+rigs or miners. xelDash checks on the running node that its work is the same for every address before sharing between addresses,
+and falls back to per-address work if it is not. What limits a server is the Stratum process checking shares on one core: about
+3,000 rigs comfortably on this computer, with 4,000 at the edge. Before work sharing, the same test was overloaded at 2,000 rigs
+(answers took up to 16 s) and a request to the node failed at 4,000. The database (about a third of a core at 4,000 rigs) and the
+dashboard (about 40 ms to load the overview) were not the limit. A slower computer, a Raspberry Pi, or a mainnet node (which is busier than the devnet node used here) will carry fewer; the test is in the repository so you can run it on yours.
 
 ### Shares per second
 
