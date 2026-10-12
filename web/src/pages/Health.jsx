@@ -161,11 +161,13 @@ export default function Health() {
                 </ul>
               ))}
             </Card>
-            <Card title="Recent events" className="flex flex-col lg:min-h-0 lg:flex-1">
-              <div className="-mr-2 max-h-96 overflow-y-auto pr-2 lg:max-h-none lg:min-h-0 lg:flex-1">
-                {events.data && <EventsList events={events.data.events} />}
-              </div>
-            </Card>
+            {operator && (
+              <Card title="Recent events" className="flex flex-col lg:min-h-0 lg:flex-1">
+                <div className="-mr-2 max-h-96 overflow-y-auto pr-2 lg:max-h-none lg:min-h-0 lg:flex-1">
+                  {events.data && <EventsList events={events.data.events} />}
+                </div>
+              </Card>
+            )}
           </div>
         </div>
       </div>

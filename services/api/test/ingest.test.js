@@ -6,7 +6,7 @@ import { handleIngest } from "../src/ingest.js";
 const SECRET = "s".repeat(24);
 
 /** The ingest handler behind a real HTTP server, with a stand-in database that only knows the progress table. */
-async function start({ secret = SECRET, rows = [] } = {}) {
+async function start({ secret = SECRET, rows = [], publicMode = false } = {}) {
   const queries = [];
   const pool = {
     query: async (sql, params) => {
@@ -17,7 +17,7 @@ async function start({ secret = SECRET, rows = [] } = {}) {
   const server = createServer(async (request, response) => {
     const pathname = new URL(request.url, "http://x").pathname;
     const send = (res, status, body) => { res.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify(body)); };
-    const handled = await handleIngest({ request, response, pathname, pool, secret, alerts: async () => ({ events: ["cluster"] }), send, logger: { info() {}, warn() {} } });
+    const handled = await handleIngest({ request, response, pathname, pool, secret, alerts: async () => ({ events: ["cluster"] }), send, publicMode, logger: { info() {}, warn() {} } });
     if (!handled) send(response, 404, { error: "elsewhere" });
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -53,7 +53,17 @@ test("ping says the database answers and gives the default mining address; alert
   const body = await ping.json();
   assert.equal(body.ok, true);
   assert.equal(typeof body.miningAddress, "string");
-  assert.deepEqual(await (await call(s.base, "/api/v1/ingest/alerts")).json(), { events: ["cluster"] });
+  assert.equal(body.publicMode, false);
+  assert.deepEqual(await (await call(s.base, "/api/v1/ingest/alerts")).json(), { events: ["cluster"], publicMode: false });
+  s.close();
+});
+
+test("a public main server tells its standby so, and gives it no default address to mine to", async () => {
+  const s = await start({ publicMode: true });
+  const ping = await (await call(s.base, "/api/v1/ingest/ping")).json();
+  assert.equal(ping.publicMode, true);
+  assert.equal(ping.miningAddress, null);
+  assert.equal((await (await call(s.base, "/api/v1/ingest/alerts")).json()).publicMode, true);
   s.close();
 });
 

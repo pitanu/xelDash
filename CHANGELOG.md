@@ -12,7 +12,9 @@ breaking changes; they are marked **Breaking**.
 - **Public mode** (`XELDASH_PUBLIC_MODE=true`), for a server anyone may solo mine on, each to their own address: visitors get
   no IP addresses, no connection problems and no node administration, a "Mine here" page shows how to connect, and a login
   without an address is refused. The operator's full dashboard is on 127.0.0.1 only (Compose profile `public`), and the
-  `public-https` profile adds HTTPS with a Let's Encrypt certificate. See docs/OPERATIONS.md#public-mode.
+  `public-https` profile adds HTTPS with a Let's Encrypt certificate. Recent events are the operator's only; there are no
+  alerts about individual workers, and cluster alerts leave out the shared address. A standby server or front door follows the
+  main server's public mode by itself. See docs/OPERATIONS.md#public-mode.
 
 ## [0.1.0] - 2026-10-07
 

@@ -171,7 +171,7 @@ export const server = createServer(async (request, response) => {
   // A standby server's batches (a POST) and its readiness check; see ingest.js.
   if (url.pathname.startsWith("/api/v1/ingest")) {
     try {
-      if (await handleIngest({ request, response, pathname: url.pathname, pool, secret: process.env.XELDASH_CLUSTER_SECRET, send: sendJson,
+      if (await handleIngest({ request, response, pathname: url.pathname, pool, secret: process.env.XELDASH_CLUSTER_SECRET, send: sendJson, publicMode,
         alerts: async () => {
           const c = await loadAlertConfig(process.env, join(process.env.CONFIG_DIR ?? "/config", "alerts.json"));
           return { discordWebhookUrl: c.discordWebhookUrl, telegramBotToken: c.telegramBotToken, telegramChatId: c.telegramChatId,
@@ -370,6 +370,13 @@ export const server = createServer(async (request, response) => {
     }
 
     if (pathname === "/api/v1/events") {
+      // Recent events are the operator's (node updates, backups, disk, cluster): not for a public server's visitors. The database is
+      // still asked, so the dashboard's "offline" notice, which uses this route as its check, keeps working.
+      if (publicView) {
+        await pool.query("SELECT 1");
+        sendJson(response, 200, { events: [], hidden: true });
+        return;
+      }
       sendJson(response, 200, { events: await listEvents(pool, clampLimit(searchParams.get("limit"), 20, 200)) });
       return;
     }

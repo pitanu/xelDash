@@ -4,10 +4,10 @@ import { useSyncExternalStore } from "react";
 // visitor gets the public view of a public server (no node administration, no setup guide, no IP addresses).
 // Until it is known, `known` is false: the operator-only parts of the page stay hidden rather than flash up for a public visitor.
 
-/** @typedef {{ known: boolean, network: string | null, publicView: boolean }} ServerMode */
+/** @typedef {{ known: boolean, network: string | null, publicMode: boolean, publicView: boolean }} ServerMode */
 
 /** @type {ServerMode} */
-let mode = { known: false, network: null, publicView: false };
+let mode = { known: false, network: null, publicMode: false, publicView: false };
 let started = false;
 /** @type {Set<() => void>} */
 const listeners = new Set();
@@ -18,7 +18,7 @@ function load() {
     .then((r) => (r.ok ? r.json() : null))
     .then((body) => {
       if (!body) return;
-      mode = { known: true, network: typeof body.network === "string" ? body.network : null, publicView: body.view === "public" };
+      mode = { known: true, network: typeof body.network === "string" ? body.network : null, publicMode: body.publicMode === true, publicView: body.view === "public" };
       for (const listener of listeners) listener();
     })
     .catch(() => {});

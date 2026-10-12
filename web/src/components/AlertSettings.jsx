@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card } from "./ui.jsx";
+import { useServerMode } from "../server-mode.js";
 
 const EVENT_LABELS = /** @type {Record<string, string>} */ ({
   block_found: "A block is found",
@@ -43,6 +44,7 @@ function SecretField({ label, help, state, value, onChange, placeholder, disable
  * @param {{ token: string, onUnauthorized: () => void }} props
  */
 export default function AlertSettings({ token, onUnauthorized }) {
+  const { publicMode } = useServerMode();
   const [status, setStatus] = useState(/** @type {AlertStatus | null} */ (null));
   const [discord, setDiscord] = useState("");
   const [telegramToken, setTelegramToken] = useState("");
@@ -133,6 +135,12 @@ export default function AlertSettings({ token, onUnauthorized }) {
         <p className="text-sm text-ink-2">Loading...</p>
       ) : (
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void save(); }}>
+          {publicMode && (
+            <p className="rounded-md bg-wash p-3 text-xs text-ink-2">
+              This is a public server: alerts about individual workers are not sent (they are other people's rigs), and cluster alerts
+              leave out the shared address. The other alerts work as usual.
+            </p>
+          )}
           <SecretField label="Discord" state={status.discord} value={discord} onChange={setDiscord} disabled={disabled}
             placeholder="https://discord.com/api/webhooks/..."
             help="In Discord: channel settings, Integrations, Webhooks, New Webhook, Copy Webhook URL." />

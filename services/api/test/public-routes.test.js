@@ -80,6 +80,8 @@ test("a visitor of a public server never receives an IP address, from any route"
   }
   const problems = JSON.parse((await body("/api/v1/problems")).text);
   assert.deepEqual(problems, { problems: [], hidden: true });
+  // Recent events are the operator's (node updates, backups, cluster): a visitor gets none.
+  assert.deepEqual(JSON.parse((await body("/api/v1/events?limit=200")).text), { events: [], hidden: true });
   const connect = JSON.parse((await body("/api/v1/connect")).text);
   assert.equal(connect.view, "public");
   assert.equal(connect.publicMode, true);

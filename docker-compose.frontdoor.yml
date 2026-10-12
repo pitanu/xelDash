@@ -82,6 +82,8 @@ services:
       STRATUM_INGEST_URL: ${XELDASH_PRIMARY_URL:?Run xeldash frontdoor join}
       XELDASH_CLUSTER_SECRET: ${XELDASH_CLUSTER_SECRET:?Run xeldash frontdoor join}
       STRATUM_INSTANCE: ${XELDASH_SERVER_NAME:-front-door}
+      # Public mode (also learned from the main server): every miner must log in with its own address.
+      XELDASH_PUBLIC_MODE: ${XELDASH_PUBLIC_MODE:-false}
       STRATUM_JOURNAL_DIR: /spool
       # The default address follows the main server's (kept here, on this box's own volume).
       XELDASH_MINING_ADDRESS_FILE: /spool/mining-address.json

@@ -83,3 +83,25 @@ test("the default mining address follows the saved file, else the fallback", asy
   w.stop();
   await rm(dir, { recursive: true, force: true });
 });
+
+test("a standby follows its main server's public mode, keeps it on a damaged file, and drops it only when the file is gone", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "public-flag-"));
+  const file = join(dir, "mining-address.json");
+  const w = watchDefaultAddress({ file, fallback: "xet:fallback", intervalMs: 30, logger: { warn() {} } });
+  await w.ready;
+  assert.equal(w.publicMode(), false, "never told");
+  await writeFile(file, JSON.stringify({ address: "", publicMode: true }));
+  await new Promise((r) => setTimeout(r, 120));
+  assert.equal(w.publicMode(), true);
+  await writeFile(file, "{not json");
+  await new Promise((r) => setTimeout(r, 120));
+  assert.equal(w.publicMode(), true, "fail closed: a file that cannot be read keeps public mode");
+  await rm(file);
+  await new Promise((r) => setTimeout(r, 120));
+  assert.equal(w.publicMode(), false, "no file: never told");
+  await writeFile(file, JSON.stringify({ address: "xet:main" }));
+  await new Promise((r) => setTimeout(r, 120));
+  assert.equal(w.publicMode(), false, "a main server's file without the flag is not public");
+  w.stop();
+  await rm(dir, { recursive: true, force: true });
+});

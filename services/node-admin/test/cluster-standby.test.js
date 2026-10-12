@@ -86,3 +86,49 @@ test("a failover is alerted from the standby only while the main server cannot b
   assert.equal(near.sent.length, 0, "the main server is reachable, so it reports its own changes");
   await away.done(); await near.done();
 });
+
+test("a standby of a public main server leaves the shared address out of its failover alert, and remembers across a restart", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "standby-public-"));
+  const stateFile = join(dir, "main-server.json");
+  const net = { reachable: true, publicMode: true };
+  const fetchStub = async (/** @type {string} */ url) => {
+    if (!net.reachable) throw new Error("connect ECONNREFUSED");
+    if (url.endsWith("/api/v1/ingest/alerts")) return new Response(JSON.stringify({ webhookUrl: "https://example.com/hook", events: ["cluster"], publicMode: net.publicMode }), { status: 200 });
+    return new Response("{}", { status: 200 });
+  };
+  const make = () => {
+    const alertSettings = new AlertSettings({ configDir: dir, env: {} });
+    const sent = [];
+    alertSettings.broadcast = async (text, event) => { sent.push([text, event]); return [{ channel: "Webhook", ok: true }]; };
+    return { sent, alerts: new StandbyAlerts({ alertSettings, primaryUrl: "http://main:8088", secret: "s".repeat(20), serverName: "standby-1", stateFile, fetch: fetchStub, logger: quiet }) };
+  };
+
+  const first = make();
+  await first.alerts.init();
+  assert.equal(first.alerts.publicMode, false, "not told yet");
+  assert.equal(await first.alerts.sync(), true);
+  assert.equal(first.alerts.publicMode, true, "the main server said so");
+
+  // Restarted while the main server is away: it still knows.
+  net.reachable = false;
+  const restarted = make();
+  await restarted.alerts.init();
+  assert.equal(restarted.alerts.publicMode, true);
+  await restarted.alerts.onClusterChange("cluster_active", { server: "standby-1", vip: "192.168.1.250/24" });
+  assert.equal(restarted.sent.length, 1);
+  assert.doesNotMatch(restarted.sent[0][0], /192\.168/);
+  assert.match(restarted.sent[0][0], /holds the shared address\./);
+
+  // The main server leaves public mode: the address is named again.
+  net.reachable = true;
+  net.publicMode = false;
+  assert.equal(await restarted.alerts.sync(), true);
+  net.reachable = false;
+  await restarted.alerts.onClusterChange("cluster_active", { server: "standby-1", vip: "192.168.1.250/24" });
+  assert.match(restarted.sent[1][0], /192\.168\.1\.250/);
+
+  // Its own XELDASH_PUBLIC_MODE is enough on its own.
+  const own = new StandbyAlerts({ alertSettings: new AlertSettings({ configDir: dir, env: {} }), primaryUrl: "http://main:8088", secret: "s".repeat(20), publicMode: true, fetch: fetchStub, logger: quiet });
+  assert.equal(own.publicMode, true);
+  await rm(dir, { recursive: true, force: true });
+});

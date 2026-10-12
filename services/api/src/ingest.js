@@ -46,9 +46,9 @@ async function readBody(request) {
  * Returns false when the request is not for this module.
  * @param {{ request: import("node:http").IncomingMessage, response: import("node:http").ServerResponse, pathname: string,
  *   pool: import("pg").Pool, secret: string | undefined, alerts: () => Promise<Record<string, unknown>>, send: (response: import("node:http").ServerResponse, status: number, body: unknown) => void,
- *   logger?: Pick<Console, "info" | "warn"> }} context
+ *   publicMode?: boolean, logger?: Pick<Console, "info" | "warn"> }} context
  */
-export async function handleIngest({ request, response, pathname, pool, secret, alerts, send, logger = console }) {
+export async function handleIngest({ request, response, pathname, pool, secret, alerts, send, publicMode = false, logger = console }) {
   if (pathname !== "/api/v1/ingest" && pathname !== "/api/v1/ingest/ping" && pathname !== "/api/v1/ingest/alerts") return false;
   if (!secret || secret.length < MIN_SECRET_LENGTH) {
     send(response, 404, { error: "not_found" });
@@ -62,13 +62,15 @@ export async function handleIngest({ request, response, pathname, pool, secret, 
   if (pathname === "/api/v1/ingest/ping") {
     await pool.query("SELECT 1");
     // The standby follows the main server's default address, so changing it on the dashboard needs nothing on the second server.
-    send(response, 200, { ok: true, miningAddress: await miningAddress() });
+    // In public mode there is no default address, and the standby is told to refuse logins without one, whatever its own .env says.
+    send(response, 200, { ok: true, miningAddress: publicMode ? null : await miningAddress(), publicMode });
     return true;
   }
   if (pathname === "/api/v1/ingest/alerts") {
     // A standby keeps a copy so it can send the failover alert itself while this server is away. They are secrets (webhook
     // addresses, a Telegram token) and travel over your network with the cluster secret: see docs/SECURITY.md.
-    send(response, 200, await alerts());
+    // publicMode tells the standby to leave the shared address out of its failover alert, as this server does.
+    send(response, 200, { ...(await alerts()), publicMode });
     return true;
   }
   if (request.method !== "POST") {

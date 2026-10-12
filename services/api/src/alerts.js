@@ -1,5 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import { coinSymbol } from "./coin.js";
+import { publicModeFromEnv } from "./public-mode.js";
 const SEND_INTERVAL_MS = 1_000;
 const MAX_QUEUE = 20;
 const FINAL_BATCH_MS = 5_000;
@@ -32,7 +33,7 @@ function shortAddress(address) {
 /**
  * @typedef {{ discordWebhookUrl: string | null, telegramBotToken: string | null, telegramChatId: string | null,
  *   webhookUrl: string | null, events: Set<string>, workerOfflineMinutes: number, dashboardUrl: string | null,
- *   explorerUrl: string | null, coin: string }} AlertConfig
+ *   explorerUrl: string | null, coin: string, publicMode: boolean }} AlertConfig
  */
 
 /** @param {Partial<Record<string, string | undefined>>} env @returns {AlertConfig} */
@@ -55,6 +56,8 @@ export function alertConfigFromEnv(env) {
     // The official block explorer for this network (devnet has none), for links to found blocks.
     explorerUrl: EXPLORERS[value("XELIS_NETWORK") ?? ""] ?? null,
     coin: coinSymbol(value("XELIS_NETWORK")),
+    // Public mode: no alerts about individual (other people's) workers, and no addresses of the operator's network.
+    publicMode: publicModeFromEnv(env),
   };
   if (Boolean(config.telegramBotToken) !== Boolean(config.telegramChatId)) {
     throw new Error("Set both ALERT_TELEGRAM_BOT_TOKEN and ALERT_TELEGRAM_CHAT_ID for Telegram alerts");
@@ -84,6 +87,7 @@ export async function loadAlertConfig(env, file) {
     ALERT_WORKER_OFFLINE_MINUTES: String(saved.workerOfflineMinutes ?? 10),
     ALERT_DASHBOARD_URL: text(saved.dashboardUrl),
     XELIS_NETWORK: env.XELIS_NETWORK,
+    XELDASH_PUBLIC_MODE: env.XELDASH_PUBLIC_MODE,
   });
   // An empty list means "nothing" here, not "everything" as it does in .env.
   if (Array.isArray(saved.events)) config.events = new Set(saved.events.filter((/** @type {string} */ e) => EVENT_TYPES.includes(e)));
@@ -314,12 +318,15 @@ export function startAlerts({ pool, config, logger = console }) {
             : `❌ Switching ${p.node} to ${version} failed${why}: ${p.error}. Later nodes were left as they were.${link("/nodes")}` });
     } else if (type.startsWith("cluster_") && config.events.has("cluster")) {
       const who = p.server ? ` (${p.server})` : "";
+      // On a public server the shared address (an address on the operator's network) is left out of the alert.
+      const shared = config.publicMode ? "the shared address" : `the shared address ${p.vip}`;
+      const { vip, ...withoutAddress } = p;
       const text = type === "cluster_active"
-        ? `🔀 Failover: this server${who} now holds the shared address ${p.vip}. Your rigs are connected here and keep mining.`
+        ? `🔀 Failover: this server${who} now holds ${shared}. Your rigs are connected here and keep mining.`
         : type === "cluster_fault"
-          ? `⚠️ This server${who} cannot mine, so it gave up the shared address ${p.vip} to the other server. Check its node.`
+          ? `⚠️ This server${who} cannot mine, so it gave up ${shared} to the other server. Check its node.`
           : `💤 This server${who} is standing by again. The other server holds the shared address.`;
-      send({ event: type, data: p, text: `${text}${link("/health")}` });
+      send({ event: type, data: config.publicMode ? withoutAddress : p, text: `${text}${link("/health")}` });
     } else if (type === "disk_low" && config.events.has("disk_low")) {
       const gb = (/** @type {number} */ bytes) => Math.round(bytes / 1e9);
       send({ event: "disk_low", data: p,
@@ -340,7 +347,8 @@ export function startAlerts({ pool, config, logger = console }) {
   const online = new Map();
   let firstPass = true;
   async function checkWorkers() {
-    if (!config.events.has("worker_offline")) return;
+    // On a public server the workers are other people's rigs: no alerts about them, whatever is selected.
+    if (config.publicMode || !config.events.has("worker_offline")) return;
     const result = await pool.query(
       `SELECT m.address, w.name, max(s.bucket) AS last_share
        FROM worker_stats_1m s

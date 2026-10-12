@@ -62,8 +62,9 @@ if (!Number.isSafeInteger(handshakeTimeoutMs) || handshakeTimeoutMs < 1000
 }
 
 // Public mode (XELDASH_PUBLIC_MODE): anyone may mine here, so every miner must log in with its own address and there is no default.
-const publicMode = /^(1|true|yes|on)$/i.test((process.env.XELDASH_PUBLIC_MODE ?? "").trim());
-if (publicMode) console.info("Public mode: miners must log in with their own address; the default address is not used.");
+// A standby or front door is also in public mode when the main server says it is (see followMainAddress), whatever its own .env says.
+const envPublicMode = /^(1|true|yes|on)$/i.test((process.env.XELDASH_PUBLIC_MODE ?? "").trim());
+if (envPublicMode) console.info("Public mode: miners must log in with their own address; the default address is not used.");
 
 // The address for miners that send none: chosen on the dashboard's setup page, else .env.
 const defaultAddress = watchDefaultAddress({
@@ -71,6 +72,8 @@ const defaultAddress = watchDefaultAddress({
   fallback: process.env.XELIS_DEFAULT_ADDRESS ?? "",
 });
 await defaultAddress.ready;
+/** Whether this server is a public server right now: by its own setting, or because its main server is one. */
+const isPublic = () => envPublicMode || defaultAddress.publicMode();
 // A standby server (the second server of a redundancy cluster) has no database: with STRATUM_INGEST_URL set it
 // sends everything it records to the main server instead (see store.js).
 const ingestUrl = (process.env.STRATUM_INGEST_URL ?? "").replace(/\/$/, "");
@@ -85,18 +88,30 @@ const nodes = new NodePool({ urls: rpcUrlsFromEnv(process.env), onActiveChange: 
 // A standby mines to the address the main server mines to when a rig sends none. The main server says which in its readiness
 // reply; it is kept in a file on the standby's own volume, which the default-address watcher above already reads.
 const ADDRESS_FORMAT = /^(xel|xet):[a-z0-9]{30,120}$/;
-let followedAddress = "";
-/** @param {{ miningAddress?: unknown } | null} body */
+/** @type {{ address: string, publicMode: boolean } | null} */
+let followed = null;
+/** @param {{ miningAddress?: unknown, publicMode?: unknown } | null} body */
 function followMainAddress(body) {
-  const address = typeof body?.miningAddress === "string" ? body.miningAddress : "";
-  if (!ADDRESS_FORMAT.test(address) || address === followedAddress) return;
-  followedAddress = address;
+  if (!body) return;
+  // A public main server has no default address and makes this server refuse logins without one; the flag is kept in the file, so
+  // it holds across a restart while the main server is away.
+  const publicMode = body.publicMode === true;
+  const offered = typeof body.miningAddress === "string" ? body.miningAddress : "";
+  const address = !publicMode && ADDRESS_FORMAT.test(offered) ? offered : "";
+  if (followed && followed.address === address && followed.publicMode === publicMode) return;
+  followed = { address, publicMode };
   const file = process.env.XELDASH_MINING_ADDRESS_FILE;
   if (!file) return;
   const tmp = `${file}.tmp`;
-  writeFile(tmp, JSON.stringify({ address, source: "main server", updatedAt: new Date().toISOString() }), { mode: 0o600 })
+  writeFile(tmp, JSON.stringify({ address, publicMode, source: "main server", updatedAt: new Date().toISOString() }), { mode: 0o600 })
     .then(() => rename(tmp, file))
-    .then(() => console.info("Following the main server's default mining address"))
+    .then(() => {
+      console.info(publicMode ? "The main server is a public server: logins without an address are refused here too" : "Following the main server's default mining address");
+      // Miners come from the internet on a public server; after a failover this server must let them in too.
+      if (publicMode && String(ipGuardConfig.allowedNetworks).trim().toLowerCase() === "private") {
+        console.warn("The main server is a public server, but XELDASH_ALLOWED_NETWORKS is \"private\" here: after a failover, miners on the internet would be turned away. Set it to \"any\" in this server's .env.");
+      }
+    })
     .catch((error) => console.warn("Could not save the main server's default address:", error instanceof Error ? error.message : String(error)));
 }
 const journalMegabytes = Number(process.env.STRATUM_JOURNAL_MAX_MB ?? 200);
@@ -240,8 +255,8 @@ function newSession(socket, ip, onAuthorized = () => {}) {
     submitShare,
     jobRefreshIntervalMs,
     vardiff,
-    defaultAddress: publicMode ? "" : defaultAddress.get(),
-    requireAddress: publicMode,
+    defaultAddress: isPublic() ? "" : defaultAddress.get(),
+    requireAddress: isPublic(),
     onProblem: (problem) => reportProblem("login_problem", { ip, ...problem }),
     onAuthorized,
     onSubmission: (valid) => ipGuard.record(ip, valid),
@@ -437,7 +452,8 @@ const health = startHealthServer({
     for (const socket of sessions.keys()) if (/** @type {{ viaFrontDoor?: boolean }} */ (socket).viaFrontDoor) viaFrontDoor++;
     return {
       instance: instanceName, mode: ingestUrl ? "standby" : "main", rigs: sessions.size, journal: store.status(),
-      frontDoor: proxyTrust ? { from: proxyTrust.text, viaFrontDoor, direct: sessions.size - viaFrontDoor } : null,
+      // `from` lists the operator's own forwarder addresses; a public server's status page (the standby's) must not show them.
+      frontDoor: proxyTrust ? { ...(isPublic() ? {} : { from: proxyTrust.text }), viaFrontDoor, direct: sessions.size - viaFrontDoor } : null,
     };
   },
 });

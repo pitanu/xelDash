@@ -83,7 +83,10 @@ Leave it unset if you do not need these features.
   API route against a database full of IP addresses and fails on any it finds. The public web server answers 404 for node
   administration and replaces any view header a visitor sends, so a visitor cannot ask for the operator's view. A login without
   an address is refused, so no one mines for the server by mistake. The operator's full dashboard is a separate container
-  published on 127.0.0.1 only (fixed in the Compose file). See [OPERATIONS.md](OPERATIONS.md#public-mode).
+  published on 127.0.0.1 only (fixed in the Compose file). Recent events are the operator's only. Alerts never carry a miner's
+  IP address; on a public server there are none about individual workers, and cluster alerts leave out the shared address. A
+  standby or front door learns public mode from the main server over the cluster's secret connection and keeps it across restarts
+  (an unreadable record keeps it on). See [OPERATIONS.md](OPERATIONS.md#public-mode).
 - **Containers.** The API and Stratum run as an unprivileged user. Backups are owner-only
   files.
 

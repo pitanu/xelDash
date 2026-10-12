@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { join } from "node:path";
 import { MiningFallback } from "./fallback.js";
 import { AlertSettingsProblem, AlertSettings } from "./alert-settings.js";
 import { streamBackup } from "./backup.js";
@@ -47,7 +48,8 @@ const miningAddress = new MiningAddress({ configDir, network, env: process.env }
 const alertSettings = new AlertSettings({ configDir, env: process.env });
 // The second server of a cluster has no database: it copies the main server's alert settings and sends its own failover alert.
 const standbyAlerts = process.env.XELDASH_PRIMARY_URL && process.env.XELDASH_CLUSTER_SECRET
-  ? new StandbyAlerts({ alertSettings, primaryUrl: process.env.XELDASH_PRIMARY_URL, secret: process.env.XELDASH_CLUSTER_SECRET, serverName: process.env.XELDASH_SERVER_NAME })
+  ? new StandbyAlerts({ alertSettings, primaryUrl: process.env.XELDASH_PRIMARY_URL, secret: process.env.XELDASH_CLUSTER_SECRET, serverName: process.env.XELDASH_SERVER_NAME,
+    publicMode: /^(1|true|yes|on)$/i.test((process.env.XELDASH_PUBLIC_MODE ?? "").trim()), stateFile: join(configDir, "main-server.json") })
   : null;
 const clusterWatch = new ClusterWatch({
   configDir,
@@ -56,6 +58,7 @@ const clusterWatch = new ClusterWatch({
 const diskWatch = new DiskWatch({ nodes: () => nodes.filter((n) => n === primary || n.present), record: recordEvent, env: process.env });
 await fallback.init();
 await miningAddress.init();
+await standbyAlerts?.init();
 
 /**
  * The node a request is about (?node=, the first node by default). Unknown nodes, and daemon2

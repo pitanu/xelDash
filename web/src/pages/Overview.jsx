@@ -75,11 +75,12 @@ export default function Overview() {
         <SharesChart points={history.data?.points ?? null} dimmed={history.loading} />
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* Recent events are the operator's (a public server's visitors do not get them): Recent blocks then has the row. */}
+      <div className={`grid gap-6 ${operator ? "lg:grid-cols-2" : ""}`}>
         <Card title="Recent blocks" action={<a href="#/blocks" className="inline-flex min-h-6 items-center text-xs text-ink-2 hover:text-ink hover:underline">All blocks</a>}>
           {blocks.data && <BlocksTable blocks={blocks.data.blocks} />}
         </Card>
-        <Card title="Recent events">{events.data && <EventsList events={events.data.events} />}</Card>
+        {operator && <Card title="Recent events">{events.data && <EventsList events={events.data.events} />}</Card>}
       </div>
     </div>
   );

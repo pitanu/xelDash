@@ -222,7 +222,9 @@ It is off by default; xelDash is otherwise meant for your own network.
 With `XELDASH_PUBLIC_MODE=true`:
 
 - **No IP addresses for visitors.** The API leaves every IP address out of what it sends to the public dashboard (workers' last
-  address, bans, events), and the connection problems card is not shown. The operator's own dashboard (below) still has them.
+  address, bans), and the connection problems card is not shown. The operator's own dashboard (below) still has them.
+- **Recent events are the operator's.** Node updates, backups, disk and cluster changes are not shown to visitors (the Overview
+  and Health pages leave the list out); the operator's dashboard has them as usual.
 - **Every miner must use its own address.** A login without an address is refused with a message saying so; the default address
   (`XELIS_DEFAULT_ADDRESS` or the one chosen on the setup page) is never used, so a misconfigured rig cannot mine for the server.
 - **No node administration from the public site.** The public dashboard has no Nodes, Settings or setup pages, and its web server
@@ -261,8 +263,21 @@ names your nodes as written in `XELIS_RPC_URLS`, so use host names there rather 
 **Kept on the server:** the database still records miners' IP addresses, because the per-address limits and bans need them; they are
 in backups too. Treat backups and the operator's dashboard as private.
 
-**Not covered yet:** a redundancy cluster or a front door together with public mode, and request limits on the public dashboard
-itself (Stratum and getwork have their own).
+**Alerts** go only where the operator sends them (set up on the operator's dashboard). On a public server there are no alerts about
+individual workers ("a worker stops sending shares" would be about other people's rigs), whatever is selected, and cluster alerts
+leave out the shared address. Block, mining, node, disk and cluster alerts work as usual; none of them ever contains a miner's IP
+address.
+
+**A redundancy cluster or a front door** works with public mode. The standby server and the front door learn from the main server
+(over the cluster's own connection, with the cluster secret) that it is a public server, and keep that across restarts: their
+Stratum refuses logins without an address, their status page leaves out the front door's addresses, and the standby's failover
+alert leaves out the shared address, even if their own `.env` does not say `XELDASH_PUBLIC_MODE=true` (it may, too). Set
+`XELDASH_ALLOWED_NETWORKS=any` in their `.env` as well: otherwise, after a failover, miners on the internet are turned away (they
+warn about it in their log). Their page shows the main server's public dashboard while it is up, and the "mining continues" page
+while it is away. The HTTPS of the `public-https` profile runs on the main server only, so while it is away visitors reach the
+backup's page over plain HTTP only.
+
+**Not covered yet:** request limits on the public dashboard itself (Stratum and getwork have their own).
 
 ## Daemon settings
 

@@ -55,6 +55,8 @@ services:
       XELDASH_PRIMARY_URL: ${XELDASH_PRIMARY_URL:?Run xeldash cluster join}
       XELDASH_CLUSTER_SECRET: ${XELDASH_CLUSTER_SECRET:?Run xeldash cluster join}
       XELDASH_SERVER_NAME: ${XELDASH_SERVER_NAME:-standby}
+      # Public mode (also learned from the main server): the failover alert leaves out the shared address.
+      XELDASH_PUBLIC_MODE: ${XELDASH_PUBLIC_MODE:-false}
     volumes:
       - xelis-data:/data
       - xeldash-config:/config
@@ -82,6 +84,8 @@ services:
       STRATUM_INGEST_URL: ${XELDASH_PRIMARY_URL:?Run xeldash cluster join}
       XELDASH_CLUSTER_SECRET: ${XELDASH_CLUSTER_SECRET:?Run xeldash cluster join}
       STRATUM_INSTANCE: ${XELDASH_SERVER_NAME:-standby}
+      # Public mode (also learned from the main server): every miner must log in with its own address.
+      XELDASH_PUBLIC_MODE: ${XELDASH_PUBLIC_MODE:-false}
       STRATUM_JOURNAL_DIR: /spool
       # The default address follows the main server's (kept here, on the standby's own volume).
       XELDASH_MINING_ADDRESS_FILE: /spool/mining-address.json
