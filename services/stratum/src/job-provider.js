@@ -27,10 +27,62 @@ export function reissueJob(job, shareDifficulty) {
   };
 }
 
+// Rigs mining to the same address get the same work from the node: the template and the node's MinerWork depend on the address,
+// not on the rig (each rig's extra nonce and the miner key are written into its own copy locally, below). So one fetch per address
+// is shared by all its rigs, briefly (`shareMs`), and dropped on every new block or node switch (`invalidate`). A farm of hundreds
+// of rigs on one address then costs the node two calls per block instead of two per rig.
+const DEFAULT_SHARE_MS = 2_000;
+
 export class MiningJobProvider {
-  /** @param {{ nodes: import("./node-pool.js").NodePool }} options */
-  constructor({ nodes }) {
+  /**
+   * @param {{ nodes: import("./node-pool.js").NodePool, shareMs?: number, now?: () => number,
+   *   beforeNodeCall?: () => Promise<void> | void }} options
+   *   beforeNodeCall: runs before every call to the node; the call budget waits there (see node-budget.js)
+   */
+  constructor({ nodes, shareMs = DEFAULT_SHARE_MS, now = Date.now, beforeNodeCall = () => {} }) {
     this.nodes = nodes;
+    this.shareMs = shareMs;
+    this.now = now;
+    this.beforeNodeCall = beforeNodeCall;
+    /** @type {Map<string, { at: number, work: Promise<{ template: string, work: any }> }>} */
+    this.shared = new Map();
+  }
+
+  /** Forget shared work: a new block or another node makes it stale. */
+  invalidate() {
+    this.shared.clear();
+  }
+
+  /**
+   * The node's template and MinerWork for an address, fetched once and shared while fresh. A failed fetch is not kept.
+   * @param {import("./node-pool.js").PoolNode} node @param {string} address
+   */
+  #fetch(node, address) {
+    const key = `${node.id}:${address}`;
+    const now = this.now();
+    const hit = this.shared.get(key);
+    if (hit && now - hit.at < this.shareMs) return hit.work;
+    const work = (async () => {
+      await this.beforeNodeCall();
+      const template = await node.client.getBlockTemplate(address);
+      if (typeof template?.template !== "string" || template.template.length === 0) {
+        throw new Error("Daemon returned an invalid block template");
+      }
+      if (template.algorithm !== "xel/v3") {
+        throw new Error(`Daemon returned unsupported template algorithm: ${template.algorithm ?? "unknown"}`);
+      }
+      await this.beforeNodeCall();
+      const minerWork = await node.client.getMinerWork(template.template, address);
+      return { template: template.template, work: minerWork };
+    })();
+    const entry = { at: now, work };
+    this.shared.set(key, entry);
+    work.catch(() => { if (this.shared.get(key) === entry) this.shared.delete(key); });
+    // Keep the map from growing with addresses that stopped mining.
+    if (this.shared.size > 10_000) {
+      for (const [k, v] of this.shared) if (now - v.at >= this.shareMs) this.shared.delete(k);
+    }
+    return work;
   }
 
   /** @param {{ address: string, publicKey: string, extraNonce: string, algorithm: string, shareDifficulty: number }} input @returns {Promise<MiningJob>} */
@@ -46,14 +98,8 @@ export class MiningJobProvider {
     // block found on it is submitted there first.
     const node = this.nodes.active;
     if (!node) throw new Error(this.nodes.reason);
-    const template = await node.client.getBlockTemplate(address);
-    if (typeof template?.template !== "string" || template.template.length === 0) {
-      throw new Error("Daemon returned an invalid block template");
-    }
-    if (template.algorithm !== "xel/v3") {
-      throw new Error(`Daemon returned unsupported template algorithm: ${template.algorithm ?? "unknown"}`);
-    }
-    const work = await node.client.getMinerWork(template.template, address);
+    const { template: templateText, work } = await this.#fetch(node, address);
+    const template = { template: templateText };
     if (work?.algorithm !== "xel/v3") {
       throw new Error(`Daemon returned unsupported PoW algorithm: ${work?.algorithm ?? "unknown"}`);
     }

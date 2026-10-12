@@ -209,6 +209,8 @@ blockTracker?.start();
 const announcedBlocks = new Set();
 /** @param {{ hash?: string, height?: number }} block */
 function handleNewBlock(block) {
+  // Shared work is for the old tip: every rig gets fresh work from one new fetch per address.
+  jobProvider.invalidate();
   for (const session of sessions.values()) void session.refreshJob();
   blockTracker?.check();
   if (!block.hash || announcedBlocks.has(block.hash)) return;
@@ -371,6 +373,7 @@ function handleActiveChange(active, previous) {
     return;
   }
   record("node_switched", { from: previous.label, to: active.label, nodes: states });
+  jobProvider.invalidate();
   for (const session of sessions.values()) void session.refreshJob(true);
 }
 await nodes.start();
