@@ -47,7 +47,9 @@ Leave it unset if you do not need these features.
   `xelis_daemon` inside it the archive's own checksum list. A node that does not stay up on
   a new version for 30 seconds is switched back, and a switch never continues to the next node
   after a failure. Automatic updates are off by default, need two local nodes, wait 24 hours
-  after a release, and only move forward.
+  after a release, and only move forward. On a public server they run only while `.env` allows them
+  (`XELIS_AUTO_UPDATE=true`; the dashboard cannot switch them on otherwise) and wait at least 36 hours. xelDash itself never
+  updates by itself.
 - **No Docker socket.** Nothing in xelDash can control Docker. Node restarts, version switches
   and data swaps go through files on each node's volume that the node's own supervisor acts on.
 - **Mining rewards.** The key a block pays is looked up on your own node whenever it answers,

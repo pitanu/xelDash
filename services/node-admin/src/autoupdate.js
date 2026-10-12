@@ -6,6 +6,9 @@ import { nodeView } from "./upgrade.js";
 
 const CHECK_MS = 15 * 60_000;
 const DEFAULT_DELAY_HOURS = 24;
+// On a public server a new release waits at least this long: time for the XELIS community to notice a bad or tampered release
+// (the release's checksums come from the same place as the binary, and there is no signature to check).
+export const PUBLIC_MIN_DELAY_HOURS = 36;
 
 /** "1.25.0-db59b5c2" to "1.25.0". @param {string | null | undefined} version */
 function base(version) {
@@ -22,9 +25,10 @@ export class AutoUpdate {
   /**
    * @param {{ configDir: string, releases: import("./releases.js").Releases, upgrade: import("./upgrade.js").RollingUpgrade,
    *   nodes: () => import("./nodes.js").Node[], order: () => import("./nodes.js").Node[], scheduled: () => Promise<boolean>,
-   *   env: Partial<Record<string, string | undefined>>, logger?: Pick<Console, "info" | "warn"> }} options
+   *   env: Partial<Record<string, string | undefined>>, publicMode?: () => boolean, logger?: Pick<Console, "info" | "warn"> }} options
+   *   publicMode: whether this is a public server (its own XELDASH_PUBLIC_MODE, or its main server's)
    */
-  constructor({ configDir, releases, upgrade, nodes, order, scheduled, env, logger = console }) {
+  constructor({ configDir, releases, upgrade, nodes, order, scheduled, env, publicMode = () => false, logger = console }) {
     this.configDir = configDir;
     this.file = join(configDir, "auto-update.json");
     this.releases = releases;
@@ -33,9 +37,13 @@ export class AutoUpdate {
     this.order = order;
     this.scheduled = scheduled;
     this.logger = logger;
+    // XELIS_AUTO_UPDATE in .env. On a public server it is also the only way to allow automatic updates: the dashboard switch can
+    // turn them off, and back on only while .env allows them, because installing downloaded programs by themselves on a server
+    // open to the internet should take access to the server itself.
     this.defaultEnabled = (env.XELIS_AUTO_UPDATE ?? "false").toLowerCase() === "true";
-    const delay = Number(env.XELIS_AUTO_UPDATE_DELAY_HOURS ?? DEFAULT_DELAY_HOURS);
-    this.delayHours = Number.isFinite(delay) && delay >= 0 ? delay : DEFAULT_DELAY_HOURS;
+    this.publicMode = publicMode;
+    const delay = Number(env.XELIS_AUTO_UPDATE_DELAY_HOURS || DEFAULT_DELAY_HOURS);
+    this.configuredDelayHours = Number.isFinite(delay) && delay >= 0 ? delay : DEFAULT_DELAY_HOURS;
     /** Why nothing happened at the last check, for the dashboard. @type {string | null} */
     this.note = null;
     this.checkedAt = /** @type {string | null} */ (null);
@@ -62,6 +70,16 @@ export class AutoUpdate {
     return next;
   }
 
+  /** How long a release must be out before it is installed: the setting, but at least PUBLIC_MIN_DELAY_HOURS on a public server. */
+  get delayHours() {
+    return this.publicMode() ? Math.max(this.configuredDelayHours, PUBLIC_MIN_DELAY_HOURS) : this.configuredDelayHours;
+  }
+
+  /** Whether .env allows automatic updates on this server (always, unless it is a public server without XELIS_AUTO_UPDATE=true). */
+  get allowedByEnv() {
+    return !this.publicMode() || this.defaultEnabled;
+  }
+
   /** At least two local nodes, so one keeps mining while the other updates. */
   get eligible() {
     return this.nodes().filter((n) => n.present).length >= 2;
@@ -78,6 +96,10 @@ export class AutoUpdate {
         : this.note;
     return {
       ...saved,
+      // Saved "on" from the dashboard does not count on a public server whose .env does not allow automatic updates.
+      enabled: saved.enabled && this.allowedByEnv,
+      publicMode: this.publicMode(),
+      allowedByEnv: this.allowedByEnv,
       eligible: this.eligible,
       delayHours: this.delayHours,
       note,
@@ -87,6 +109,9 @@ export class AutoUpdate {
 
   /** @param {boolean} enabled */
   async setEnabled(enabled) {
+    if (enabled && !this.allowedByEnv) {
+      throw new Error("This is a public server: allow automatic updates in .env first (XELIS_AUTO_UPDATE=true), then restart node-admin.");
+    }
     if (enabled && !this.eligible) throw new Error("Automatic updates need two local nodes (the redundant profile)");
     await this.write({ enabled });
     if (enabled) void this.check();
@@ -94,6 +119,12 @@ export class AutoUpdate {
   }
 
   start() {
+    void this.read().then((saved) => {
+      if (this.publicMode() && saved.enabled && this.allowedByEnv) {
+        this.logger.warn?.(`Public mode with automatic node updates on: new XELIS releases from GitHub are installed ${this.delayHours} h after `
+          + "they come out. That trusts the XELIS release process (the checksums come with the release; there is no signature).");
+      }
+    }).catch(() => {});
     this.timer = setInterval(() => void this.check(), CHECK_MS);
     this.timer.unref();
     setTimeout(() => void this.check(), 60_000).unref();
@@ -123,6 +154,7 @@ export class AutoUpdate {
       saved.failedVersion = last.target;
     }
     if (!saved.enabled) return null;
+    if (!this.allowedByEnv) return "Off on a public server until .env allows it (XELIS_AUTO_UPDATE=true)";
     if (!this.eligible) return "Waiting for a second local node";
     if (this.upgrade.running) return "A version switch is running";
     if (this.nodes().some((n) => n.snapshots.busy)) return "A snapshot or chain copy is running; waiting for it to finish";

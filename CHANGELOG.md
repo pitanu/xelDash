@@ -14,7 +14,8 @@ breaking changes; they are marked **Breaking**.
   without an address is refused. The operator's full dashboard is on 127.0.0.1 only (Compose profile `public`), and the
   `public-https` profile adds HTTPS with a Let's Encrypt certificate. Recent events are the operator's only; there are no
   alerts about individual workers, and cluster alerts leave out the shared address. A standby server or front door follows the
-  main server's public mode by itself. See docs/OPERATIONS.md#public-mode.
+  main server's public mode by itself. Automatic node updates on a public server run only while `.env` allows them
+  (`XELIS_AUTO_UPDATE=true`) and wait at least 36 hours. See docs/OPERATIONS.md#public-mode.
 
 ## [0.1.0] - 2026-10-07
 

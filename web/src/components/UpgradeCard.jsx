@@ -177,7 +177,7 @@ function AutoUpdateSetting({ token, locked, onUnauthorized }) {
         <span className="flex items-center gap-3">
           <HealthBadge level={status.enabled ? "good" : "unknown"} label={status.enabled ? "On" : "Off"} />
           {!locked && (
-            <button type="button" disabled={!status.enabled && !status.eligible} onClick={() => void toggle(!status.enabled)}
+            <button type="button" disabled={!status.enabled && (!status.eligible || status.allowedByEnv === false)} onClick={() => void toggle(!status.enabled)}
               className="rounded-md border border-line px-3 py-1.5 text-sm text-ink hover:bg-wash disabled:opacity-40">
               {status.enabled ? "Turn off" : "Turn on"}
             </button>
@@ -185,6 +185,13 @@ function AutoUpdateSetting({ token, locked, onUnauthorized }) {
         </span>
       </div>
       {!status.eligible && <p className="text-xs text-muted">Available once a second local node runs (COMPOSE_PROFILES=redundant).</p>}
+      {status.publicMode && (
+        <p className="text-xs text-ink-2">
+          This is a public server: automatic updates can only be switched on while <code>.env</code> allows them
+          (<code>XELIS_AUTO_UPDATE=true</code>), and a release waits at least 36 h. They trust the XELIS release process: the
+          checksums come with the release, and there is no signature to check.
+        </p>
+      )}
       {status.enabled && status.note && <p className="text-xs text-ink-2">{status.note}{status.checkedAt ? ` · checked ${formatAgo(status.checkedAt)}` : ""}</p>}
       {status.failedVersion && <p className="text-xs text-critical">{status.failedVersion} failed on a node and is skipped; a newer release will be tried.</p>}
       {error && <p className="text-sm text-critical">{error}</p>}

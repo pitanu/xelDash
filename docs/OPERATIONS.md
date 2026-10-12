@@ -277,6 +277,14 @@ warn about it in their log). Their page shows the main server's public dashboard
 while it is away. The HTTPS of the `public-https` profile runs on the main server only, so while it is away visitors reach the
 backup's page over plain HTTP only.
 
+**Updates.** xelDash itself never updates by itself: only `xeldash update`, run on the server, changes its version (pinned by
+`XELDASH_VERSION`), so update deliberately. XELIS node upgrades from the operator's dashboard are a deliberate action too.
+**Automatic node updates** install new XELIS releases from GitHub by themselves, which trusts the XELIS release process (the
+checksums come with the release; there is no signature to check). On a public server they run only while `.env` says
+`XELIS_AUTO_UPDATE=true` (the Nodes page can switch them off, and back on only then; a choice saved there earlier does not count),
+and a release waits at least 36 hours (`XELIS_AUTO_UPDATE_DELAY_HOURS` can make that longer, not shorter), time for the XELIS
+community to notice a bad or tampered release. node-admin logs a warning at startup while they are on.
+
 **Not covered yet:** request limits on the public dashboard itself (Stratum and getwork have their own).
 
 ## Daemon settings
@@ -436,7 +444,8 @@ release is installed once it has been out for `XELIS_AUTO_UPDATE_DELAY_HOURS` (2
 default), only when every node runs and is in sync, and only upward. A version that fails on
 a node is not tried again until a newer release is out. With one node they cannot be turned
 on, since mining would stop during each update. Keep an eye on hard-fork announcements
-anyway: a mandatory release may need installing sooner than the delay allows.
+anyway: a mandatory release may need installing sooner than the delay allows. On a public server they run only while `.env`
+says `XELIS_AUTO_UPDATE=true`, and wait at least 36 hours (see [Public mode](#public-mode)).
 
 ### By image
 

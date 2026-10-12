@@ -61,7 +61,10 @@ services:
       # Optional, off by default: update both local nodes to new releases by themselves (needs
       # the redundant profile). The dashboard switch overrides it after the first start.
       XELIS_AUTO_UPDATE: ${XELIS_AUTO_UPDATE:-false}
+      # 24 by default; at least 36 on a public server.
       XELIS_AUTO_UPDATE_DELAY_HOURS: ${XELIS_AUTO_UPDATE_DELAY_HOURS:-24}
+      # Public mode: automatic node updates only with XELIS_AUTO_UPDATE=true in .env, and at least 36 h after a release.
+      XELDASH_PUBLIC_MODE: ${XELDASH_PUBLIC_MODE:-false}
       # Warn (on the dashboard and as an alert) when the nodes' disk has less free space than this.
       XELDASH_DISK_WARN_GB: ${XELDASH_DISK_WARN_GB:-20}
       # The address to mine to, chosen on the dashboard's setup page; this is its first value.

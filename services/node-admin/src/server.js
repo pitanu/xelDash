@@ -17,6 +17,8 @@ import { message, tokensMatch } from "./snapshot.js";
 
 const port = Number.parseInt(process.env.SNAPSHOT_PORT ?? "8095", 10);
 const network = (process.env.XELIS_NETWORK ?? "devnet").toLowerCase();
+// Public mode (docs/OPERATIONS.md#public-mode); a standby also follows its main server's (see standby.js).
+const envPublicMode = /^(1|true|yes|on)$/i.test((process.env.XELDASH_PUBLIC_MODE ?? "").trim());
 const MIN_TOKEN_LENGTH = 20;
 const configuredToken = process.env.XELDASH_ADMIN_TOKEN?.trim() || null;
 // A short token could be guessed over the LAN; such a token leaves actions off.
@@ -49,7 +51,7 @@ const alertSettings = new AlertSettings({ configDir, env: process.env });
 // The second server of a cluster has no database: it copies the main server's alert settings and sends its own failover alert.
 const standbyAlerts = process.env.XELDASH_PRIMARY_URL && process.env.XELDASH_CLUSTER_SECRET
   ? new StandbyAlerts({ alertSettings, primaryUrl: process.env.XELDASH_PRIMARY_URL, secret: process.env.XELDASH_CLUSTER_SECRET, serverName: process.env.XELDASH_SERVER_NAME,
-    publicMode: /^(1|true|yes|on)$/i.test((process.env.XELDASH_PUBLIC_MODE ?? "").trim()), stateFile: join(configDir, "main-server.json") })
+    publicMode: envPublicMode, stateFile: join(configDir, "main-server.json") })
   : null;
 const clusterWatch = new ClusterWatch({
   configDir,
@@ -83,6 +85,7 @@ function updateOrder() {
 const scheduled = new ScheduledUpgrade({ configDir, releases, upgrade, order: updateOrder });
 const autoUpdate = new AutoUpdate({
   configDir, releases, upgrade, nodes: () => nodes, order: updateOrder, scheduled: () => scheduled.pending(), env: process.env,
+  publicMode: () => envPublicMode || (standbyAlerts?.publicMode ?? false),
 });
 
 function busyNode() {
