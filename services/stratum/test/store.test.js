@@ -149,3 +149,28 @@ await s4.recordShare({ workerId: 1n, jobId: "j", nonce: "n", difficulty: "1", ac
 check("a rejected statement is raised, not journaled", rethrown && s4.status().online);
 
 });
+
+test("records that arrive together during an outage are written to the journal together, in order", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "journal-"));
+  const db = fakeDb();
+  db.state.up = false;
+  // A long pause between replay tries keeps the replay out of the way.
+  const store = new DurableStore({ pool: pool(db), dir, db, logger: quiet, probeMs: 60_000 });
+  await store.init();
+  const key = { address: "xel:b", name: "w" };
+  await store.recordShare({ workerId: 1n, jobId: "j", nonce: "first", difficulty: "1", accepted: true }, key);
+  check("the outage is noticed", !store.status().online);
+
+  // Fifty shares in the same moment, as from many rigs at once. Each used to be its own file write, one after another and each
+  // queued behind the share hashes on the thread pool; now the first write takes them all.
+  const writes = Array.from({ length: 50 }, (_, i) => store.recordShare({ workerId: 1n, jobId: "j", nonce: `n${i}`, difficulty: "1", accepted: true }, key));
+  await writes[0];
+  const lines = (await readFile(join(dir, "journal.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+  assert.deepEqual(lines.map((r) => r.nonce), ["first", ...Array.from({ length: 50 }, (_, i) => `n${i}`)], "all of them, in order, once the first is kept");
+  await Promise.all(writes);
+  assert.equal(store.status().pending, 51);
+  check("sequence numbers rise", lines.every((r, i) => i === 0 || r.s > lines[i - 1].s));
+
+  await store.stop();
+  await rm(dir, { recursive: true, force: true });
+});

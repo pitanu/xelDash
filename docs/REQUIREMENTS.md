@@ -192,12 +192,42 @@ mostly the hash that proves it is valid work.
   proof of work.
 - Stratum itself, with the database switched off (shares are checked and answered, and kept in a journal file), answered **2,000 shares a second
   in about 2 ms** and about 2,900 a second at its limit; above that it fell behind (the time to answer grew to seconds and late shares were
-  counted stale). Its processor use then showed the hash threads were not yet all busy, so what saturates first is probably the one thread that
-  handles every connection's messages (not profiled).
+  counted stale), with the hash threads not yet all busy. The profile below found why: the journal, not the thread that handles every
+  connection's messages. That limit is gone in the releases after 0.2.0; this measurement is from before, and has not been repeated on this computer.
 
-So on this computer the limit is roughly 3,000 shares a second through Stratum, with the hash able to do about twice that on 8 threads. Real rigs
+So on this computer the limit was roughly 3,000 shares a second through Stratum, with the hash able to do about twice that on 8 threads. Real rigs
 send far fewer: Stratum asks each one for about a share every 5 seconds, so 3,000 shares a second would be around 15,000 rigs' worth of steady
 shares. The rig count above is what limits a server first, not the share rate.
+
+**Where the time goes (profiled).** Stratum was profiled (`node --cpu-prof`, and each thread's processor time) on a smaller computer: 4 cores of an
+Intel Xeon at 2.8 GHz in a virtual machine, 15 GiB of memory, with the database, a devnet node and the simulated rigs on the same computer. Per
+share, on that processor:
+
+| | Processor time per share | Where it runs |
+|---|---:|---|
+| The hash (proof of work) | about 3.2 ms | the hash threads (`STRATUM_HASH_THREADS`) |
+| Everything else in Stratum: messages, jobs, answers | about 0.5 ms | the one main thread |
+| Writing the share to the database, Stratum's side | about 0.3 ms more | the main thread |
+| Writing the share, the database's side | about 1.3 ms | PostgreSQL |
+
+- **The main thread is not what fills up first.** At 0.75 ms a share it could handle about 1,300 shares a second here, and it was never more than
+  about half busy. The hash and the database together use about six times as much processor time, spread over several cores.
+- **With the database switched off, the journal was the limit.** Each share was written to the journal file in turn (opened, written and closed),
+  queued behind the hashes on the same thread pool, and its answer waited for that. At 800 shares a second the time to answer grew to 4.4 s with
+  about half the computer idle. After 0.2.0, the records that arrive while one write is under way go out together in the next. On the same
+  computer, with the database off:
+
+  | Shares per second | Before: typical / slowest 5% | After: typical / slowest 5% |
+  |---:|---|---|
+  | 500 | 7 ms / 34 ms | 5 ms / 14 ms |
+  | 800 | 4,400 ms / 6,100 ms, some late shares counted stale | 12 ms / 52 ms |
+  | 1,000 | 5,000 ms / 7,900 ms, many stale | 28 ms / 230 ms |
+
+  It now falls behind at about 1,200 a second on 4 cores, with the hash threads using 3.5 of them: the proof of work is the limit, as it should be.
+- **With the database on**, this computer ran out of processor time at about 700 shares a second (the hash, PostgreSQL at about one core, and the
+  simulated rigs). More database connections (`DB_POOL_MAX`) or not waiting for the disk on each commit made no difference, which also points to
+  processor time. Each share is its own database transaction (three statements, five round trips); writing shares in batches would cut the database's part, if a server
+  ever needs it.
 
 ## Two servers (redundancy)
 

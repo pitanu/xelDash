@@ -7,6 +7,13 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Mining
+
+- While the database cannot be reached, Stratum keeps answering shares quickly at a high share rate. Each share was written to the
+  journal file in turn, behind the share hashes, and its answer waited for that: on a 4-core computer the time to answer grew to 4 s at
+  800 shares a second, with late shares counted stale. Shares that arrive together are now written together; the same test answers in
+  12 ms. See docs/REQUIREMENTS.md.
+
 ## [0.2.0] - 2026-10-13
 
 Public mode (a solo mining server anyone may use), work shared between all miners, a share every 5 seconds, and hardening for a
