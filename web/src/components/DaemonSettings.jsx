@@ -150,7 +150,7 @@ export default function DaemonSettings({ token, onUnauthorized, node = "daemon" 
     const response = await fetch(`/api/v1/node/settings${q}`);
     if (!response.ok) return;
     const next = await response.json();
-    setData((previous) => {
+    setData((/** @type {any} */ previous) => {
       // Reset the draft when the saved state changes (first load, save, or the node applied it).
       const saved = next.pending ?? next.current;
       const before = previous ? previous.pending ?? previous.current : null;
@@ -186,7 +186,7 @@ export default function DaemonSettings({ token, onUnauthorized, node = "daemon" 
       if (q && !s.flag.includes(q) && !s.description.toLowerCase().includes(q)) continue;
       byGroup.set(s.group, [...(byGroup.get(s.group) ?? []), s]);
     }
-    return GROUP_ORDER.filter((g) => byGroup.has(g)).map((g) => [g, byGroup.get(g) ?? []]);
+    return GROUP_ORDER.filter((g) => byGroup.has(g)).map((g) => /** @type {[string, any[]]} */ ([g, byGroup.get(g) ?? []]));
   }, [data, query, changedOnly, draft]);
 
   /** @param {string} flag @param {string | true | null} value */

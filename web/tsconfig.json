@@ -10,7 +10,7 @@
     "checkJs": true,
     "noEmit": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": []
+    "types": ["vite/client"]
   },
   "include": ["src/**/*.js", "src/**/*.jsx"]
 }

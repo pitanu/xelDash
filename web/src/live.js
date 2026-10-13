@@ -73,5 +73,7 @@ const blockListeners = new Set();
 /** Called when one of our miners finds a block (not for every block on the network). @param {() => void} listener */
 export function subscribeBlockFound(listener) {
   blockListeners.add(listener);
-  return () => blockListeners.delete(listener);
+  return () => {
+    blockListeners.delete(listener);
+  };
 }

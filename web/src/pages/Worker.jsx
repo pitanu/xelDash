@@ -72,7 +72,7 @@ export default function Worker({ address, name }) {
             ? <p className="text-sm text-muted">No rejected shares.</p>
             : (
               <ul className="divide-y divide-line text-sm">
-                {w.rejectReasons24h.map((r) => (
+                {w.rejectReasons24h.map((/** @type {{ reason: string | null, count: string }} */ r) => (
                   <li key={r.reason ?? "unknown"} className="flex justify-between py-2">
                     <span className="text-ink-2">{REJECT_LABELS[/** @type {keyof typeof REJECT_LABELS} */ (r.reason)] ?? r.reason ?? "Unknown"}</span>
                     <span className="tabular text-ink">{formatInteger(r.count)}</span>

@@ -30,7 +30,8 @@ The dashboard lives in `web/` and has its own dependencies:
 ```sh
 cd web
 npm ci
-npm run dev    # proxies /api to the API on 127.0.0.1:8081
+npm run dev        # proxies /api to the API on 127.0.0.1:8081
+npm run typecheck
 ```
 
 ## Tests
@@ -70,7 +71,7 @@ The launcher tests need `bash`, the Compose tests need Docker Compose; each is s
 should fail without the fix. They check logic and the pieces that are easy to get wrong; what only real hardware can show (two
 computers, a Raspberry Pi, a real miner) is in [docs/COMMUNITY-TESTING.md](docs/COMMUNITY-TESTING.md).
 
-Service code is JavaScript with JSDoc types checked by TypeScript (`npm run typecheck`).
+Service and dashboard code is JavaScript with JSDoc types checked by TypeScript (`npm run typecheck`, in the root and in `web/`).
 The hash addon is Rust (`packages/xelis-hash`); it is built inside the Stratum image.
 
 ## Pull requests
@@ -81,7 +82,7 @@ The hash addon is Rust (`packages/xelis-hash`); it is built inside the Stratum i
   user would notice. Mark breaking changes **Breaking**.
 - Commit messages: a short, plain summary line in the imperative ("Add worker page"), with
   a body only when the reason is not obvious.
-- CI must pass: typecheck, dashboard build, tests (both `npm test`), Compose validation and image builds. Add a test with a fix or a new behaviour.
+- CI must pass: typecheck (both), dashboard build, tests (both `npm test`), Compose validation and image builds. Add a test with a fix or a new behaviour.
 - Database changes go in a new numbered file in `packages/db/migrations/`. Never edit a
   migration that has been released.
 

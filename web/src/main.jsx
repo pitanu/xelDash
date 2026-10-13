@@ -6,7 +6,7 @@ import { consumeTokenFromUrl } from "./session-token.js";
 
 consumeTokenFromUrl();
 
-createRoot(document.getElementById("root")).render(
+createRoot(/** @type {HTMLElement} */ (document.getElementById("root"))).render(
   <StrictMode>
     <App />
   </StrictMode>,

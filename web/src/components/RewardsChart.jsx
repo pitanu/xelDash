@@ -9,6 +9,8 @@ const HEIGHT = 220;
 const PAD = { top: 14, right: 16, bottom: 28, left: 64 };
 const ATOMIC = 1e8;
 
+/** One day of /api/v1/rewards. @typedef {{ day: string, blocks: number, reward: string, expectedBlocks: number }} RewardPoint */
+
 /** Round tick step to 1, 2 or 5 times a power of ten. @param {number} max @param {number} count */
 function niceTicks(max, count) {
   if (max <= 0) return [0];
@@ -56,11 +58,11 @@ export default function RewardsChart({ address = null, rewardPerBlock }) {
   const series = useMemo(() => {
     const points = history.data?.points ?? [];
     // Start on the first day with tracked work, or the first block if none is tracked.
-    let from = points.findIndex((p) => p.expectedBlocks > 0);
-    if (from < 0) from = Math.max(0, points.findIndex((p) => p.blocks > 0));
+    let from = points.findIndex((/** @type {RewardPoint} */ p) => p.expectedBlocks > 0);
+    if (from < 0) from = Math.max(0, points.findIndex((/** @type {RewardPoint} */ p) => p.blocks > 0));
     let found = 0;
     let expectedBlocks = 0;
-    return points.slice(from).map((p) => {
+    return points.slice(from).map((/** @type {RewardPoint} */ p) => {
       found += Number(p.reward) / ATOMIC;
       expectedBlocks += p.expectedBlocks;
       return { day: p.day, found, expected: rewardPerBlock ? (expectedBlocks * rewardPerBlock) / ATOMIC : null };

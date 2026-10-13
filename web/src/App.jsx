@@ -140,6 +140,7 @@ export default function App() {
   const nav = mode.publicView ? PUBLIC_NAV : operator ? NAV : NAV.filter(([href]) => !OPERATOR_PAGES.includes(href));
   const workerMatch = /^\/miner\/([^/]+)\/worker\/(.+)$/.exec(route);
   const minerMatch = /^\/miner\/([^/]+)$/.exec(route);
+  /** @type {import("react").ReactNode} */
   let page = <NotFound />;
   if (route === "/") page = <Overview />;
   else if (workerMatch) {

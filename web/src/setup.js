@@ -116,7 +116,7 @@ export function useSetup({ intervalMs = 5_000 } = {}) {
 
   const minerList = miners.data?.miners ?? [];
   const everConnected = minerList.length > 0;
-  const accepted = minerList.reduce((sum, m) => sum + Number(m.accepted1h), 0);
+  const accepted = minerList.reduce((/** @type {number} */ sum, /** @type {{ accepted1h: string }} */ m) => sum + Number(m.accepted1h), 0);
   /** @type {SetupStep} */
   const minerStep = {
     id: "miner",

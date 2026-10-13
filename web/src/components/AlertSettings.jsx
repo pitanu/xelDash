@@ -56,8 +56,7 @@ export default function AlertSettings({ token, onUnauthorized }) {
   const [message, setMessage] = useState(/** @type {{ ok: boolean, text: string } | null} */ (null));
   const [test, setTest] = useState(/** @type {{ channel: string, ok: boolean, error?: string }[] | null} */ (null));
 
-  /** @param {AlertStatus} s */
-  const apply = useCallback((s) => {
+  const apply = useCallback((/** @type {AlertStatus} */ s) => {
     setStatus(s);
     setEvents(s.events);
     setMinutes(String(s.workerOfflineMinutes));

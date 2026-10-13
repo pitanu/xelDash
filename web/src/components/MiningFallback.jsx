@@ -33,7 +33,7 @@ export default function MiningFallback({ token, onUnauthorized }) {
       const body = await response.json().catch(() => ({}));
       if (response.status === 401) onUnauthorized();
       if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
-      setData((d) => ({ ...d, ...body }));
+      setData((/** @type {any} */ d) => ({ ...d, ...body }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

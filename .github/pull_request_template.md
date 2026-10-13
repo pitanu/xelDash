@@ -9,6 +9,6 @@ from docs/DEVNET.md. -->
 
 ## Checklist
 
-- [ ] `npm run typecheck` passes
+- [ ] `npm run typecheck` passes (in the root and in `web/`)
 - [ ] Docs and `.env.example` updated where behavior or settings changed
 - [ ] `CHANGELOG.md` "Unreleased" entry added (if users would notice)

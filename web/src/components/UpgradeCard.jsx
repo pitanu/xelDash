@@ -160,7 +160,7 @@ function AutoUpdateSetting({ token, locked, onUnauthorized }) {
     const body = await response.json().catch(() => ({}));
     if (response.status === 401) onUnauthorized();
     if (!response.ok) setError(body.error ?? `HTTP ${response.status}`);
-    else setStatus((s) => ({ ...s, ...body }));
+    else setStatus((/** @type {any} */ s) => ({ ...s, ...body }));
   }
 
   if (!status) return null;

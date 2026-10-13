@@ -28,7 +28,7 @@ export default function Overview() {
 
   const o = overview.data;
   const blockRows = o?.blocks ?? [];
-  const found = blockRows.reduce((sum, r) => sum + (r.status === "rejected" ? 0 : Number(r.count)), 0);
+  const found = blockRows.reduce((/** @type {number} */ sum, /** @type {{ status: string, count: string }} */ r) => sum + (r.status === "rejected" ? 0 : Number(r.count)), 0);
   const stratum = status.data?.services.stratum;
   // Whether miners get work right now, from the Health page's source.
   const miningBadge = !stratum ? null

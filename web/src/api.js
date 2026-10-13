@@ -7,6 +7,8 @@ const LIVE_POLL_MS = 60_000;
 // Coalesces a burst of live messages (new block, block submitted, block final) into one fetch.
 const LIVE_DEBOUNCE_MS = 400;
 
+/** @typedef {{ data: any, error: (Error & { code?: string }) | null, loading: boolean }} Polled */
+
 /** @param {string} path */
 async function getJson(path) {
   const response = await fetch(path, { headers: { accept: "application/json" } });
@@ -31,7 +33,7 @@ export function useLive() {
  * @param {string | null} path @param {{ intervalMs?: number }} [options]
  */
 export function usePolled(path, { intervalMs } = {}) {
-  const [state, setState] = useState({ data: null, error: null, loading: true });
+  const [state, setState] = useState(/** @type {Polled} */ ({ data: null, error: null, loading: true }));
   const live = useLive();
   const current = useRef(path);
   const loadRef = useRef(() => {});

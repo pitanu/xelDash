@@ -35,8 +35,8 @@ export default function Miner({ address, back = true }) {
     return <p className="text-sm text-ink-2">No miner with address <span className="break-all text-ink">{address}</span> has connected.</p>;
   }
   const m = miner.data;
-  const hashrate5m = m?.workers.reduce((sum, w) => sum + Number(w.hashrate5m), 0);
-  const hashrate1h = m?.workers.reduce((sum, w) => sum + Number(w.hashrate1h), 0);
+  const hashrate5m = m?.workers.reduce((/** @type {number} */ sum, /** @type {{ hashrate5m: string }} */ w) => sum + Number(w.hashrate5m), 0);
+  const hashrate1h = m?.workers.reduce((/** @type {number} */ sum, /** @type {{ hashrate1h: string }} */ w) => sum + Number(w.hashrate1h), 0);
   const blockList = blocks.data?.blocks ?? [];
 
   return (
@@ -55,8 +55,8 @@ export default function Miner({ address, back = true }) {
             ? `${formatBlocksPerDay(dailyEarnings(hashrate1h, overview.data.network.difficulty, overview.data.node.miner_reward).blocks)}`
             : "—"}
           detail={overview.data && <EarningsText hashrate={hashrate1h} difficulty={overview.data.network.difficulty} minerReward={overview.data.node.miner_reward} />} />
-        <StatTile icon="block" label="Blocks found" value={formatInteger(blockList.filter((b) => b.status !== "rejected").length)}
-          detail={`${blockList.filter((b) => b.status === "main-chain").length} main chain`} />
+        <StatTile icon="block" label="Blocks found" value={formatInteger(blockList.filter((/** @type {{ status: string }} */ b) => b.status !== "rejected").length)}
+          detail={`${blockList.filter((/** @type {{ status: string }} */ b) => b.status === "main-chain").length} main chain`} />
       </div>
 
       <RewardsSummary totals={blocks.data?.totals} />

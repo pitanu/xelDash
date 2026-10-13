@@ -92,9 +92,9 @@ export default function Health() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <ServiceTile label={s && s.nodes.length > 1 ? "Nodes" : "Node"}
           detail={!s ? undefined : s.nodes.length > 1
-            ? `${s.nodes.filter((n) => n.ok).length} of ${s.nodes.length} responding`
+            ? `${s.nodes.filter((/** @type {{ ok: boolean }} */ n) => n.ok).length} of ${s.nodes.length} responding`
             : s.services.daemon.ok ? node?.version : s.services.daemon.error}>
-          {s && (s.nodes.length > 1 && s.services.daemon.ok && s.nodes.some((n) => !n.ok)
+          {s && (s.nodes.length > 1 && s.services.daemon.ok && s.nodes.some((/** @type {{ ok: boolean }} */ n) => !n.ok)
             ? <HealthBadge level="warning" label="Degraded" />
             : <HealthBadge level={s.services.daemon.ok ? "good" : "critical"} label={s.services.daemon.ok ? "Running" : "Not responding"} />)}
         </ServiceTile>
@@ -149,7 +149,7 @@ export default function Health() {
             <Card title="Active bans" className="lg:shrink-0" subtitle="Stratum IPs banned for invalid submissions">
               {s && (s.bans.length === 0 ? <p className="text-sm text-muted">No active bans.</p> : (
                 <ul className="divide-y divide-line text-sm">
-                  {s.bans.map((b) => (
+                  {s.bans.map((/** @type {{ ip: string, until: string, reason: string }} */ b) => (
                     <li key={b.ip} className="py-2">
                       <div className="flex justify-between gap-4">
                         <span className="tabular text-ink">{b.ip}</span>
