@@ -65,7 +65,7 @@ prints what it costs (see `docs/REQUIREMENTS.md`). It needs Docker and about 15 
 `npm run e2e` is the end-to-end check: it starts the real stack in Docker on a private devnet (its own project and ports, so a stack
 that is already running is left alone), mines real blocks through Stratum and through the official miner's getwork, stops the
 database and Stratum in the middle, and runs a front door (HAProxy) through a failover and back. It needs Docker, takes about five
-minutes once the images are built, and also runs weekly and on demand in GitHub Actions. It is not part of `npm test`.
+minutes once the images are built, and also runs weekly, on demand and for every release tag in GitHub Actions. It is not part of `npm test`.
 
 The launcher tests need `bash`, the Compose tests need Docker Compose; each is skipped when missing. A test that fixes a bug
 should fail without the fix. They check logic and the pieces that are easy to get wrong; what only real hardware can show (two
@@ -92,7 +92,7 @@ Versions follow [Semantic Versioning](https://semver.org/). To release: move the
 then run `./scripts/tag-release.sh X.Y.Z` (or `X.Y.Z-rc.N`) and push the tag it makes (`git push origin vX.Y.Z`). The script makes the tagged
 commit on the side with the `VERSION` file set to the version, so a downloaded release installs the ready-made images and `xeldash update` can
 find the next one; the development branch keeps `local` in `VERSION` and builds from source. The release workflow checks that `VERSION` matches the
-tag, runs the typecheck and the tests, publishes the images, and only then creates the GitHub release (marked a pre-release for `-rc` versions).
+tag, runs the typecheck, the tests and the end-to-end check, publishes the images, and only then creates the GitHub release (marked a pre-release for `-rc` versions).
 `xeldash update` and the dashboard's update notice follow published releases, not tags, so nobody is offered a version before its images exist.
 
 After the first publish of a new image, GitHub creates its package as private: set it to public (package settings), then check that a
