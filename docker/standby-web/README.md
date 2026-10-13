@@ -13,3 +13,7 @@ and no dashboard of its own, so this nginx:
 
 `PRIMARY_URL` and `STANDBY_STATUS_URL` come from the environment (nginx's template step). The page is plain HTML with one inline
 script, and is served without the main dashboard's strict content security policy.
+
+With a public main server (public mode), this page proxies the main server's public dashboard, so visitors get the same
+public view; the offline page's rig count comes from a `/status` that leaves out the front door's addresses. The main server's
+HTTPS (`public-https`) does not move here: while the main server is away, visitors reach this page over plain HTTP only.

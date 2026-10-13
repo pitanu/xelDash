@@ -179,6 +179,27 @@ Tested on a devnet with the real Stratum, API and HAProxy images on one machine 
 - [ ] Note anything that assumes Windows.
 - [ ] On Apple Silicon or a Raspberry Pi (arm64): do the containers start? The images are published for arm64 but have not been run on real hardware.
 
+## 13. Public server (needs a Linux server with a public address and a domain name; see [Operations](OPERATIONS.md#public-mode))
+
+Tested with automated tests and on one machine: the public view leaves out IP addresses, problems, events and node administration;
+the limits hold under load (the capacity test with `LOAD_PUBLIC=1`: 4,000 rigs on 200 addresses with all limits on, a flood of
+fresh addresses kept within the node's call budget, an IP address spraying addresses banned, shares over the per-IP limit not
+checked); rigs on different addresses share one template and every block pays the rig that found it (devnet); Stratum TLS takes a
+certificate that appears or is renewed without a restart. Not tested with a real domain, real internet miners or a real cluster.
+
+- [ ] `XELDASH_PUBLIC_MODE=true` with the `public-https` profile and a real domain: the certificate is issued, `https://DOMAIN`
+      shows the public dashboard and the "Mine here" page, and no page or API answer shows an IP address.
+- [ ] `/api/v1/node/nodes` from outside answers 404; `ssh -L 8089:127.0.0.1:8089` to the server opens the operator's dashboard,
+      with IP addresses and the Nodes page.
+- [ ] A miner on the internet mines to its own address; a login without an address is refused with a message saying so.
+- [ ] Stratum TLS with the domain's certificate (`STRATUM_TLS_CERT_FILE=/public-tls/cert.pem`, see Operations): a miner using
+      `stratum+ssl://DOMAIN:3334` connects without trusting anything by hand.
+- [ ] A farm behind one IP address (dozens of rigs or more): all connect and mine, and none is refused.
+- [ ] With a standby or front door: after switching the main server off, miners on the internet keep mining, and the standby's page
+      still shows no IP addresses.
+- [ ] After a few days: the database's size (`docker compose exec postgres du -sh /var/lib/postgresql/data`) and the disk used by
+      container logs stay level.
+
 ## Known limits (not bugs)
 
 - On Docker Desktop, xelDash cannot tell a LAN computer from an internet one; the Windows

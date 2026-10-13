@@ -178,7 +178,7 @@ to `owner/name`. The running version is shown at the foot of every page.
 separated list such as `192.168.1.0/24`. Docker Desktop hides the real address of a connecting
 computer, so on Windows and macOS this cannot block the internet by itself: run
 `xeldash firewall` (Windows, asks for administrator rights) and never forward the ports on your
-router. See [SECURITY.md](SECURITY.md).
+router. See [SECURITY.md](SECURITY.md). For a server open to everyone, see [Public mode](#public-mode).
 
 ## HTTPS and a login
 

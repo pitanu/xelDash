@@ -12,13 +12,16 @@ Stratum requests without `"jsonrpc"` are accepted, as GPU miners such as Rigel s
 `xel/v3` work is issued. Tested with our devnet miner, Rigel 1.23.0 on mainnet, and the
 official `xelis_miner` over getwork.
 
-**Work and shares.** Each miner gets a template for its own address from the node
-(`get_block_template`, `get_miner_work`); the reward key comes from the address, looked up on
-our own node. New work is pushed on the node's `new_block` event, with polling
+**Work and shares.** Work comes from the node (`get_block_template`, `get_miner_work`) and is shared
+(`src/job-provider.js`): rigs on one address share one template per block, and once the node is seen to give the same work to
+every address (checked again every 10 minutes and after a node switch), one template per block serves every miner. Each rig
+writes its own extra nonce and miner key into its copy; the reward key comes from the rig's address, looked up on our own node,
+and the node takes the miner from the submitted work. New work is pushed on the node's `new_block` event, with polling
 (`STRATUM_JOB_REFRESH_MS`) as the fallback. A share is hashed from the 112-byte MinerWork on a
 thread pool, compared with its share and network targets, and recorded. Work at network
 difficulty is submitted to the node before any database write and recorded in `blocks`; the
-block tracker moves it to `main-chain`, `side` or `orphaned` at the stable height. Each
+block tracker moves it to `main-chain`, `side` or `orphaned` at the stable height. When the node accepts one of our blocks,
+every rig gets new work at once. Each
 accepted share also adds its effort (share ÷ network difficulty) for the luck figures.
 
 **Logins.** XELIS-aware miners (Rigel) send `[address, worker, password]`. Classic Stratum miners send
@@ -30,11 +33,13 @@ seconds), else `XELIS_DEFAULT_ADDRESS`.
 
 **Difficulty.** Vardiff per connection (`src/vardiff.js`): starts at 100,000, aims for one
 share every 5 seconds (the block time), capped at the network difficulty. A miner can fix it with
-`d=<difficulty>` (or `diff=`) in the password, never below `STRATUM_MIN_DIFFICULTY`.
+`d=<difficulty>` (or `diff=`) in the password, never below `STRATUM_MIN_DIFFICULTY`. In public mode that value is where the
+connection starts and the lowest it goes; vardiff can still raise it.
 
 **Late shares.** A new block replaces the job, but shares on the previous one are accepted for
 `STRATUM_STALE_GRACE_MS` (1.5 s) since GPUs finish their current batch first. Later ones are
-rejected and recorded as stale; they never count toward bans.
+rejected and recorded as stale (at most 30 a minute per connection); they never count toward bans. A share for a job the
+connection was never given is not late work: it counts as invalid and is not recorded.
 
 **Nodes.** `XELIS_RPC_URLS` lists nodes in priority order (`src/node-pool.js`). Work comes from
 the first node in sync; if it goes down or falls behind, mining switches to the next without
@@ -49,6 +54,12 @@ are recorded as `connection_refused` events, and logins that fail as `login_prob
 gateway address, which hides real clients. A 15-minute ban when 5 minutes hold at least 50 invalid submissions or failed logins that are
 over half of its submissions. At most 32 workers per connection. Bans are stored in `bans`
 and survive restarts. All limits are `STRATUM_*` settings in `.env.example`.
+
+**Public mode** (`XELDASH_PUBLIC_MODE=true`, or learned from the main server by a standby or front door, `src/default-address.js`).
+Every miner must log in with its own address. Unless set in `.env`, the limits become: 1,000 connections per IP address and
+5,000 in all, 32 different addresses and 1,000 new worker names an hour per IP address (`src/authorize-worker.js`), 300 checked
+shares a second per IP address (`src/ip-guard.js`), and 100 calls a second to the node (`src/node-budget.js`; found blocks
+never wait). The official node fallback is never used, and raw shares are kept one day. See docs/OPERATIONS.md#public-mode.
 
 **Getwork.** Miners that only speak getwork, like the official `xelis_miner`, connect to
 `ws://<host>:8090/getwork/<address>/<worker>`. Each connection is a normal session with vardiff,
@@ -86,5 +97,5 @@ and 503 with the reason otherwise (the cluster's address manager asks it, so the
 cannot mine); `/status` adds the instance, mode (`main` or `standby`), connected rigs and the journal's size, for the
 standby's offline page. It is published on this computer's loopback only, and only when the cluster is set up.
 
-**Retention.** Raw shares are kept 7 days, per-minute stats 90 days, and events and bans a year; hourly rollups and blocks are
-kept (`RETENTION_*`).
+**Retention.** Raw shares are kept 7 days (1 in public mode), per-minute stats 90 days, and events and bans a year; hourly
+rollups and blocks are kept. Workers that never had a share accepted are deleted after a day unused (`RETENTION_*`).

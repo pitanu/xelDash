@@ -1,7 +1,8 @@
 # Security
 
-xelDash is built to run on a private LAN, bound to `127.0.0.1` by default. This page
-describes what it protects against, what each part trusts, and the risks that remain.
+xelDash is built to run on a private LAN, bound to `127.0.0.1` by default, or as a public solo mining server with
+public mode (`XELDASH_PUBLIC_MODE=true`, see [OPERATIONS.md](OPERATIONS.md#public-mode)). This page describes what it
+protects against, what each part trusts, and the risks that remain.
 Report security problems privately rather than in a public issue: use the repository's
 **Security** tab ("Report a vulnerability"), or contact the maintainer through their GitHub
 profile.
@@ -10,7 +11,7 @@ profile.
 
 | Who | Can |
 |-----|-----|
-| Anyone who can reach the dashboard | Read everything it shows: miner addresses, worker names and last IPs, hashrates, blocks, node status |
+| Anyone who can reach the dashboard | Read everything it shows: miner addresses, worker names and last IPs, hashrates, blocks, node status. On a public server, visitors see no IP addresses, connection problems, recent events or node administration; the operator's full dashboard is on the server's loopback only |
 | Anyone who can reach Stratum or getwork | Mine, within the limits below |
 | Holder of `XELDASH_ADMIN_TOKEN` | For every local node: change its settings and trusted peers, stop, start and restart it, replace its chain data (snapshot or copy), and switch it to another XELIS release (now, at a height, or automatically). Turn the official node fallback on or off, and choose the address that miners without one mine to. |
 
@@ -64,7 +65,7 @@ Leave it unset if you do not need these features.
   running the installer.
 - **The mining address** is validated by your own node before it is saved (right network, no typos,
   not an integrated address), and changing it needs the admin token.
-- **Only your own network can mine.** Stratum, getwork and the dashboard accept connections from
+- **Only your own network can mine** (unless you run a public server). Stratum, getwork and the dashboard accept connections from
   private addresses (10.x, 172.16-31.x, 192.168.x) and this computer, and turn everything else
   away. `XELDASH_ALLOWED_NETWORKS` in `.env` changes that: `private` (default),
   `tailscale`, `any`, or a list of networks such as `192.168.1.0/24,100.64.0.0/10`.
@@ -132,7 +133,8 @@ check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
   launcher checks first that the computer has a home-network address). On a home network behind
   a router that is fine; on a computer with a public address, or if you forward xelDash's ports on
   your router, anyone on the internet could read the dashboard and use your mining server. Never
-  forward its ports.
+  forward its ports, unless you mean to run a public server: then turn on public mode first, which hides IP addresses and
+  node administration from visitors and limits what strangers can do.
 - **Records kept during an outage are private.** While the database cannot be reached, Stratum keeps its journal (miner
   addresses, IP addresses, shares) in a file readable only by the mining server, on a volume that is not published.
 - **The ingest endpoint exists only in a cluster.** `/api/v1/ingest` answers 404 unless `XELDASH_CLUSTER_SECRET` (at least 16
@@ -173,7 +175,9 @@ check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
   the same trust as letting people on your network mine through xelDash at all. Use the HTTPS proxy profile for the
   main server if your network is shared with people you do not trust.
 - **Some read-only endpoints are open to your network.** Disk space, the cluster role and (in a cluster) the standby's `/status` need no
-  token: they show sizes, a server name and a count of connected rigs, to anyone who is allowed on your network. The alert
+  token: they show sizes, a server name and a count of connected rigs, to anyone who is allowed on your network. On a public
+  server the node endpoints are not served to visitors at all (a 404), and the standby's status page leaves out the front door's
+  addresses. The alert
   settings file on the config volume (webhook addresses, the Telegram token) is readable by the API and Stratum containers, not
   by other users, and the dashboard only ever shows the last four characters.
 - **The wallet link is only a link.** The setup page points to the official web wallet at

@@ -49,7 +49,8 @@ holds no funds, ever.
 - **You see everything.** Pool-grade statistics for a setup that is entirely yours.
 - **It keeps mining.** A second node, an optional fallback to the official public node, and
   upgrades that go one node at a time mean restarts and new releases do not stop your rigs.
-- **It is quick to run.** One `docker compose up`, on a machine on your LAN.
+- **It is quick to run.** One `docker compose up`, on a machine on your LAN, or on a server as a public solo mining
+  server for everyone.
 
 ## Features
 
@@ -140,6 +141,9 @@ holds no funds, ever.
   takes over within seconds and your miners need no change.
 - **Backups** from the dashboard or the launcher (`xeldash backup`, `xeldash restore`), and optional daily
   automatic ones.
+- **Public mode** (`XELDASH_PUBLIC_MODE=true`): a server anyone may solo mine on, each to their own address, with HTTPS from
+  Let's Encrypt, a "Mine here" page, no miners' IP addresses on show, the operator's dashboard on the server's loopback only,
+  and limits on everything reachable from the internet. See [Operations](docs/OPERATIONS.md#public-mode).
 
 ### Safe by default
 
@@ -150,6 +154,8 @@ holds no funds, ever.
   control Docker.
 - Strict content security policy, per-IP limits and bans for abusive clients, checked snapshots
   and release downloads, and an optional HTTPS front with a login.
+- A public server (public mode) shows no IP addresses or node administration to visitors, limits every connection, share
+  and request per IP address, and never asks its XELIS node more than a set number of times a second.
 
 See [Security](docs/SECURITY.md) for what is protected and what is not.
 

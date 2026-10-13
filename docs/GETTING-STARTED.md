@@ -118,7 +118,8 @@ removes them). xelDash only accepts miners from private networks; `XELDASH_ALLOW
 `.env` changes that.
 
 **Never open xelDash's ports on your router** (port forwarding). It is built for your home
-network, not the internet. See [Security](SECURITY.md).
+network, not the internet. See [Security](SECURITY.md). To run a server anyone may mine on, use
+[public mode](OPERATIONS.md#public-mode) on a rented server instead.
 
 ## Problems
 

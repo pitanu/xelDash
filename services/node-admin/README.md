@@ -41,6 +41,12 @@ streaming uploads without buffering. Reads are open; every change needs
 | `GET/PUT /mining-address` | The address xelDash mines to when a miner sends none: checked by your node (network, typos, not integrated), kept on the config volume, read by Stratum |
 | `POST /token/check` | Check an admin token when it is entered |
 
+**Public mode** (`XELDASH_PUBLIC_MODE=true`, or on a standby the main server's, kept in `main-server.json` on the config
+volume across restarts): the fallback switch stays off (a public server's miners must not reach node.xelis.io), and automatic
+node updates run only while `.env` says `XELIS_AUTO_UPDATE=true` and wait at least 36 hours after a release
+(`src/autoupdate.js`). Visitors of a public dashboard never reach these endpoints: its web server answers `/api/v1/node/` with a
+404, and only the operator's `admin-web` proxies them.
+
 One heavy disk operation (download, upload, unpack or copy) runs at a time across all nodes.
 
 Snapshots are checked before anything is staged: the official checksum (downloads; uploads

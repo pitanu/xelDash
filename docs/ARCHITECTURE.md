@@ -8,15 +8,16 @@ model and the security model. For using it, start with [Getting started](GETTING
 ## 1. Scope and users
 
 - An open-source, self-hosted XELIS solo mining server and statistics dashboard, run with
-  Docker Compose and intended for a home or office network.
-- Whoever deploys it runs their own XELIS node (or two). Miners connect to the LAN Stratum or
-  getwork endpoint; it is not meant to be reachable from the internet, and refuses connections from outside your networks by default.
+  Docker Compose, for a home or office network by default, or as a public solo mining server (public mode, below).
+- Whoever deploys it runs their own XELIS node (or two). Miners connect to the Stratum or getwork endpoint; by default it
+  refuses connections from outside your networks. In public mode (`XELDASH_PUBLIC_MODE=true`) anyone on the internet may
+  mine there, each to their own address.
 - Validated shares provide pool-quality worker and miner hashrate, share history, and
   time-to-block estimates. Only solved blocks are submitted, to the operator's own node.
 - Each found block pays the address authorized by its miner. xelDash does not split rewards,
   hold funds, track balances, run payouts, or use a hot wallet.
 - Each connection authorizes with its own `xel:` address; the operator can configure a
-  default address for miners that do not send one.
+  default address for miners that do not send one (not in public mode, where every miner must send its own).
 
 **Non-goals:** shared-reward pool mining (PPLNS/PPS), fees, custodial wallets.
 
@@ -47,7 +48,10 @@ node-admin also mounts `docker/hostdisk` read-only, only to read the free space 
 | `daemon2`    | Optional second node for failover and one-at-a-time upgrades (profile `redundant`) | No |
 | `stratum`    | Miner connections, jobs, share validation, vardiff, block submission, node failover, retention, and the journal that keeps mining going without the database | LAN (loopback by default) |
 | `api`        | Stats, health, live updates, alerts | LAN (loopback by default) |
-| `web`        | React dashboard behind nginx | LAN (loopback by default) |
+| `web`        | React dashboard behind nginx; in public mode, the public view (no IP addresses or node administration, requests limited per visitor) | LAN (loopback by default) |
+| `admin-web`  | Public mode only (profile `public`): the operator's full dashboard | Loopback only |
+| `proxy`      | Optional HTTPS and a login in front of the dashboard (profile `proxy`, Caddy, local certificate) | LAN |
+| `public-https` | Public mode only (profile `public-https`): HTTPS with a Let's Encrypt certificate for `XELDASH_PUBLIC_DOMAIN`, also copied for Stratum TLS | Internet (80, 443) |
 | `node-admin` | For each local node: settings, snapshots and copies, stop and start, version switches (now, at a height, or automatic); the fallback switch, the mining address and the alert settings (admin token) | No |
 | `postgres`, `migrate` | Storage and one-shot schema migrations | No |
 | `backup`     | Optional daily database dumps (profile `backup`) | No |
@@ -177,11 +181,19 @@ Notes:
 
 ## 7. Security
 
-Local-network only by default; the model, protections and remaining risks are in
+Local-network only by default, or a public server in public mode; the model, protections and remaining risks are in
 [SECURITY.md](SECURITY.md). In short: nothing sensitive is published, Stratum and getwork
 have per-IP connection, message and ban limits, the dashboard sends a strict
 Content-Security-Policy, and every change to a node (settings, snapshots, stop and start,
 versions, the fallback) needs `XELDASH_ADMIN_TOKEN`. Nothing can control Docker. Viewing the dashboard needs no login by default; the optional `proxy` service adds HTTPS, a login and a host-name check.
+
+**Public mode.** Which view a request gets is decided by the web server it came through, never by the visitor: at start,
+`docker/web/41-view.sh` sets the `web` container's view to public (and `admin-web` to the operator's), and nginx sends it to the API
+in `X-Xeldash-View`, replacing whatever the visitor sent. A request without `admin` gets the public view
+(`services/api/src/public-mode.js`): IP addresses are removed from every answer, connection problems and recent events are left
+out, and node administration is a 404. Public answers are shared between visitors for 2 seconds (`public-cache.js`). Stratum
+requires each miner's own address and limits connections, addresses, new worker names and checked shares per IP address, and its
+calls to the node in all (`node-budget.js`). The limits and their defaults are in [OPERATIONS.md](OPERATIONS.md#public-mode).
 
 ## 8. API and dashboard
 

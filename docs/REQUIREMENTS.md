@@ -113,6 +113,9 @@ default, which is fine).
   3334 (Stratum over TLS, optional), 8090 (getwork), and 2125 (the node's peer connections, outbound is enough).
 - The computer needs to reach GitHub (release checks and node upgrades) and, on first start, the XELIS snapshot server.
   It does not need a public address or any open port from the internet.
+- **A public server** (public mode, [Operations](OPERATIONS.md#public-mode)) is the exception: a Linux server with a public
+  address and a domain name pointing at it, with ports 80 and 443 (HTTPS), 3333 (Stratum), 8090 (getwork) and optionally 3334
+  open to the internet. Size it for the rigs you expect (see below); each rig uses well under a kilobyte a second.
 
 ## Operating systems and hardware
 

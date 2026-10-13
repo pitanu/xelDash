@@ -4,8 +4,10 @@ React, Vite and Tailwind. The Compose `web` service builds it and serves it with
 port 8088 (loopback by default), proxying `/api` to the API service.
 
 Pages: Overview (`#/`), Miner (`#/miner/<address>`), Worker
-(`#/miner/<address>/worker/<name>`), Blocks (`#/blocks`) and Health (`#/health`). There is
-no login; like the API, the dashboard is meant for your LAN only.
+(`#/miner/<address>/worker/<name>`), Blocks (`#/blocks`), Health (`#/health`), and in public mode Mine here (`#/connect`). There is
+no login; like the API, the dashboard is meant for your LAN, unless the server is in public mode: then this container gives the
+public view (no IP addresses or node administration, requests limited per visitor; `docker/web/41-view.sh`) and `admin-web`, the
+same image on 127.0.0.1 only, gives the operator's. See docs/OPERATIONS.md#public-mode.
 
 Updates arrive live over the `/api/v1/live` WebSocket (nginx proxies the upgrade), which
 triggers a refetch of the affected data. The header shows "Live" or "Polling"; without the

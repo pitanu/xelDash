@@ -11,3 +11,7 @@ Stratum on this box otherwise. Both are sent a PROXY protocol line, so Stratum s
 `/tls/cert.pem` and `/tls/key.pem` (HAProxy needs them in one file, so the entrypoint joins them), decrypts it, and sends the plain
 connection on like the others. A miner already connected to a server that stops mining is dropped when the server closes the connection, and
 reconnects to whichever is chosen then.
+
+With a public main server (public mode), the Stratum on this box learns that from the main server and refuses logins without an
+address, like the main one. Set `XELDASH_ALLOWED_NETWORKS=any` in this box's `.env` too, or miners on the internet are turned
+away after a failover. See [OPERATIONS](../../docs/OPERATIONS.md#public-mode).
