@@ -42,12 +42,15 @@ function steps(container) {
   }));
 }
 
+/** A number as the page shows it: in the computer's locale, like formatInteger, with spaces evened out like steps(). @param {number} n */
+const num = (n) => n.toLocaleString().replace(/\s+/g, " ");
+
 test("a ready node with no miner yet: step 1 done, the address asked for, and the first miner awaited", async () => {
   fakeApi(routes());
   const view = await render(h(Setup));
   const [network, address, miner, share] = steps(view.container);
   assert.equal(network.marker, "Done");
-  assert.match(network.text, /Block 3,100,000, 12 other nodes connected\./);
+  assert.ok(network.text.includes(`Block ${num(3_100_000)}, 12 other nodes connected.`), network.text);
   assert.equal(address.marker, "Not started");
   assert.match(address.text, /Add your wallet address/);
   assert.equal(miner.marker, "In progress");
@@ -92,7 +95,8 @@ test("catching up shows how far behind the node is, and how far along", async ()
     "/api/v1/status": status({ node: { network: "mainnet", height: 1_500_000, topoheight: 1_600_000, networkTopoheight: 3_200_000, peers: 8, syncing: true }, stratum: { ok: true, paused: true } }),
   }));
   const view = await render(h(Setup));
-  assert.match(steps(view.container)[0].text, /Catching up with the network1,600,000 blocks behind \(50% done\)\./);
+  const text = steps(view.container)[0].text;
+  assert.ok(text.includes(`Catching up with the network${num(1_600_000)} blocks behind (50% done).`), text);
 });
 
 test("a node with no peers is pointed at the internet connection", async () => {
