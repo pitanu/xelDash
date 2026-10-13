@@ -240,7 +240,7 @@ users. [Connecting miners](docs/MINERS.md) has the settings for each kind of min
 
 ## Status
 
-xelDash 0.1.0 is the first public release, and an early one. It has been run on XELIS mainnet with two nodes, failover, rolling and scheduled
+xelDash 0.2.0 is an early release: 0.1.0 was the first public one, and 0.2.0 adds public mode, a server anyone may solo mine on. It has been run on XELIS mainnet with two nodes, failover, rolling and scheduled
 upgrades, and a GPU mining through it, and it has an automated test suite (`npm test`, run in CI). Some of it has only been
 tried on one Windows PC. The [community testing list](docs/COMMUNITY-TESTING.md) says what is still unverified and how to help: a
 result from your own hardware or miner, good or bad, is a real contribution (the
@@ -248,8 +248,8 @@ result from your own hardware or miner, good or bad, is a real contribution (the
 
 **Known limits**
 
-- **Miners.** Rigel 1.23.0 is tested on mainnet with a GPU, and the official `xelis_miner` (getwork) on a devnet. SRBMiner connects, logs in
-  and receives jobs but was not seen sending shares (cause unknown, see [Connecting miners](docs/MINERS.md)). lolMiner, OneZeroMiner and
+- **Miners.** Rigel 1.23.0 is tested on mainnet with a GPU, and the official `xelis_miner` (getwork) on a devnet. A community tester on
+  Linux reports SRBMiner, Rigel, OneZeroMiner and ForgeMiner working (see [Connecting miners](docs/MINERS.md)). BzMiner, lolMiner and
   others follow the same Stratum protocol and should work, but nobody has tried them yet: reports are welcome.
 - **Systems.** The Windows installer has been run end to end. The Linux and macOS launcher's setup step has been run only in a
   Linux container (not on real Linux or macOS machines), and the Raspberry Pi (arm64) images and the Intel macOS case have not been run.

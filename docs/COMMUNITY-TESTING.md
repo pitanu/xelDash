@@ -79,9 +79,10 @@ minute:
 Only Rigel has been tested on mainnet. For each miner: does it connect, get work, and have
 shares accepted? Does `address.worker` in the user field work?
 
-- [ ] SRBMiner-MULTI (it logs in and gets jobs but was not seen sending shares; see [MINERS.md](MINERS.md))
+- [x] SRBMiner-MULTI, OneZeroMiner, ForgeMiner and Rigel: reported working by a community tester on Lubuntu (versions not given).
+      A report with versions, and SRBMiner on Windows (the maintainer saw no shares there), are still welcome.
 - [ ] lolMiner
-- [ ] OneZeroMiner
+- [ ] BzMiner
 - [ ] The official `xelis_miner` (getwork, port 8090)
 - [ ] A miner over TLS (port 3334, self-signed certificate)
 

@@ -134,6 +134,19 @@ network, not the internet. See [Security](SECURITY.md). To run a server anyone m
   data from about 10.6 GB to about 6 GB, but only after the node has pruned (the first time can take up to a week) and been
   restarted once more. It
   cannot be undone without a new snapshot. Details are in [Operations](OPERATIONS.md#pruning-old-blocks-saving-disk-space).
+- **On the first run the node does not start, or stops part way, and the dashboard says it cannot reach it** (seen on
+  Lubuntu). Remove the containers and start them on a freshly started Docker; your blockchain copy and statistics are kept:
+
+  ```sh
+  ./xeldash.sh stop
+  docker compose down
+  sudo reboot
+  ./xeldash.sh start      # after the reboot, in the xelDash folder
+  ```
+
+  Then give the node a few minutes: the snapshot is up to a day old, so it catches up first, and its log shows blocks arriving
+  quickly while it does. The dashboard connects once it is done. If it still does not, please open an issue with the output of
+  `./xeldash.sh status` and `docker compose logs --tail=60 daemon`.
 - **The snapshot is slow or stuck.** It is a 9 GB download; a slow connection takes a while. It
   resumes if interrupted. The **Nodes** page shows the details.
 - **I forgot the admin password.** Run `xeldash token`. It is also in the `.env` file.

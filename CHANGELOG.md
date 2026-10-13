@@ -7,6 +7,11 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-13
+
+Public mode (a solo mining server anyone may use), work shared between all miners, a share every 5 seconds, and hardening for a
+server on the internet.
+
 ### Mining
 
 - Vardiff now aims for one share every 5 seconds, XELIS's block time (it was 10). An existing `.env` that sets
@@ -58,6 +63,12 @@ breaking changes; they are marked **Breaking**.
 - Every container's log is rotated (`XELDASH_LOG_MAX_SIZE`, `XELDASH_LOG_FILES`; 50 MB per container by default).
 - Stratum TLS takes a renewed certificate without a restart, and waits for a certificate that is not there yet instead of failing
   to start. A public server can use its domain's Let's Encrypt certificate for Stratum TLS (docs/OPERATIONS.md#public-mode).
+
+### Documentation
+
+- A community tester on Lubuntu reports SRBMiner, Rigel, OneZeroMiner and ForgeMiner working through xelDash (docs/MINERS.md).
+- Getting started: what to do when the node does not start, or stops, on the first run (seen on Lubuntu).
+- Public mode wherever the documentation said xelDash is for a local network only; a community-testing section for a public server.
 
 ## [0.1.0] - 2026-10-07
 
