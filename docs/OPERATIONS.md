@@ -252,6 +252,19 @@ per-address connection limits and bans cannot work there (see [SECURITY.md](SECU
 3. `docker compose up -d`, then open `https://solo.example.org`.
 4. Open to the internet only ports 80 and 443 (HTTPS), 3333 (Stratum), 8090 (getwork) and, if you set up Stratum TLS, 3334.
 
+**Stratum TLS with the domain's certificate.** The `public-https` profile keeps a copy of its Let's Encrypt certificate for Stratum
+(refreshed within five minutes of each renewal). To use it, add to `.env`:
+
+```sh
+STRATUM_TLS_ENABLED=true
+STRATUM_TLS_CERT_FILE=/public-tls/cert.pem
+STRATUM_TLS_KEY_FILE=/public-tls/key.pem
+```
+
+and `docker compose up -d`. On the first start the certificate is requested only after HTTPS is up, so the TLS port opens a minute
+or so later (plain Stratum runs meanwhile, and Stratum's log says it is waiting). A renewed certificate is taken without a restart.
+Miners then connect with `stratum+ssl://solo.example.org:3334` and need no certificate of their own.
+
 **The operator's dashboard.** The `public` profile adds `admin-web`: the full dashboard, with Nodes, Settings, connection problems
 and IP addresses, published on the server's loopback only (`127.0.0.1:8089`, `XELDASH_ADMIN_WEB_PORT` to change the port). From
 your own computer, tunnel to it with `ssh -L 8089:127.0.0.1:8089 you@solo.example.org` and open `http://localhost:8089`. Node changes
@@ -297,6 +310,15 @@ community to notice a bad or tampered release. node-admin logs a warning at star
   in all (`STRATUM_MAX_CONNECTIONS`), and at most 32 different addresses per IP address (`STRATUM_MAX_ADDRESSES_PER_IP`): made-up
   addresses are what an attack on the node would need, and a connection that keeps trying them is banned like one sending bad shares.
   The usual per-connection message limits and bans apply as well.
+- **Shares:** at most 300 shares checked a second per IP address (`STRATUM_SHARES_PER_IP_PER_SECOND`; a farm of 600 rigs sends about
+  120). A share over the limit is answered "too many shares" without being checked. A difficulty a miner asks for in its password
+  (`d=...`) is where its difficulty starts and the lowest it goes, but the server still raises it for a rig that sends shares too fast.
+  On every server, a share for a job the connection was never given counts as invalid (towards a ban), and late shares are
+  recorded at most 30 a minute per connection.
+- **The database:** at most 1,000 new worker names an hour per IP address (`STRATUM_NEW_WORKERS_PER_IP_PER_HOUR`; rigs logging in
+  again under their own names do not count), and raw shares are kept one day instead of seven (`RETENTION_RAW_SHARE_DAYS`). On every
+  server, workers that never had a share accepted are deleted after a day unused (`RETENTION_UNUSED_WORKER_DAYS`; they come back
+  when they log in), and every container's log is rotated (`XELDASH_LOG_MAX_SIZE`, `XELDASH_LOG_FILES`: 50 MB each by default).
 - **Visitors of the dashboard:** per visitor, 10 API requests a second (bursts of 20), 6 CSV exports a minute, 20 open connections
   and 4 live-update connections; 200 API requests a second from all visitors together. Over a limit the answer is `429`. Slow or
   idle connections are closed soon (the HTTPS proxy and the web server both have short timeouts).

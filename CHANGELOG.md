@@ -33,7 +33,22 @@ breaking changes; they are marked **Breaking**.
   (`XELIS_AUTO_UPDATE=true`) and wait at least 36 hours. Everything reachable from the internet is limited: Stratum asks the
   XELIS node at most 100 times a second whatever miners do, allows 1,000 connections and 32 addresses per IP address and 5,000 in
   all; the API asks the node at most once every 2 seconds per question; the dashboard limits each visitor and all visitors
-  together; and the official node fallback is never used. See docs/OPERATIONS.md#public-mode.
+  together; the official node fallback is never used; and per IP address at most 300 shares are checked a second and 1,000
+  new worker names are taken an hour. A `d=` difficulty in the password is where a rig starts there, and vardiff can still raise
+  it; raw shares are kept one day. See docs/OPERATIONS.md#public-mode.
+
+### Security
+
+- A share for a job the connection was never given counts as invalid (towards a ban) and is not recorded; late shares are
+  recorded at most 30 a minute per connection. Before, made-up job ids were recorded as stale shares without limit.
+- Workers that never had a share accepted are deleted after a day unused (`RETENTION_UNUSED_WORKER_DAYS`), with their address if
+  nothing else uses it.
+
+### Operations
+
+- Every container's log is rotated (`XELDASH_LOG_MAX_SIZE`, `XELDASH_LOG_FILES`; 50 MB per container by default).
+- Stratum TLS takes a renewed certificate without a restart, and waits for a certificate that is not there yet instead of failing
+  to start. A public server can use its domain's Let's Encrypt certificate for Stratum TLS (docs/OPERATIONS.md#public-mode).
 
 ## [0.1.0] - 2026-10-07
 

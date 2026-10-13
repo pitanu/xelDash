@@ -26,10 +26,12 @@ test("IPv4-mapped addresses are normalised", () => {
 
 test("settings come from the environment and are checked", () => {
   assert.deepEqual(ipGuardConfigFromEnv({}), { ...DEFAULT_IP_GUARD, exemptIps: [], allowedNetworks: "private",
-    explicit: { maxConnectionsPerIp: false, maxConnections: false } });
+    explicit: { maxConnectionsPerIp: false, maxConnections: false, sharesPerIpPerSecond: false } });
   const c = ipGuardConfigFromEnv({ STRATUM_MAX_CONNECTIONS_PER_IP: "3", STRATUM_BAN_EXEMPT_IPS: "10.0.0.1, ::ffff:10.0.0.2", XELDASH_ALLOWED_NETWORKS: "private,tailscale" });
   assert.equal(c.maxConnectionsPerIp, 3);
-  assert.deepEqual(c.explicit, { maxConnectionsPerIp: true, maxConnections: false }, "an empty or missing setting is not explicit");
+  assert.deepEqual(c.explicit, { maxConnectionsPerIp: true, maxConnections: false, sharesPerIpPerSecond: false }, "an empty or missing setting is not explicit");
+  assert.equal(ipGuardConfigFromEnv({ STRATUM_SHARES_PER_IP_PER_SECOND: "500" }).sharesPerIpPerSecond, 500);
+  assert.throws(() => ipGuardConfigFromEnv({ STRATUM_SHARES_PER_IP_PER_SECOND: "-1" }), /STRATUM_SHARES_PER_IP_PER_SECOND/);
   assert.equal(ipGuardConfigFromEnv({ STRATUM_MAX_CONNECTIONS_PER_IP: "" }).explicit?.maxConnectionsPerIp, false);
   assert.equal(ipGuardConfigFromEnv({ STRATUM_MAX_CONNECTIONS: "5000" }).maxConnections, 5000);
   assert.throws(() => ipGuardConfigFromEnv({ STRATUM_MAX_CONNECTIONS: "-1" }), /STRATUM_MAX_CONNECTIONS/);
@@ -37,6 +39,20 @@ test("settings come from the environment and are checked", () => {
   assert.equal(c.allowedNetworks, "private,tailscale");
   assert.throws(() => ipGuardConfigFromEnv({ STRATUM_MESSAGES_PER_SECOND: "0" }), /positive number/);
   assert.throws(() => ipGuardConfigFromEnv({ STRATUM_BAN_INVALID_RATIO: "1.5" }), /between 0 and 1/);
+});
+
+test("shares checked per IP address: two seconds' worth at once, then the rate; exempt addresses and 0 have no limit", () => {
+  const guard = new IpGuard({ ...DEFAULT_IP_GUARD, sharesPerIpPerSecond: 10, exemptIps: ["10.0.0.9"] });
+  for (let i = 0; i < 20; i++) assert.ok(guard.allowShare("10.0.0.1", 0), `share ${i}`);
+  assert.ok(!guard.allowShare("10.0.0.1", 0), "over the burst");
+  assert.ok(guard.allowShare("10.0.0.2", 0), "another address has its own");
+  assert.ok(guard.allowShare("10.0.0.1", 100), "a tenth of a second refills one");
+  assert.ok(!guard.allowShare("10.0.0.1", 100));
+  for (let i = 0; i < 100; i++) assert.ok(guard.allowShare("10.0.0.9", 0), "exempt");
+  const off = new IpGuard({ ...DEFAULT_IP_GUARD });
+  for (let i = 0; i < 1000; i++) assert.ok(off.allowShare("10.0.0.1", 0), "no limit by default");
+  guard.prune(61_000);
+  assert.equal(guard.shareBuckets.size, 0, "idle buckets are forgotten");
 });
 
 test("the message rate limiter is a token bucket", () => {

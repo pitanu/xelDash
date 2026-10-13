@@ -3,8 +3,17 @@ name: xeldash
 # Images are built locally by default (tag `local`). To run a release instead, set
 # XELDASH_VERSION (for example 0.1.0) and run `docker compose pull && docker compose up -d`.
 
+# Every container's log is rotated: at most XELDASH_LOG_FILES files of XELDASH_LOG_MAX_SIZE each (50 MB by default), so a
+# busy public server or a noisy miner cannot fill the disk.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: ${XELDASH_LOG_MAX_SIZE:-10m}
+    max-file: "${XELDASH_LOG_FILES:-5}"
+
 services:
   daemon:
+    logging: *logging
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/daemon:${XELDASH_VERSION:-local}
     build:
       context: docker/daemon
@@ -44,6 +53,7 @@ services:
   # data volume and applied when the node restarts. Actions need XELDASH_ADMIN_TOKEN.
   # See docs/OPERATIONS.md#daemon-settings and #snapshots.
   node-admin:
+    logging: *logging
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/node-admin:${XELDASH_VERSION:-local}
     build:
       context: .
@@ -104,6 +114,7 @@ services:
   # XELIS_RPC_URLS. It has its own chain data and image pin (XELIS_DAEMON2_IMAGE), so the two
   # nodes can be upgraded one at a time while mining continues on the other.
   daemon2:
+    logging: *logging
     profiles: ["redundant"]
     build:
       context: docker/daemon
@@ -132,6 +143,7 @@ services:
       - node
 
   postgres:
+    logging: *logging
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
@@ -152,6 +164,7 @@ services:
   # One-shot schema migration. api and stratum wait for it to complete successfully, so
   # neither service's startup depends on the other's health.
   migrate:
+    logging: *logging
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/api:${XELDASH_VERSION:-local}
     build:
       context: .
@@ -171,6 +184,7 @@ services:
       - data
 
   api:
+    logging: *logging
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/api:${XELDASH_VERSION:-local}
     build:
       context: .
@@ -245,6 +259,7 @@ services:
       - data
 
   stratum:
+    logging: *logging
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/stratum:${XELDASH_VERSION:-local}
     build:
       context: .
@@ -275,11 +290,13 @@ services:
       STRATUM_RETARGET_SHARES: ${STRATUM_RETARGET_SHARES:-20}
       # Empty: 64, or 1000 on a public server (a farm behind one IP address).
       STRATUM_MAX_CONNECTIONS_PER_IP: ${STRATUM_MAX_CONNECTIONS_PER_IP:-}
-      # Public-server limits; empty: the public defaults there (5000 connections, 100 node calls a second, 32 addresses per IP
-      # address), none otherwise. See docs/OPERATIONS.md#public-mode.
+      # Public-server limits; empty: the public defaults there (5000 connections, 100 node calls a second, and per IP address 32
+      # addresses, 1000 new worker names an hour and 300 shares a second), none otherwise. See docs/OPERATIONS.md#public-mode.
       STRATUM_MAX_CONNECTIONS: ${STRATUM_MAX_CONNECTIONS:-}
       STRATUM_NODE_CALLS_PER_SECOND: ${STRATUM_NODE_CALLS_PER_SECOND:-}
       STRATUM_MAX_ADDRESSES_PER_IP: ${STRATUM_MAX_ADDRESSES_PER_IP:-}
+      STRATUM_NEW_WORKERS_PER_IP_PER_HOUR: ${STRATUM_NEW_WORKERS_PER_IP_PER_HOUR:-}
+      STRATUM_SHARES_PER_IP_PER_SECOND: ${STRATUM_SHARES_PER_IP_PER_SECOND:-}
       STRATUM_MESSAGES_PER_SECOND: ${STRATUM_MESSAGES_PER_SECOND:-20}
       STRATUM_MESSAGE_BURST: ${STRATUM_MESSAGE_BURST:-40}
       STRATUM_BAN_WINDOW_SECONDS: ${STRATUM_BAN_WINDOW_SECONDS:-300}
@@ -290,11 +307,17 @@ services:
       # Who may connect: "private" (this computer and your home network), "any", or a list of
       # networks. Stratum, Stratum TLS and getwork all check it.
       XELDASH_ALLOWED_NETWORKS: ${XELDASH_ALLOWED_NETWORKS:-private}
-      RETENTION_RAW_SHARE_DAYS: ${RETENTION_RAW_SHARE_DAYS:-7}
+      # Empty: 7 days, or 1 on a public server.
+      RETENTION_RAW_SHARE_DAYS: ${RETENTION_RAW_SHARE_DAYS:-}
       RETENTION_MINUTE_STATS_DAYS: ${RETENTION_MINUTE_STATS_DAYS:-90}
       RETENTION_EVENT_DAYS: ${RETENTION_EVENT_DAYS:-365}
+      RETENTION_UNUSED_WORKER_DAYS: ${RETENTION_UNUSED_WORKER_DAYS:-1}
       STRATUM_TLS_ENABLED: ${STRATUM_TLS_ENABLED:-false}
       STRATUM_TLS_PORT: 3334
+      # Empty: /tls/cert.pem and /tls/key.pem (XELDASH_STRATUM_TLS_DIR). A public server with the public-https profile can use its
+      # domain's certificate: /public-tls/cert.pem and /public-tls/key.pem.
+      STRATUM_TLS_CERT_FILE: ${STRATUM_TLS_CERT_FILE:-}
+      STRATUM_TLS_KEY_FILE: ${STRATUM_TLS_KEY_FILE:-}
       GETWORK_ENABLED: ${GETWORK_ENABLED:-true}
       GETWORK_PORT: 8090
       XELIS_DEFAULT_ADDRESS: ${XELIS_DEFAULT_ADDRESS:-}
@@ -307,6 +330,7 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - ${XELDASH_STRATUM_TLS_DIR:-./docker/stratum-tls}:/tls:ro
+      - public-tls:/public-tls:ro
       - xeldash-spool:/spool
       # The mining fallback switch, written by node-admin.
       - xeldash-config:/config:ro
@@ -332,6 +356,7 @@ services:
       - data
 
   web:
+    logging: *logging
     environment:
       XELDASH_ALLOWED_NETWORKS: ${XELDASH_ALLOWED_NETWORKS:-private}
       # In public mode this is the public view: no node administration, and no IP addresses from the API.
@@ -362,6 +387,7 @@ services:
   # miners' IP addresses. Published on this computer's loopback only (fixed here, not a setting), so reach it on the server or
   # through an SSH tunnel. See docs/OPERATIONS.md#public-mode.
   admin-web:
+    logging: *logging
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/web:${XELDASH_VERSION:-local}
     profiles: ["public"]
     environment:
@@ -390,6 +416,7 @@ services:
   # dashboard's own port on loopback so this is the only way in from the LAN.
   # See docs/OPERATIONS.md#https-and-a-login.
   proxy:
+    logging: *logging
     image: caddy:2.11-alpine
     profiles: ["proxy"]
     restart: unless-stopped
@@ -421,6 +448,7 @@ services:
   # XELDASH_PUBLIC_DOMAIN, and no login. Needs ports 80 and 443 reachable from the internet and the domain pointing at this server.
   # Not the "proxy" profile: that one asks for a login and uses a local certificate, for a private dashboard.
   public-https:
+    logging: *logging
     image: caddy:2.11-alpine
     profiles: ["public-https"]
     restart: unless-stopped
@@ -428,14 +456,31 @@ services:
       XELDASH_PUBLIC_DOMAIN: ${XELDASH_PUBLIC_DOMAIN:-}
     entrypoint: ["/bin/sh", "-c"]
     command:
-      - >-
+      - |
         if [ -z "$$XELDASH_PUBLIC_DOMAIN" ]; then
-        echo "Set XELDASH_PUBLIC_DOMAIN in .env (see docs/OPERATIONS.md#public-mode)"; exit 1; fi;
+          echo "Set XELDASH_PUBLIC_DOMAIN in .env (see docs/OPERATIONS.md#public-mode)"; exit 1
+        fi
+        # Stratum TLS can use the same certificate (docs/OPERATIONS.md#public-mode): a copy, readable by Stratum's user, is kept in
+        # the public-tls volume and refreshed within five minutes of each renewal. Caddy's own files (and its account key) stay here.
+        domain=$$(echo "$$XELDASH_PUBLIC_DOMAIN" | tr 'A-Z' 'a-z')
+        copy_certificate() {
+          crt=$$(find /data/caddy/certificates -path "*/$$domain/$$domain.crt" -exec ls -t {} + 2>/dev/null | head -n 1)
+          [ -n "$$crt" ] || return 0
+          key="$${crt%.crt}.key"
+          if cmp -s "$$crt" /public-tls/cert.pem && cmp -s "$$key" /public-tls/key.pem; then return 0; fi
+          cp "$$key" /public-tls/key.pem.new && cp "$$crt" /public-tls/cert.pem.new \
+            && chown 1000:1000 /public-tls/key.pem.new /public-tls/cert.pem.new \
+            && chmod 600 /public-tls/key.pem.new && chmod 644 /public-tls/cert.pem.new \
+            && mv /public-tls/key.pem.new /public-tls/key.pem && mv /public-tls/cert.pem.new /public-tls/cert.pem \
+            && echo "Copied the certificate for $$domain for Stratum TLS"
+        }
+        (while true; do copy_certificate; sleep 300; done) &
         exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
     volumes:
       - ./docker/proxy/Caddyfile.public:/etc/caddy/Caddyfile:ro
       # Keeps the certificate, so it is not requested again on every restart.
       - public-https-data:/data
+      - public-tls:/public-tls
     ports:
       - "${XELDASH_PUBLIC_HTTPS_BIND_IP:-0.0.0.0}:80:80"
       - "${XELDASH_PUBLIC_HTTPS_BIND_IP:-0.0.0.0}:443:443"
@@ -448,6 +493,7 @@ services:
   # Optional: `docker compose --profile backup up -d`. Dumps the database to ./backups every
   # BACKUP_INTERVAL_HOURS and keeps the newest BACKUP_KEEP. See docs/OPERATIONS.md.
   backup:
+    logging: *logging
     image: postgres:17-alpine
     profiles: ["backup"]
     restart: unless-stopped
@@ -477,6 +523,8 @@ volumes:
   postgres-data:
   proxy-data:
   public-https-data:
+  # The public domain's certificate, copied by public-https for Stratum TLS.
+  public-tls:
 
 # Three networks, so a service can only reach what it needs:
 #   edge  the dashboard and the HTTPS proxy: they reach the API and node admin, nothing else.

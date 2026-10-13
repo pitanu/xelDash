@@ -56,7 +56,9 @@ stats and the same limits; jobs carry the share difficulty, so the miner's log s
 found" for every share. `GETWORK_ENABLED=false` turns it off.
 
 **TLS.** `STRATUM_TLS_ENABLED=true` with `cert.pem` and `key.pem` in `docker/stratum-tls/` adds
-`stratum+ssl` on port 3334. A missing certificate stops Stratum from starting.
+`stratum+ssl` on port 3334 (`src/tls-config.js`). The files are checked every 10 minutes and a changed certificate is used without a
+restart. A certificate that is there but unusable stops Stratum from starting; one that is not there yet is waited for, with plain
+Stratum running meanwhile (a public server's certificate arrives after its first start; see docs/OPERATIONS.md#public-mode).
 
 **Records and outages** (`src/store.js`). Everything Stratum records (workers, shares, blocks, events, bans)
 goes through one store. Normally a write goes straight to PostgreSQL. When the database cannot be reached the write is

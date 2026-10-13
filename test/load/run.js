@@ -11,6 +11,8 @@
 //   LOAD_KEEP=1 npm run load           leave the stack running afterwards
 //   LOAD_ADDRESSES_FILE=path npm run load  rigs mine to the addresses in that file (one per line, valid devnet addresses), in turn
 //   LOAD_PUBLIC=1 npm run load         as a public server (XELDASH_PUBLIC_MODE): its node-call budget and connection limits apply
+//   LOAD_ADDRESSES_PER_IP=n, LOAD_SHARES_PER_IP=n, LOAD_NEW_WORKERS_PER_IP=n   raise a public server's per-IP limits: every simulated rig comes from one IP
+//                                      address, so with them they stand for rigs spread over many addresses
 //
 // Needs Docker and about 15 minutes. Results are printed as a table; they depend on the computer it runs on, so read them as an
 // order of magnitude and say what hardware they came from.
@@ -39,6 +41,8 @@ const ADDRESSES_FILE = process.env.LOAD_ADDRESSES_FILE ?? "";
 // refused and banned, as an attack would be); real miners come from many IP addresses, so a run that stands for many miners
 // raises this (like STRATUM_MAX_CONNECTIONS_PER_IP below).
 const ADDRESSES_PER_IP = process.env.LOAD_ADDRESSES_PER_IP ?? "";
+const SHARES_PER_IP = process.env.LOAD_SHARES_PER_IP ?? "";
+const NEW_WORKERS_PER_IP = process.env.LOAD_NEW_WORKERS_PER_IP ?? "";
 const SERVICES = ["stratum", "daemon", "postgres", "api", "web"];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -133,6 +137,8 @@ async function main() {
     `XELIS_DEFAULT_ADDRESS=${ADDRESS}`,
     ...(PUBLIC ? ["XELDASH_PUBLIC_MODE=true", "XELDASH_ALLOWED_NETWORKS=any"] : []),
     ...(ADDRESSES_PER_IP ? [`STRATUM_MAX_ADDRESSES_PER_IP=${ADDRESSES_PER_IP}`] : []),
+    ...(SHARES_PER_IP ? [`STRATUM_SHARES_PER_IP_PER_SECOND=${SHARES_PER_IP}`] : []),
+    ...(NEW_WORKERS_PER_IP ? [`STRATUM_NEW_WORKERS_PER_IP_PER_HOUR=${NEW_WORKERS_PER_IP}`] : []),
     "",
   ].join("\n"));
   console.log(`Computer: ${cpus().length} threads (${cpus()[0].model.trim()}), ${(totalmem() / 2 ** 30).toFixed(1)} GiB memory, ${process.platform}`);

@@ -60,3 +60,22 @@ test("retargetIfDue waits for the window", () => {
   v.retargetIfDue(MAX, 61_000);
   assert.equal(v.windowStart, 61_000);
 });
+
+test("a requested difficulty as a floor: retargeting raises it but never lowers it below", () => {
+  const v = new Vardiff({ startDifficulty: 1000, minDifficulty: 100, targetShareSeconds: 5, retargetSeconds: 60, retargetShares: 20 }, 0);
+  v.fix(500, { asFloor: true });
+  assert.equal(v.difficulty, 500);
+  assert.equal(v.fixed, false);
+  // 20 shares of 500 in 1 s: far too fast, so it doubles.
+  let next = null;
+  for (let i = 0; i < 20; i++) next = v.recordShare(500, 1e12, 1000);
+  assert.equal(next, 1000);
+  // A long quiet minute would halve it, but not below the floor.
+  v.reset(2000);
+  v.recordShare(1000, 1e12, 2000);
+  assert.equal(v.retargetIfDue(1e12, 600_000), 500);
+  v.reset(600_000);
+  v.recordShare(500, 1e12, 600_000);
+  assert.equal(v.retargetIfDue(1e12, 1_200_000), null, "already at the floor");
+  assert.equal(v.difficulty, 500);
+});

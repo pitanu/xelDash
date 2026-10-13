@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { readDefaultGateway } from "../src/gateway.js";
 import { capShareDifficulty, reissueJob } from "../src/job-provider.js";
 import { requestedDifficulty } from "../src/session.js";
-import { tlsConfigFromEnv } from "../src/tls-config.js";
+import { tlsConfigFromEnv, watchTlsCertificate } from "../src/tls-config.js";
 import { watchDefaultAddress } from "../src/default-address.js";
 
 test("a fixed difficulty in the password: d=, diff=, among other options, never nonsense", () => {
@@ -49,17 +49,19 @@ test("the default gateway is read from the kernel's routing table (little-endian
   await rm(dir, { recursive: true, force: true });
 });
 
-test("TLS is off unless enabled, and a missing certificate is an error, not a silent fallback", async () => {
+test("TLS is off unless enabled; files that are not a certificate stop Stratum at start, a missing one is waited for", async () => {
   assert.equal(tlsConfigFromEnv({}), null);
   assert.equal(tlsConfigFromEnv({ STRATUM_TLS_ENABLED: "false" }), null);
-  assert.throws(() => tlsConfigFromEnv({ STRATUM_TLS_ENABLED: "true", STRATUM_TLS_CERT_FILE: "/no/such/cert.pem" }), /cannot be read/);
   assert.throws(() => tlsConfigFromEnv({ STRATUM_TLS_ENABLED: "true", STRATUM_TLS_PORT: "99999" }), /STRATUM_TLS_PORT/);
   const dir = await mkdtemp(join(tmpdir(), "tls-"));
   await writeFile(join(dir, "c.pem"), "CERT");
   await writeFile(join(dir, "k.pem"), "KEY");
-  const config = tlsConfigFromEnv({ STRATUM_TLS_ENABLED: "TRUE", STRATUM_TLS_CERT_FILE: join(dir, "c.pem"), STRATUM_TLS_KEY_FILE: join(dir, "k.pem"), STRATUM_TLS_PORT: "4444" });
+  const config = /** @type {import("../src/tls-config.js").TlsConfig} */ (tlsConfigFromEnv({ STRATUM_TLS_ENABLED: "TRUE", STRATUM_TLS_CERT_FILE: join(dir, "c.pem"), STRATUM_TLS_KEY_FILE: join(dir, "k.pem"), STRATUM_TLS_PORT: "4444" }));
   assert.equal(config.port, 4444);
-  assert.equal(config.cert.toString(), "CERT");
+  const quiet = { warn: () => {}, info: () => {} };
+  assert.throws(() => watchTlsCertificate({ config, onLoad: () => {}, logger: quiet }), /usable pair/);
+  const waiting = watchTlsCertificate({ config: { ...config, certFile: join(dir, "none.pem") }, onLoad: () => assert.fail("nothing to load"), logger: quiet });
+  waiting.stop();
   await rm(dir, { recursive: true, force: true });
 });
 

@@ -165,3 +165,29 @@ test("retention: old events and bans are deleted, recent ones and blocks stay", 
   assert.deepEqual(bans.rows.map((r) => r.ip), [newIp]);
   await runRetention(pool, { rawShareDays: 7, minuteStatsDays: 90, eventDays: 365 });
 });
+
+test("retention: workers that never mined are deleted once unused, with their address; any that ever mined stay", { skip }, async () => {
+  const { runRetention } = await import("../src/index.js");
+  const daysAgo = (d) => new Date(Date.now() - d * 86_400_000).toISOString();
+  const junkAddress = address();
+  const junk = await ensureWorker(pool, { address: junkAddress, name: "made-up" });
+  const rejectedOnly = await ensureWorker(pool, { address: address(), name: "rejected-only" });
+  await recordShare(pool, { workerId: rejectedOnly.workerId, jobId: "j", nonce: "r1", difficulty: "10", accepted: false, rejectReason: "low_difficulty", createdAt: daysAgo(2) });
+  const mined = await ensureWorker(pool, { address: address(), name: "mined" });
+  await recordShare(pool, { workerId: mined.workerId, jobId: "j", nonce: "a1", difficulty: "10", accepted: true, createdAt: daysAgo(30) });
+  const activeToday = await ensureWorker(pool, { address: address(), name: "rejected-today" });
+  await recordShare(pool, { workerId: activeToday.workerId, jobId: "j", nonce: "r2", difficulty: "10", accepted: false, rejectReason: "low_difficulty" });
+  const loggedInToday = await ensureWorker(pool, { address: address(), name: "new" });
+  const old = [junk, rejectedOnly, mined, activeToday].map((w) => w.workerId);
+  await pool.query("UPDATE workers SET last_seen = now() - interval '2 days' WHERE id = ANY($1)", [old]);
+  await pool.query("UPDATE miners SET last_seen = now() - interval '2 days' WHERE address = $1", [junkAddress]);
+  const result = await runRetention(pool, { rawShareDays: 7, minuteStatsDays: 90, eventDays: 365, unusedWorkerDays: 1 });
+  assert.ok(result.unusedWorkers >= 2 && result.unusedMiners >= 1);
+  const left = await pool.query("SELECT name FROM workers WHERE id = ANY($1) ORDER BY name", [[...old, loggedInToday.workerId]]);
+  assert.deepEqual(left.rows.map((r) => r.name), ["mined", "new", "rejected-today"]);
+  const miner = await pool.query("SELECT 1 FROM miners WHERE address = $1", [junkAddress]);
+  assert.equal(miner.rowCount, 0, "an address left with no worker and no block goes too");
+  // A worker logging in again after it was deleted simply comes back.
+  const back = await ensureWorker(pool, { address: junkAddress, name: "made-up" });
+  assert.ok(back.workerId);
+});

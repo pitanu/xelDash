@@ -52,16 +52,21 @@ export class Vardiff {
     this.windowShares = 0;
     this.windowDifficulty = 0;
     this.fixed = false;
+    /** Lowest difficulty retargeting may choose: the configured minimum, or what the miner asked for (see fix). */
+    this.floor = config.minDifficulty;
   }
 
   /**
    * Hold the difficulty at a value the miner asked for (password d=...), never below the
-   * configured minimum. Retargeting stops for this connection.
-   * @param {number} difficulty
+   * configured minimum. Retargeting stops for this connection. With `asFloor` (a public server), the
+   * value is where the connection starts and the lowest it goes, but retargeting still raises it, so a
+   * fast rig cannot ask for a difficulty that makes it send far more shares than the server is meant to check.
+   * @param {number} difficulty @param {{ asFloor?: boolean }} [options]
    */
-  fix(difficulty) {
+  fix(difficulty, { asFloor = false } = {}) {
     this.difficulty = Math.max(this.config.minDifficulty, Math.floor(difficulty));
-    this.fixed = true;
+    if (asFloor) this.floor = this.difficulty;
+    else this.fixed = true;
   }
 
   /** @param {number} now */
@@ -105,7 +110,7 @@ export class Vardiff {
     if (factor > 1 / DEAD_BAND && factor < DEAD_BAND) return null;
     factor = Math.min(Math.max(factor, 1 / MAX_STEP), MAX_STEP);
     const ceiling = Math.max(this.config.minDifficulty, Math.floor(maxDifficulty));
-    const next = Math.min(Math.max(Math.round(current * factor), this.config.minDifficulty), ceiling);
+    const next = Math.min(Math.max(Math.round(current * factor), this.floor), ceiling);
     if (next === current) return null;
     this.difficulty = next;
     return next;

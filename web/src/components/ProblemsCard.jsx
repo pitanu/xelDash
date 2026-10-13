@@ -36,6 +36,12 @@ export function explainProblem(p, network) {
       return { what: `${from} tried to use two different wallet addresses on one connection.`, fix: "Use one address per mining program." };
     case "too_many_workers":
       return { what: `${from} tried to log in too many workers on one connection.`, fix: "Use a separate connection for each computer." };
+    case "too_many_shares":
+      return { what: `${from} sent more shares than this server checks for one IP address, and some were not checked.`, fix: "Remove d= from the mining programs' password so the server can choose their difficulty, or raise STRATUM_SHARES_PER_IP_PER_SECOND for a very large farm." };
+    case "too_many_addresses":
+      return { what: `${from} logged in with more different wallet addresses than one IP address may use.`, fix: "Mine to fewer addresses from one connection, or raise STRATUM_MAX_ADDRESSES_PER_IP." };
+    case "too_many_new_workers":
+      return { what: `${from} logged in more new worker names than one IP address may add in an hour.`, fix: "Reuse worker names (one per rig), or raise STRATUM_NEW_WORKERS_PER_IP_PER_HOUR for a very large farm." };
     default:
       return { what: `${from} could not connect (${p.reason}).`, fix: null };
   }

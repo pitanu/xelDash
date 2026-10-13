@@ -47,9 +47,10 @@ export function parseAllowedNetworks(text) {
 /**
  * @typedef {{ maxConnectionsPerIp: number, messagesPerSecond: number, messageBurst: number,
  *   invalidWindowSeconds: number, invalidMinCount: number, invalidRatio: number,
- *   banMinutes: number, exemptIps: string[], allowedNetworks: string, maxConnections?: number,
- *   explicit?: { maxConnectionsPerIp: boolean, maxConnections: boolean } }} IpGuardConfig
- * maxConnections: all connections together (0: no limit); explicit: which limits were set in .env (public mode changes the others)
+ *   banMinutes: number, exemptIps: string[], allowedNetworks: string, maxConnections?: number, sharesPerIpPerSecond?: number,
+ *   explicit?: { maxConnectionsPerIp: boolean, maxConnections: boolean, sharesPerIpPerSecond?: boolean } }} IpGuardConfig
+ * maxConnections: all connections together (0: no limit); sharesPerIpPerSecond: shares checked for one IP address (0: no limit);
+ * explicit: which limits were set in .env (public mode changes the others)
  */
 
 /** @type {IpGuardConfig} */
@@ -64,6 +65,7 @@ export const DEFAULT_IP_GUARD = Object.freeze({
   exemptIps: [],
   allowedNetworks: "private",
   maxConnections: 0,
+  sharesPerIpPerSecond: 0,
 });
 
 /** @param {Partial<Record<string, string | undefined>>} env @returns {IpGuardConfig} */
@@ -79,9 +81,13 @@ export function ipGuardConfigFromEnv(env) {
   const given = (/** @type {string} */ name) => env[name] !== undefined && String(env[name]).trim() !== "";
   const total = given("STRATUM_MAX_CONNECTIONS") ? Number(env.STRATUM_MAX_CONNECTIONS) : 0;
   if (!Number.isSafeInteger(total) || total < 0) throw new Error("STRATUM_MAX_CONNECTIONS must be 0 (no limit) or a positive number");
+  const shares = given("STRATUM_SHARES_PER_IP_PER_SECOND") ? Number(env.STRATUM_SHARES_PER_IP_PER_SECOND) : 0;
+  if (!Number.isFinite(shares) || shares < 0) throw new Error("STRATUM_SHARES_PER_IP_PER_SECOND must be 0 (no limit) or a positive number");
   return {
     maxConnections: total,
-    explicit: { maxConnectionsPerIp: given("STRATUM_MAX_CONNECTIONS_PER_IP"), maxConnections: given("STRATUM_MAX_CONNECTIONS") },
+    sharesPerIpPerSecond: shares,
+    explicit: { maxConnectionsPerIp: given("STRATUM_MAX_CONNECTIONS_PER_IP"), maxConnections: given("STRATUM_MAX_CONNECTIONS"),
+      sharesPerIpPerSecond: given("STRATUM_SHARES_PER_IP_PER_SECOND") },
     maxConnectionsPerIp: read("STRATUM_MAX_CONNECTIONS_PER_IP", DEFAULT_IP_GUARD.maxConnectionsPerIp),
     messagesPerSecond: read("STRATUM_MESSAGES_PER_SECOND", DEFAULT_IP_GUARD.messagesPerSecond),
     messageBurst: read("STRATUM_MESSAGE_BURST", DEFAULT_IP_GUARD.messageBurst),
@@ -144,6 +150,29 @@ export class IpGuard {
     this.bans = new Map();
     /** @type {Map<string, { start: number, valid: number, invalid: number }>} */
     this.windows = new Map();
+    /** Shares each IP address may still have checked (sharesPerIpPerSecond). @type {Map<string, { tokens: number, updated: number }>} */
+    this.shareBuckets = new Map();
+  }
+
+  /**
+   * Whether a share from this IP address may be checked now. Shares come with each rig's difficulty, so a
+   * steady farm stays far below the limit; a burst of up to two seconds' worth is allowed.
+   * @param {string} ip @param {number} [now]
+   */
+  allowShare(ip, now = Date.now()) {
+    const rate = this.config.sharesPerIpPerSecond ?? 0;
+    if (!(rate > 0) || this.exempt.has(ip)) return true;
+    const burst = rate * 2;
+    let bucket = this.shareBuckets.get(ip);
+    if (!bucket) {
+      bucket = { tokens: burst, updated: now };
+      this.shareBuckets.set(ip, bucket);
+    }
+    bucket.tokens = Math.min(burst, bucket.tokens + ((now - bucket.updated) / 1000) * rate);
+    bucket.updated = now;
+    if (bucket.tokens < 1) return false;
+    bucket.tokens -= 1;
+    return true;
   }
 
   /** @param {{ ip: string, until: Date }[]} bans */
@@ -214,6 +243,8 @@ export class IpGuard {
       if (now - window.start >= this.config.invalidWindowSeconds * 1000) this.windows.delete(ip);
     }
     for (const [ip, until] of this.bans) if (until <= now) this.bans.delete(ip);
+    // A bucket left alone for a minute is full again: forget it.
+    for (const [ip, bucket] of this.shareBuckets) if (now - bucket.updated >= 60_000) this.shareBuckets.delete(ip);
   }
 
   /** @param {string} ip @param {string} reason @param {number} [now] */

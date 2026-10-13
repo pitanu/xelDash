@@ -90,10 +90,14 @@ Leave it unset if you do not need these features.
   standby or front door learns public mode from the main server over the cluster's secret connection and keeps it across restarts
   (an unreadable record keeps it on). Everything reachable from the internet is limited (see
   [OPERATIONS.md](OPERATIONS.md#public-mode)): Stratum asks the XELIS node at most 100 times a second whatever miners do (found
-  blocks never wait; rigs on one address share their work; checked addresses are remembered), with 32 different addresses and
-  1,000 connections per IP address and 5,000 in all; the API asks the node at most once every 2 seconds per kind of question; the
-  dashboard limits each visitor and all visitors together, with short timeouts; and the official node fallback is never used. A
-  test floods Stratum with fresh addresses from many IP addresses and checks the node budget holds.
+  blocks never wait; one template per block serves every miner; checked addresses are remembered), with 32 different addresses,
+  1,000 connections, 1,000 new worker names an hour and 300 checked shares a second per IP address and 5,000 connections in all
+  (a miner's `d=` cannot hold its difficulty below what the server's vardiff chooses); the API asks the node at most once every 2
+  seconds per kind of question; the dashboard limits each visitor and all visitors together, with short timeouts; and the official
+  node fallback is never used. A test floods Stratum with fresh addresses from many IP addresses and checks the node budget holds.
+- **Database growth.** Shares for job ids a connection was never given count as invalid and are not recorded, late (stale)
+  shares are recorded at most 30 a minute per connection, workers that never mined are deleted after a day unused, and raw shares
+  are kept 7 days (1 on a public server). Every container's log is rotated.
 - **Containers.** The API and Stratum run as an unprivileged user. Backups are owner-only
   files.
 

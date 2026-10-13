@@ -1,7 +1,7 @@
 # Stratum TLS certificate
 
 Put `cert.pem` (certificate chain) and `key.pem` (private key) here, then set
-`STRATUM_TLS_ENABLED=true` in `.env` and restart Stratum. Miners connect with
+`STRATUM_TLS_ENABLED=true` in `.env` and `docker compose up -d`. Miners connect with
 `stratum+ssl://<host>:3334` (or `XELDASH_STRATUM_TLS_PORT`). The directory is mounted
 read-only; `*.pem` files are ignored by git.
 
@@ -13,4 +13,5 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 
   -keyout key.pem -out cert.pem
 ```
 
-Replace the IP with the address miners use. Restart Stratum after replacing the files.
+Replace the IP with the address miners use. Stratum notices replaced files within 10 minutes and uses them without a
+restart. A public server with a domain can use the domain's certificate instead (docs/OPERATIONS.md#public-mode).

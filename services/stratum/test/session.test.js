@@ -200,10 +200,49 @@ test("shares: accepted, low difficulty, duplicate, stale and unknown are told ap
   h.state.shareResult = { error: { code: STRATUM_ERRORS.DUPLICATE_SHARE, message: "Duplicate share" } };
   await submit(h, ["rig1", job.jobId, "fedcba9876543211"], 52);
   assert.deepEqual(h.events.submissions, [true, false, false]);
-  await submit(h, ["rig1", "no-such-job", NONCE], 53);
+  // A new block replaces the job, and its grace period is over: the share on it is late.
+  h.session.trackJob({ ...job, jobId: "next-job", headerWorkHash: "11".repeat(32) }, true);
+  h.session.graceJobs.clear();
+  await submit(h, ["rig1", job.jobId, NONCE], 53);
   assert.equal(h.reply(53).error.code, STRATUM_ERRORS.STALE_JOB);
   assert.equal(h.events.stale.length, 1, "a late share is recorded as stale");
   assert.deepEqual(h.events.submissions, [true, false, false], "and not held against the miner");
+  // A job id this connection was never given is not late work.
+  await submit(h, ["rig1", "no-such-job", NONCE], 54);
+  assert.equal(h.reply(54).error.code, STRATUM_ERRORS.STALE_JOB);
+  assert.equal(h.events.stale.length, 1, "a made-up job id is not recorded");
+  assert.deepEqual(h.events.submissions, [true, false, false, false], "and counts as an invalid submission");
+  h.session.close();
+});
+
+test("stale shares are recorded at most 30 a minute per connection", async () => {
+  const h = harness();
+  await login(h);
+  const job = [...h.session.jobs.values()][0];
+  h.session.trackJob({ ...job, jobId: "next-job", headerWorkHash: "11".repeat(32) }, true);
+  h.session.graceJobs.clear();
+  for (let i = 0; i < 40; i++) {
+    await submit(h, ["rig1", job.jobId, i.toString(16).padStart(16, "0")], 100 + i);
+    assert.equal(h.reply(100 + i).error.code, STRATUM_ERRORS.STALE_JOB, "every one is still answered");
+  }
+  assert.equal(h.events.stale.length, 30);
+  assert.ok(h.events.submissions.every((valid) => valid !== false), "none is held against the miner");
+  h.session.close();
+});
+
+test("over the IP address's share limit, a share is answered but not checked or counted", async () => {
+  let allow = true;
+  const h = harness({ allowShare: () => allow });
+  await login(h);
+  const job = [...h.session.jobs.values()][0];
+  allow = false;
+  await submit(h, ["rig1", job.jobId, NONCE], 60);
+  assert.match(h.reply(60).error.message, /Too many shares/);
+  assert.equal(h.events.shares.length, 0, "nothing reached the share checker");
+  assert.deepEqual(h.events.submissions, [], "not held against the miner");
+  allow = true;
+  await submit(h, ["rig1", job.jobId, NONCE], 61);
+  assert.equal(h.reply(61).result, true);
   h.session.close();
 });
 
@@ -324,12 +363,18 @@ test("getwork: work must match a job this session was given; stale work is not h
   const future = await h.session.submitWork("rig1", minerWork(job, { timestamp: BigInt(Date.now() + 3_600_000) }).toString("hex"));
   assert.equal(future.error.code, -32602, "a timestamp far in the future");
   const unknown = Buffer.alloc(112, 7).toString("hex");
-  const stale = await h.session.submitWork("rig1", unknown);
+  const madeUp = await h.session.submitWork("rig1", unknown);
+  assert.equal(madeUp.stale, true);
+  assert.equal(h.events.stale.length, 0, "work on a header this session was never given is not recorded");
+  // A new block replaces the job, and its grace period is over: work on it is late, and recorded as stale.
+  h.session.trackJob({ ...job, jobId: "next-job", headerWorkHash: "22".repeat(32) }, true);
+  h.session.graceJobs.clear();
+  const stale = await h.session.submitWork("rig1", minerWork(job).toString("hex"));
   assert.equal(stale.stale, true);
   assert.equal(h.events.stale.length, 1);
   assert.equal((await h.session.submitWork("rig1", "xyz")).error.code, -32602);
   assert.equal((await h.session.submitWork("nobody", minerWork(job).toString("hex"))).error.code, STRATUM_ERRORS.UNAUTHORIZED);
-  assert.deepEqual(h.events.submissions, [true, false, false, false, false, false]);
+  assert.deepEqual(h.events.submissions, [true, false, false, false, false, false, false], "the made-up header counts as invalid; late work does not");
   h.session.close();
 });
 
@@ -363,4 +408,18 @@ test("a login with a solo: prefix mines for the address after it, and shares sub
   await submit(dotted, [`${ADDRESS}.farm1`, job.jobId, "fedcba9876543210"], 51);
   assert.equal(dotted.reply(51).result, true, "and without the prefix");
   h.session.close(); dotted.session.close();
+});
+
+test("on a public server d= in the password is where the difficulty starts, and vardiff can still raise it", async () => {
+  const fixed = harness();
+  await login(fixed, [ADDRESS, "rig1", "d=5000"]);
+  assert.equal(fixed.session.vardiff.difficulty, 5000);
+  assert.equal(fixed.session.vardiff.fixed, true, "a private server holds it");
+  fixed.session.close();
+  const pub = harness({ difficultyAsFloor: true });
+  await login(pub, [ADDRESS, "rig1", "d=5000"]);
+  assert.equal(pub.session.vardiff.difficulty, 5000);
+  assert.equal(pub.session.vardiff.fixed, false);
+  assert.equal(pub.session.vardiff.floor, 5000);
+  pub.session.close();
 });

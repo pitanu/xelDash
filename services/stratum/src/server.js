@@ -21,7 +21,7 @@ import { NodeBudget, burstFor } from "./node-budget.js";
 import { NodePool, rpcUrlsFromEnv } from "./node-pool.js";
 import { LineFramer } from "./line-framer.js";
 import { StratumSession } from "./session.js";
-import { tlsConfigFromEnv } from "./tls-config.js";
+import { tlsConfigFromEnv, watchTlsCertificate } from "./tls-config.js";
 import { createShareSubmitter } from "./share-submitter.js";
 import { vardiffConfigFromEnv } from "./vardiff.js";
 
@@ -52,6 +52,9 @@ const proxyTrust = proxyTrustFromEnv(process.env.STRATUM_PROXY_FROM, { gateway: 
 if (proxyTrust) console.info(`Connections from ${proxyTrust.text} must start with a PROXY line naming the real miner`);
 console.info(`Miners may connect from: ${ipGuardConfig.allowedNetworks}`);
 const retention = retentionConfigFromEnv(process.env);
+// A public server keeps raw shares one day unless .env says otherwise: they are only read for the last day's reject reasons, and
+// strangers' rigs add up to millions of rows a day.
+const rawShareDaysSet = (process.env.RETENTION_RAW_SHARE_DAYS ?? "").trim() !== "";
 const tls = tlsConfigFromEnv(process.env);
 if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
   throw new Error("STRATUM_PORT must be an integer from 1 to 65535");
@@ -126,7 +129,8 @@ const store = new DurableStore({
 await store.init();
 // Limits for a public server (docs/OPERATIONS.md#public-mode). Each follows public mode (which a standby can learn while running)
 // unless it is set in .env: the node-call budget (100 a second; found blocks never wait), different addresses per IP address (32),
-// connections per IP address (1000, so a farm behind one address fits) and in all (5000).
+// connections per IP address (1000, so a farm behind one address fits) and in all (5000), and shares checked per IP address (300 a
+// second: a 600-rig farm at one share every 5 s sends 120), and new worker names per IP address (1000 an hour: each is a database row).
 /** @param {string} name @returns {number | null} */
 function optionalSetting(name) {
   const text = (process.env[name] ?? "").trim();
@@ -137,6 +141,7 @@ function optionalSetting(name) {
 }
 const nodeCallsSetting = optionalSetting("STRATUM_NODE_CALLS_PER_SECOND");
 const addressesPerIpSetting = optionalSetting("STRATUM_MAX_ADDRESSES_PER_IP");
+const newWorkersPerIpSetting = optionalSetting("STRATUM_NEW_WORKERS_PER_IP_PER_HOUR");
 const nodeBudget = new NodeBudget({ perSecond: 0 });
 /** @type {boolean | null} */
 let limitsForPublic = null;
@@ -146,14 +151,17 @@ function applyModeLimits() {
   limitsForPublic = pub;
   if (!ipGuardConfig.explicit?.maxConnectionsPerIp) ipGuardConfig.maxConnectionsPerIp = pub ? 1000 : DEFAULT_IP_GUARD.maxConnectionsPerIp;
   if (!ipGuardConfig.explicit?.maxConnections) ipGuardConfig.maxConnections = pub ? 5000 : 0;
+  if (!ipGuardConfig.explicit?.sharesPerIpPerSecond) ipGuardConfig.sharesPerIpPerSecond = pub ? 300 : 0;
   const perSecond = nodeCallsSetting ?? (pub ? 100 : 0);
   nodeBudget.perSecond = perSecond;
   nodeBudget.burst = burstFor(perSecond);
   nodeBudget.tokens = nodeBudget.burst;
   if (pub) {
     removeFallbackNodes(null);
-    console.info(`Public-server limits: ${perSecond || "no"} node calls a second, ${addressesPerIpSetting ?? 32} addresses and `
-      + `${ipGuardConfig.maxConnectionsPerIp} connections per IP address, ${ipGuardConfig.maxConnections || "no limit to"} connections in all`);
+    console.info(`Public-server limits: ${perSecond || "no"} node calls a second, ${addressesPerIpSetting ?? 32} addresses, `
+      + `${newWorkersPerIpSetting ?? 1000} new worker names an hour, `
+      + `${ipGuardConfig.maxConnectionsPerIp} connections and ${ipGuardConfig.sharesPerIpPerSecond || "unlimited"} shares a second per IP address, `
+      + `${ipGuardConfig.maxConnections || "no limit to"} connections in all`);
     if (ipGuardConfig.explicit?.maxConnectionsPerIp && ipGuardConfig.maxConnectionsPerIp < 600) {
       console.warn(`STRATUM_MAX_CONNECTIONS_PER_IP is ${ipGuardConfig.maxConnectionsPerIp}: a farm behind one IP address can connect only `
         + "that many rigs. Leave it empty for the public default (1000).");
@@ -161,7 +169,8 @@ function applyModeLimits() {
   }
 }
 const authorizeAddress = createWorkerAuthorizer({ daemon: nodes, store, budget: nodeBudget,
-  maxAddressesPerIp: () => addressesPerIpSetting ?? (isPublic() ? 32 : 0) });
+  maxAddressesPerIp: () => addressesPerIpSetting ?? (isPublic() ? 32 : 0),
+  maxWorkersPerIp: () => newWorkersPerIpSetting ?? (isPublic() ? 1000 : 0) });
 const jobProvider = new MiningJobProvider({ nodes, beforeNodeCall: () => nodeBudget.take() });
 // A block one of our rigs found is the new tip as soon as the node accepts it: new work for every rig right away (the node's
 // new_block event for it follows, and is announced only once).
@@ -227,8 +236,8 @@ async function retentionPass() {
   retentionRunning = true;
   try {
     if (!pool) return;
-    const result = await runRetention(pool, retention);
-    if (result.shares > 0 || result.minuteStats > 0 || result.events > 0 || result.bans > 0) console.info("Retention pass", result);
+    const result = await runRetention(pool, isPublic() && !rawShareDaysSet ? { ...retention, rawShareDays: 1 } : retention);
+    if (Object.entries(result).some(([key, count]) => key !== "rolledUp" && count > 0)) console.info("Retention pass", result);
   } catch (error) {
     console.warn("Retention pass failed:", error instanceof Error ? error.message : String(error));
   } finally {
@@ -300,6 +309,12 @@ function newSession(socket, ip, onAuthorized = () => {}) {
     vardiff,
     defaultAddress: isPublic() ? "" : defaultAddress.get(),
     requireAddress: isPublic(),
+    difficultyAsFloor: isPublic(),
+    allowShare: () => {
+      if (ipGuard.allowShare(ip)) return true;
+      reportProblem("login_problem", { ip, reason: "too_many_shares" });
+      return false;
+    },
     onProblem: (problem) => reportProblem("login_problem", { ip, ...problem }),
     onAuthorized,
     onSubmission: (valid) => ipGuard.record(ip, valid),
@@ -457,14 +472,8 @@ nodesStarted = true;
 const server = proxyTrust
   ? createServer({ pauseOnConnect: true }, (socket) => acceptWithProxyHeader(socket, proxyTrust, (ready) => { handleConnection(ready); }))
   : createServer(handleConnection);
-const tlsServer = tls
-  ? createTlsServer({ cert: tls.cert, key: tls.key, minVersion: "TLSv1.2" }, handleConnection)
-  : null;
-// Failed handshakes (plain Stratum sent to the TLS port, untrusted certs) never reach a session.
-tlsServer?.on("tlsClientError", (error, socket) => {
-  const code = /** @type {{ code?: string }} */ (error).code;
-  console.warn(`TLS handshake failed from ${normalizeIp(socket.remoteAddress)}: ${code ?? error.message}`);
-});
+/** @type {import("node:tls").Server | null} */
+let tlsServer = null;
 
 server.listen(port, host, () => {
   console.info(`xelDash Stratum server listening on ${host}:${port}`);
@@ -479,11 +488,29 @@ server.listen(port, host, () => {
   })
     .catch((error) => console.warn("Failed to record start event:", error instanceof Error ? error.message : String(error)));
 });
-if (tlsServer && tls) {
-  tlsServer.listen(tls.port, host, () => {
-    console.info(`xelDash Stratum TLS listening on ${host}:${tls.port} (certificate ${tls.certFile})`);
-  });
-}
+// The TLS port opens once the certificate is there, and takes a renewed certificate without a restart (see tls-config.js).
+const tlsWatch = tls
+  ? watchTlsCertificate({
+    config: tls,
+    onLoad: ({ cert, key, validTo }, first) => {
+      if (!first && tlsServer) {
+        tlsServer.setSecureContext({ cert, key, minVersion: "TLSv1.2" });
+        console.info(`Stratum TLS certificate renewed (valid until ${validTo.toISOString()})`);
+        return;
+      }
+      const listener = createTlsServer({ cert, key, minVersion: "TLSv1.2" }, handleConnection);
+      // Failed handshakes (plain Stratum sent to the TLS port, untrusted certs) never reach a session.
+      listener.on("tlsClientError", (error, socket) => {
+        const code = /** @type {{ code?: string }} */ (error).code;
+        console.warn(`TLS handshake failed from ${normalizeIp(socket.remoteAddress)}: ${code ?? error.message}`);
+      });
+      tlsServer = listener;
+      listener.listen(tls.port, host, () => {
+        console.info(`xelDash Stratum TLS listening on ${host}:${tls.port} (certificate ${tls.certFile}, valid until ${validTo.toISOString()})`);
+      });
+    },
+  })
+  : null;
 
 // Getwork for miners that do not speak Stratum (the official xelis_miner).
 const getworkEnabled = (process.env.GETWORK_ENABLED ?? "true").toLowerCase() !== "false";
@@ -518,12 +545,13 @@ async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
   fallbackConfig?.stop();
+  tlsWatch?.stop();
   defaultAddress.stop();
   for (const watcher of chainWatchers.values()) watcher.stop();
   nodes.stop();
   const closed = Promise.all([
     new Promise((resolve) => server.close(resolve)),
-    tlsServer ? new Promise((resolve) => tlsServer.close(resolve)) : null,
+    tlsServer ? new Promise((resolve) => /** @type {import("node:tls").Server} */ (tlsServer).close(resolve)) : null,
     getwork?.close(),
     health.close(),
     store.stop(),

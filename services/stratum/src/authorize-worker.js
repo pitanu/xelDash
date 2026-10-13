@@ -22,18 +22,21 @@ export class LoginRefused extends Error {
  * Checked addresses are remembered (`cacheMs`; an invalid one for `invalidCacheMs`), so rigs logging in again, or a farm
  * reconnecting hundreds of rigs, cost the node nothing. Each check that does reach the node first passes the call budget. With
  * `maxAddressesPerIp`, one IP address may log in with at most that many different addresses within `addressWindowMs`: a farm uses
- * a few, while made-up addresses (each one a call to the node) are what an attack on the node would need.
+ * a few, while made-up addresses (each one a call to the node) are what an attack on the node would need. With `maxWorkersPerIp`, one
+ * IP address may log in at most that many different workers (address and name) within `workerWindowMs`: each new one is a row in the
+ * database, and a farm logs in the same names again.
  * @param {{ daemon: import("./node-pool.js").NodePool, store: import("./store.js").DurableStore,
  *   budget?: { take: () => Promise<void> } | null, cacheMs?: number, invalidCacheMs?: number, maxEntries?: number,
- *   maxAddressesPerIp?: number | (() => number), addressWindowMs?: number, now?: () => number }} dependencies
- *   maxAddressesPerIp may be a function, read at each login (a standby can become a public server while running)
+ *   maxAddressesPerIp?: number | (() => number), addressWindowMs?: number,
+ *   maxWorkersPerIp?: number | (() => number), workerWindowMs?: number, now?: () => number }} dependencies
+ *   the limits may be functions, read at each login (a standby can become a public server while running)
  */
 export function createWorkerAuthorizer({ daemon, store, budget = null, cacheMs = 10 * 60_000, invalidCacheMs = 60_000, maxEntries = 10_000,
-  maxAddressesPerIp = 0, addressWindowMs = 10 * 60_000, now = Date.now }) {
+  maxAddressesPerIp = 0, addressWindowMs = 10 * 60_000, maxWorkersPerIp = 0, workerWindowMs = 60 * 60_000, now = Date.now }) {
   /** @type {Map<string, { at: number, identity: Promise<any> }>} */
   const identities = new Map();
-  /** @type {Map<string, Map<string, number>>} */
-  const addressesByIp = new Map();
+  const addressesByIp = new PerIpWindow();
+  const workersByIp = new PerIpWindow();
 
   /** @param {string} address */
   function identityOf(address) {
@@ -61,33 +64,21 @@ export function createWorkerAuthorizer({ daemon, store, budget = null, cacheMs =
     return identity;
   }
 
-  /** Refuse a new address from an IP address that already used its share. @param {string | undefined} ip @param {string} address */
-  function checkAddressesPerIp(ip, address) {
-    const limit = typeof maxAddressesPerIp === "function" ? maxAddressesPerIp() : maxAddressesPerIp;
-    if (!(limit > 0) || !ip) return;
-    const t = now();
-    let seen = addressesByIp.get(ip);
-    if (!seen) {
-      seen = new Map();
-      addressesByIp.set(ip, seen);
-    }
-    for (const [a, at] of seen) if (t - at > addressWindowMs) seen.delete(a);
-    if (!seen.has(address) && seen.size >= limit) {
-      throw new LoginRefused(`Too many different addresses from your connection (at most ${limit}); mine to fewer addresses`,
-        { reason: "too_many_addresses", abusive: true });
-    }
-    seen.set(address, t);
-    // Forget IP addresses that went quiet, so the map does not grow without end.
-    if (addressesByIp.size > 50_000) {
-      for (const [k, v] of addressesByIp) {
-        if ([...v.values()].every((at) => t - at > addressWindowMs)) addressesByIp.delete(k);
-      }
-    }
-  }
+  const read = (/** @type {number | (() => number)} */ limit) => (typeof limit === "function" ? limit() : limit);
 
   /** @param {{ address: string, workerName: string, password?: string, ip?: string }} input */
   return async ({ address, workerName, ip }) => {
-    checkAddressesPerIp(ip, address);
+    const addressLimit = read(maxAddressesPerIp);
+    if (ip && addressLimit > 0 && !addressesByIp.admit(ip, address, addressLimit, addressWindowMs, now())) {
+      throw new LoginRefused(`Too many different addresses from your connection (at most ${addressLimit}); mine to fewer addresses`,
+        { reason: "too_many_addresses", abusive: true });
+    }
+    const workerLimit = read(maxWorkersPerIp);
+    if (ip && workerLimit > 0 && !workersByIp.admit(ip, `${address}\n${workerName}`, workerLimit, workerWindowMs, now())) {
+      // Not counted against the connection: a large farm may simply have more rigs than the limit.
+      throw new LoginRefused(`Too many new worker names from your connection (at most ${workerLimit} an hour); reuse one name per rig`,
+        { reason: "too_many_new_workers" });
+    }
     let identity;
     try {
       identity = await identityOf(address);
@@ -101,4 +92,34 @@ export function createWorkerAuthorizer({ daemon, store, budget = null, cacheMs =
     const ids = await store.ensureWorker({ address, name: workerName, ip });
     return { ...ids, address, publicKey: identity.publicKey, provisional: ids.workerId === null };
   };
+}
+
+/** Distinct keys (addresses, workers) seen from each IP address within a time window. */
+class PerIpWindow {
+  constructor() {
+    /** @type {Map<string, Map<string, number>>} */
+    this.byIp = new Map();
+  }
+
+  /**
+   * Note `key` from `ip`, unless it is new and the IP address already has `limit` keys in the window. Returns whether it was admitted.
+   * @param {string} ip @param {string} key @param {number} limit @param {number} windowMs @param {number} t
+   */
+  admit(ip, key, limit, windowMs, t) {
+    let seen = this.byIp.get(ip);
+    if (!seen) {
+      seen = new Map();
+      this.byIp.set(ip, seen);
+    }
+    for (const [k, at] of seen) if (t - at > windowMs) seen.delete(k);
+    if (!seen.has(key) && seen.size >= limit) return false;
+    seen.set(key, t);
+    // Forget IP addresses that went quiet, so the map does not grow without end.
+    if (this.byIp.size > 50_000) {
+      for (const [k, v] of this.byIp) {
+        if ([...v.values()].every((at) => t - at > windowMs)) this.byIp.delete(k);
+      }
+    }
+    return true;
+  }
 }

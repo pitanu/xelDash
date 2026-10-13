@@ -23,6 +23,11 @@ const MAX_TRACKED_JOBS = 5;
 // its current batch before it switches). Shares on them within this window are real work and
 // are accepted; later ones are stale.
 export const DEFAULT_STALE_GRACE_MS = 1_500;
+// Job ids (and getwork header hashes) given to a connection, remembered so a late share on one of them is told apart from a made-up id.
+const MAX_ISSUED_JOBS = 64;
+// Stale shares are recorded (the dashboard counts them), but at most this many a minute per connection: a rig sends a few after each
+// block, and old job ids replayed over and over would otherwise be free rows in the database.
+const MAX_STALE_RECORDS_PER_MINUTE = 30;
 
 /**
  * A fixed share difficulty requested in the Stratum password, as many miners and pools use:
@@ -59,9 +64,11 @@ export class StratumSession {
    *   vardiff?: import("./vardiff.js").VardiffConfig,
    *   defaultAddress?: string,
    *   requireAddress?: boolean,
+   *   difficultyAsFloor?: boolean,
+   *   allowShare?: () => boolean,
    *   logger?: Pick<Console, "warn"> }} options
    */
-  constructor({ socket, authorizeAddress, createJob = null, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, onSubmission = () => {}, onProblem = () => {}, onStale = () => {}, staleGraceMs = DEFAULT_STALE_GRACE_MS, canMine = () => null, jobRefreshIntervalMs = 5000, vardiff = DEFAULT_VARDIFF, defaultAddress = "", requireAddress = false, logger = console }) {
+  constructor({ socket, authorizeAddress, createJob = null, submitShare = null, onHashrate = () => {}, onAuthorized = () => {}, onSubmission = () => {}, onProblem = () => {}, onStale = () => {}, staleGraceMs = DEFAULT_STALE_GRACE_MS, canMine = () => null, jobRefreshIntervalMs = 5000, vardiff = DEFAULT_VARDIFF, defaultAddress = "", requireAddress = false, difficultyAsFloor = false, allowShare = () => true, logger = console }) {
     this.socket = socket;
     this.authorizeAddress = authorizeAddress;
     this.createJob = createJob;
@@ -84,6 +91,14 @@ export class StratumSession {
     this.defaultAddress = defaultAddress;
     // Public mode: every miner must send its own address; the server's default is never used.
     this.requireAddress = requireAddress;
+    // Public mode: d=... in the password is where the difficulty starts and the lowest it goes; vardiff can still raise it.
+    this.difficultyAsFloor = difficultyAsFloor;
+    // Public mode: false when this IP address has sent more shares than the server checks for one address (answered, not checked).
+    this.allowShare = allowShare;
+    /** @type {Set<string>} */
+    this.issuedJobs = new Set();
+    this.staleWindowStart = 0;
+    this.staleRecorded = 0;
     this.logger = logger;
     this.algorithm = null;
     this.subscribed = false;
@@ -301,7 +316,7 @@ export class StratumSession {
     }
     // A difficulty asked for in the password applies to the connection from its first login.
     const fixedDifficulty = this.miningAddress === null ? requestedDifficulty(password) : null;
-    if (fixedDifficulty !== null) this.vardiff.fix(fixedDifficulty);
+    if (fixedDifficulty !== null) this.vardiff.fix(fixedDifficulty, { asFloor: this.difficultyAsFloor });
     let job;
     try {
       job = await this.createJob({
@@ -461,6 +476,11 @@ export class StratumSession {
       this.liveGraceJobs();
     }
     this.jobs.set(job.jobId, job);
+    for (const id of [job.jobId, job.headerWorkHash]) {
+      this.issuedJobs.delete(id);
+      this.issuedJobs.add(id);
+    }
+    while (this.issuedJobs.size > MAX_ISSUED_JOBS) this.issuedJobs.delete(/** @type {string} */ (this.issuedJobs.values().next().value));
     while (this.jobs.size > MAX_TRACKED_JOBS) {
       const oldestJobId = this.jobs.keys().next().value;
       if (!oldestJobId) break;
@@ -485,12 +505,30 @@ export class StratumSession {
 
   /**
    * Count a late share as rejected (stale), at the difficulty the miner was working to. It is
-   * not held against the miner: late work is normal after a new block.
+   * not held against the miner: late work is normal after a new block. A job id this connection was
+   * never given is not late work: it counts as an invalid submission and is not recorded.
    * @param {MiningIdentity} worker @param {string} workerName @param {string} jobId @param {string} nonce
+   * @returns {boolean} whether it was a job this connection was given
    */
   recordStale(worker, workerName, jobId, nonce) {
+    if (!this.issuedJobs.has(jobId)) {
+      this.onSubmission(false);
+      return false;
+    }
+    const now = Date.now();
+    if (now - this.staleWindowStart >= 60_000) {
+      this.staleWindowStart = now;
+      this.staleRecorded = 0;
+    }
+    if (++this.staleRecorded > MAX_STALE_RECORDS_PER_MINUTE) return true;
     const latestJob = [...this.jobs.values()].at(-1);
     this.onStale({ worker, workerName, jobId, nonce, difficulty: latestJob?.shareDifficulty ?? this.vardiff.difficulty });
+    return true;
+  }
+
+  /** The answer to a share over this IP address's share limit (public mode): not checked, not counted. */
+  static get TOO_MANY_SHARES() {
+    return { code: STRATUM_ERRORS.UNKNOWN, message: "Too many shares from your IP address; let the server choose the difficulty (no d= in the password)" };
   }
 
   close() {
@@ -516,6 +554,10 @@ export class StratumSession {
     }
     if (!this.submitShare) {
       this.send(errorResponse(request.id, STRATUM_ERRORS.STALE_JOB, "No active mining job"));
+      return;
+    }
+    if (!this.allowShare()) {
+      this.send(errorResponse(request.id, StratumSession.TOO_MANY_SHARES.code, StratumSession.TOO_MANY_SHARES.message));
       return;
     }
     const job = this.findJob(jobId);
@@ -575,6 +617,7 @@ export class StratumSession {
       this.onSubmission(false);
       return { error: { code: -32602, message: "MinerWork must be 112 bytes of hexadecimal" } };
     }
+    if (!this.allowShare()) return { error: StratumSession.TOO_MANY_SHARES };
     const work = Buffer.from(minerWorkHex, "hex");
     const headerWorkHash = work.subarray(0, 32).toString("hex");
     // A header can be reissued at a new difficulty; the latest issue is what the miner has.

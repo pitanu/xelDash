@@ -1,8 +1,8 @@
 /** @typedef {import("pg").Pool} PgPool */
-/** @typedef {{ rawShareDays: number, minuteStatsDays: number, eventDays: number }} RetentionConfig */
+/** @typedef {{ rawShareDays: number, minuteStatsDays: number, eventDays: number, unusedWorkerDays?: number }} RetentionConfig */
 
 /** @type {RetentionConfig} */
-export const DEFAULT_RETENTION = Object.freeze({ rawShareDays: 7, minuteStatsDays: 90, eventDays: 365 });
+export const DEFAULT_RETENTION = Object.freeze({ rawShareDays: 7, minuteStatsDays: 90, eventDays: 365, unusedWorkerDays: 1 });
 const DELETE_BATCH = 10_000;
 
 /** @param {Partial<Record<string, string | undefined>>} env @returns {RetentionConfig} */
@@ -17,6 +17,7 @@ export function retentionConfigFromEnv(env) {
     rawShareDays: read("RETENTION_RAW_SHARE_DAYS", DEFAULT_RETENTION.rawShareDays),
     minuteStatsDays: read("RETENTION_MINUTE_STATS_DAYS", DEFAULT_RETENTION.minuteStatsDays),
     eventDays: read("RETENTION_EVENT_DAYS", DEFAULT_RETENTION.eventDays),
+    unusedWorkerDays: read("RETENTION_UNUSED_WORKER_DAYS", /** @type {number} */ (DEFAULT_RETENTION.unusedWorkerDays)),
   };
 }
 
@@ -99,5 +100,30 @@ export async function runRetention(pool, config) {
        SELECT id FROM bans WHERE COALESCE(until, created_at) < now() - $1::interval LIMIT $2)`,
     eventAge,
   );
-  return { rolledUp, shares, minuteStats, events, bans };
+  // Logins that never mined: a worker that has not logged in, sent a share or found a block for unusedWorkerDays, and never had a share
+  // accepted (a typo in a worker name, a miner that gave up, or names made up to fill the database). A worker that ever mined is kept.
+  const unusedAge = `${config.unusedWorkerDays ?? DEFAULT_RETENTION.unusedWorkerDays} days`;
+  const unusedWorkers = await deleteInBatches(
+    pool,
+    `DELETE FROM workers WHERE id IN (
+       SELECT w.id FROM workers w
+       WHERE w.last_seen < now() - $1::interval
+         AND NOT EXISTS (SELECT 1 FROM worker_stats_1m m WHERE m.worker_id = w.id AND (m.accepted > 0 OR m.bucket >= now() - $1::interval))
+         AND NOT EXISTS (SELECT 1 FROM worker_stats_1h h WHERE h.worker_id = w.id AND h.accepted > 0)
+         AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.worker_id = w.id)
+       LIMIT $2)`,
+    unusedAge,
+  );
+  // Then addresses left with no worker and no block.
+  const unusedMiners = await deleteInBatches(
+    pool,
+    `DELETE FROM miners WHERE id IN (
+       SELECT m.id FROM miners m
+       WHERE m.last_seen < now() - $1::interval
+         AND NOT EXISTS (SELECT 1 FROM workers w WHERE w.miner_id = m.id)
+         AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.miner_id = m.id)
+       LIMIT $2)`,
+    unusedAge,
+  );
+  return { rolledUp, shares, minuteStats, events, bans, unusedWorkers, unusedMiners };
 }

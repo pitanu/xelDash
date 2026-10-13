@@ -6,8 +6,17 @@ name: xeldash-standby
 # says mining continues. The shared address (keepalived) moves here when the main server cannot mine.
 # Linux with Docker Engine only. See docs/OPERATIONS.md#redundancy-two-servers.
 
+# Every container's log is rotated: at most XELDASH_LOG_FILES files of XELDASH_LOG_MAX_SIZE each (50 MB by default), so a
+# busy public server or a noisy miner cannot fill the disk.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: ${XELDASH_LOG_MAX_SIZE:-10m}
+    max-file: "${XELDASH_LOG_FILES:-5}"
+
 services:
   daemon:
+    logging: *logging
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/daemon:${XELDASH_VERSION:-local}
     build:
       context: docker/daemon
@@ -39,6 +48,7 @@ services:
   # Node administration: keeps the node's data volume in shape (the first-start snapshot, settings, upgrades).
   # It has no database here, so it only logs what it would record as events.
   node-admin:
+    logging: *logging
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/node-admin:${XELDASH_VERSION:-local}
     build:
       context: .
@@ -69,6 +79,7 @@ services:
       start_period: 5s
 
   stratum:
+    logging: *logging
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/stratum:${XELDASH_VERSION:-local}
     build:
       context: .
@@ -114,6 +125,7 @@ services:
 
   # The standby's web page: the main server's dashboard, or an "offline" page that says mining continues.
   web:
+    logging: *logging
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/standby-web:${XELDASH_VERSION:-local}
     build:
       context: docker/standby-web
@@ -128,6 +140,7 @@ services:
 
   # Holds the cluster's shared address while this server is the one that can mine.
   keepalived:
+    logging: *logging
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/keepalived:${XELDASH_VERSION:-local}
     build:
       context: docker/keepalived
