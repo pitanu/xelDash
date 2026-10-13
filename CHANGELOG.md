@@ -13,6 +13,11 @@ breaking changes; they are marked **Breaking**.
   journal file in turn, behind the share hashes, and its answer waited for that: on a 4-core computer the time to answer grew to 4 s at
   800 shares a second, with late shares counted stale. Shares that arrive together are now written together; the same test answers in
   12 ms. See docs/REQUIREMENTS.md.
+- Shares are written to the database in batches (every 200 ms or 500 shares, one statement each) instead of one transaction each,
+  and a miner's answer no longer waits for the database. At 2,000 shares a second the database used 0.12 of a core instead of 1.6,
+  and the slowest 5% of answers came in 2 ms instead of 22. See docs/REQUIREMENTS.md.
+- Duplicate shares are caught by their connection, from the work each accepted share proved. The same nonce sent under a job id
+  reissued at a new difficulty (the same work) was counted twice before; it is now a duplicate.
 
 ## [0.2.0] - 2026-10-13
 

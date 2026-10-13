@@ -27,6 +27,12 @@ function fakeDb() {
       state.calls.push(["share", String(s.workerId), s.nonce, s.createdAt ?? null, s.accepted]);
       return { recorded: true, duplicate: false, accepted: s.accepted };
     },
+    async recordShares(_pool, shares) {
+      if (!state.up) throw down();
+      state.batches = (state.batches ?? 0) + 1;
+      for (const s of shares) state.calls.push(["share", String(s.workerId), s.nonce, s.createdAt ?? null, s.accepted]);
+      return { recorded: shares.length };
+    },
     async recordBlock(_pool, b) { if (!state.up) throw down(); state.calls.push(["block", b.hash, b.workerId === null ? null : String(b.workerId), b.foundAt?.toISOString?.() ?? null]); },
     async recordServiceEvent(_pool, type, payload, at) { if (!state.up) throw down(); state.calls.push(["event", type, at ? new Date(at).toISOString() : null]); },
     async recordBan(_pool, ban) { if (!state.up) throw down(); state.calls.push(["ban", ban.ip]); },
@@ -52,8 +58,10 @@ await store.init();
 
 // ---- 1. online: straight to the database
 const known = await store.ensureWorker({ address: "xel:a", name: "rig1", ip: "10.0.0.5" });
-await store.recordShare({ workerId: known.workerId, jobId: "j1", nonce: "n1", difficulty: "1000", accepted: true }, { address: "xel:a", name: "rig1" });
-check("online writes go to the database", db.state.calls.length === 2 && store.status().pending === 0);
+const queued = await store.recordShare({ workerId: known.workerId, jobId: "j1", nonce: "n1", difficulty: "1000", accepted: true }, { address: "xel:a", name: "rig1" });
+check("an online share is queued, not waited for", queued.queued === true && store.status().queued === 1);
+await store.flush();
+check("online writes go to the database", db.state.calls.length === 2 && store.status().pending === 0 && store.status().queued === 0);
 
 // ---- 2. outage
 db.state.up = false;
@@ -91,6 +99,7 @@ const order = calls.map((c) => c[0] + ":" + (c[2] ?? c[1])).join(" ");
 check("records were applied in the order they happened", order.indexOf("share:n2") < order.indexOf("block"), "");
 check("the journal files are gone", await stat(join(dir, "journal.jsonl")).then(() => false, () => true));
 await store.recordShare({ workerId: known.workerId, jobId: "j2", nonce: "n9", difficulty: "1000", accepted: true }, { address: "xel:a", name: "rig1" });
+await store.flush();
 check("direct writes resume", db.state.calls.at(-1)[2] === "n9");
 check("the known workers are saved for the next start", await waitFor(async () => { await store.stop(); return (await readFile(join(dir, "workers.json"), "utf8")).includes("xel:a"); }));
 
@@ -128,6 +137,7 @@ db3.state.up = false;
 const s3 = new DurableStore({ pool: pool(db3), dir: dir3, db: db3, logger: quiet, probeMs: 100, maxBytes: 600 });
 await s3.init();
 for (let i = 0; i < 20; i++) await s3.recordShare({ workerId: 1n, jobId: "j", nonce: `x${i}`, difficulty: "1", accepted: true }, { address: "xel:d", name: "w" });
+await s3.flush();
 await s3.recordBlock({ hash: "cd".repeat(32), height: 1, status: "submitted", foundAt: new Date() }, { address: "xel:d", name: "w" });
 await s3.recordServiceEvent("block_submitted", {});
 check("shares past the limit are dropped", s3.status().dropped > 0, `dropped=${s3.status().dropped}`);
@@ -139,15 +149,90 @@ await s3.stop();
   await rm(dir3, { recursive: true, force: true });
 });
 
-test("a refused statement is not an outage", async () => {
+test("a refused statement is not an outage, and one refused share does not cost the rest of its batch", async () => {
 // ---- 6. a refused statement is not an outage
 const db4 = fakeDb();
-db4.recordShare = async () => { const e = new Error("duplicate key"); e.code = "23505"; throw e; };
-const s4 = new DurableStore({ pool: pool(db4), dir: null, db: db4, logger: quiet });
-let rethrown = false;
-await s4.recordShare({ workerId: 1n, jobId: "j", nonce: "n", difficulty: "1", accepted: true }, { address: "a", name: "b" }).catch(() => { rethrown = true; });
-check("a rejected statement is raised, not journaled", rethrown && s4.status().online);
+const refused = () => { const e = new Error("value out of range"); e.code = "22003"; return e; };
+db4.recordShares = async () => { throw refused(); };
+const recordOne = db4.recordShare;
+db4.recordShare = async (p, s) => { if (s.nonce === "bad") throw refused(); return recordOne(p, s); };
+const warnings = [];
+const s4 = new DurableStore({ pool: pool(db4), dir: null, db: db4, logger: { info() {}, warn: (...a) => warnings.push(a.join(" ")) } });
+for (const nonce of ["a", "bad", "b"]) await s4.recordShare({ workerId: 1n, jobId: "j", nonce, difficulty: "1", accepted: true }, { address: "a", name: "b" });
+await s4.flush();
+check("the store stays online", s4.status().online);
+assert.deepEqual(db4.state.calls.map((c) => c[2]), ["a", "b"], "the others were recorded one by one");
+check("the refused share is reported", warnings.some((w) => /refused/.test(w)));
+await s4.stop();
+});
 
+test("online shares are written together, and the miner's answer never waits for the database", async () => {
+  const db = fakeDb();
+  /** @type {() => void} */
+  let release = () => {};
+  const recordShares = db.recordShares;
+  // The database takes its time with the first batch.
+  db.recordShares = async (p, shares) => { if (!db.state.batches) await new Promise((r) => { release = r; }); return recordShares(p, shares); };
+  const store = new DurableStore({ pool: pool(db), dir: null, db, logger: quiet, shareFlushMs: 10, shareBatch: 3 });
+  const key = { address: "xel:a", name: "w" };
+  const record = (nonce) => store.recordShare({ workerId: 1n, jobId: "j", nonce, difficulty: "1", accepted: true }, key);
+  const started = Date.now();
+  for (const nonce of ["1", "2", "3"]) assert.equal((await record(nonce)).queued, true);
+  // 3 is the batch size: the write starts at once, and hangs. Shares keep being answered meanwhile, and wait for the next batch.
+  for (const nonce of ["4", "5", "6", "7"]) assert.equal((await record(nonce)).queued, true);
+  check("answered without waiting for the slow write", Date.now() - started < 200);
+  assert.equal(store.status().queued, 4);
+  release();
+  await store.flush();
+  assert.deepEqual(db.state.calls.map((c) => c[2]), ["1", "2", "3", "4", "5", "6", "7"], "every share, in order");
+  assert.equal(db.state.batches, 2, "in two writes, not seven");
+  assert.ok(db.state.calls.every((c) => c[3] instanceof Date), "each with the time it arrived");
+  await store.stop();
+});
+
+test("a batch the database cannot take goes to the journal with its times, and is recorded when the database is back", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "journal-"));
+  const db = fakeDb();
+  const store = new DurableStore({ pool: pool(db), dir, db, logger: quiet, probeMs: 50, shareFlushMs: 10 });
+  await store.init();
+  const key = { address: "xel:a", name: "w" };
+  await store.recordShare({ workerId: 1n, jobId: "j", nonce: "early", difficulty: "1", accepted: true }, key);
+  const arrived = Date.now();
+  db.state.up = false;
+  await store.flush();
+  check("the outage is noticed by the batch", !store.status().online && store.status().pending === 1 && store.status().queued === 0);
+  const line = JSON.parse((await readFile(join(dir, "journal.jsonl"), "utf8")).trim());
+  check("it keeps the time the share arrived", Math.abs(Date.parse(line.at) - arrived) < 1000, line.at);
+  db.state.up = true;
+  check("and is recorded when the database is back", await waitFor(() => store.status().online && store.status().pending === 0));
+  assert.deepEqual(db.state.calls.filter((c) => c[0] === "share").map((c) => c[2]), ["early"]);
+  await store.stop();
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("stopping writes the shares still queued", async () => {
+  const db = fakeDb();
+  const store = new DurableStore({ pool: pool(db), dir: null, db, logger: quiet, shareFlushMs: 60_000 });
+  await store.recordShare({ workerId: 1n, jobId: "j", nonce: "last", difficulty: "1", accepted: true }, { address: "a", name: "w" });
+  assert.equal(db.state.calls.length, 0);
+  await store.stop();
+  assert.deepEqual(db.state.calls.map((c) => c[2]), ["last"]);
+});
+
+test("a share checked after stopping is kept in the journal for the next start", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "journal-"));
+  const db = fakeDb();
+  const store = new DurableStore({ pool: pool(db), dir, db, logger: quiet });
+  await store.init();
+  await store.stop();
+  const result = await store.recordShare({ workerId: 1n, jobId: "j", nonce: "late", difficulty: "1", accepted: true }, { address: "a", name: "w" });
+  assert.equal(result.journaled, true);
+  const next = new DurableStore({ pool: pool(db), dir, db, logger: quiet, probeMs: 50 });
+  await next.init();
+  check("the next start records it", await waitFor(() => next.status().online && next.status().pending === 0));
+  assert.deepEqual(db.state.calls.filter((c) => c[0] === "share").map((c) => c[2]), ["late"]);
+  await next.stop();
+  await rm(dir, { recursive: true, force: true });
 });
 
 test("records that arrive together during an outage are written to the journal together, in order", async () => {
@@ -159,6 +244,7 @@ test("records that arrive together during an outage are written to the journal t
   await store.init();
   const key = { address: "xel:b", name: "w" };
   await store.recordShare({ workerId: 1n, jobId: "j", nonce: "first", difficulty: "1", accepted: true }, key);
+  await store.flush();
   check("the outage is noticed", !store.status().online);
 
   // Fifty shares in the same moment, as from many rigs at once. Each used to be its own file write, one after another and each

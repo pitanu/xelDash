@@ -87,11 +87,18 @@ export function createShareSubmitter({ daemon, store, logger = console, onBlockA
    * Stratum sends a nonce and the work is rebuilt from the job. Getwork miners send their full
    * MinerWork (they also change the timestamp and thread id), which the caller has already
    * checked against the job; `nonce` is then the dedupe key.
-   * @param {{ worker: { minerId?: string | bigint | null, workerId: string | bigint | null, address: string }, workerName: string, job: import("./job-provider.js").MiningJob, nonce: string, minerWork?: Buffer | null, algorithm: string | null }} input
+   * `duplicate`: the session has already credited this work; it is recorded as a rejected duplicate without hashing it again.
+   * @param {{ worker: { minerId?: string | bigint | null, workerId: string | bigint | null, address: string }, workerName: string, job: import("./job-provider.js").MiningJob, nonce: string, minerWork?: Buffer | null, algorithm: string | null, duplicate?: boolean }} input
    */
-  return async ({ worker, workerName, job, nonce, minerWork: submittedWork = null, algorithm }) => {
+  return async ({ worker, workerName, job, nonce, minerWork: submittedWork = null, algorithm, duplicate = false }) => {
     if (algorithm !== "xel/v3" || job.algorithm !== "xel/v3") {
       return { error: { code: STRATUM_ERRORS.UNKNOWN, message: "Unsupported PoW algorithm" } };
+    }
+    if (duplicate) {
+      await store.recordShare({
+        workerId: worker.workerId, jobId: job.jobId, nonce, difficulty: String(job.shareDifficulty), accepted: false, rejectReason: "duplicate",
+      }, { address: worker.address, name: workerName });
+      return { error: { code: STRATUM_ERRORS.DUPLICATE_SHARE, message: "Duplicate share" } };
     }
 
     const minerWork = submittedWork ?? job.buildMinerWork(nonce);

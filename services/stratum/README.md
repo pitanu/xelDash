@@ -72,14 +72,19 @@ restart. A certificate that is there but unusable stops Stratum from starting; o
 Stratum running meanwhile (a public server's certificate arrives after its first start; see docs/OPERATIONS.md#public-mode).
 
 **Records and outages** (`src/store.js`). Everything Stratum records (workers, shares, blocks, events, bans)
-goes through one store. Normally a write goes straight to PostgreSQL. When the database cannot be reached the write is
+goes through one store. Normally a write goes straight to PostgreSQL, except shares: they are queued and written together,
+a batch every 200 ms or 500 shares, in one statement (raw rows, the minute stats added up per worker, last seen), so a miner's
+answer never waits for the database. A share is checked for duplicates before that, by its connection, which remembers the
+work each accepted share proved (header, timestamp and nonce) while a job on that header can still take shares; the same
+nonce sent under a reissued job id is the same work and is caught too. When the database cannot be reached the write is
 appended to a JSON-lines journal on its own volume (`STRATUM_JOURNAL_DIR`, `/spool` in Compose), a circuit breaker
 keeps miners from waiting on a dead database, and miners stay connected and keep mining. A background loop checks the
 database every few seconds and injects the journal in order with the original timestamps, then deletes it. Workers are
 named by address and name in the journal, since a worker first seen during an outage has no id yet; logins during an
 outage use a cache of the workers seen before (also kept on disk), and a new worker gets a provisional identity that
 is created when the database returns. The journal survives restarts, is capped at `STRATUM_JOURNAL_MAX_MB` (200; past
-that, shares are dropped, never blocks, events or bans), and a repeated share during an outage is caught in memory.
+that, shares are dropped, never blocks, events or bans). A batch the database cannot take goes to the journal, with the
+times its shares arrived; one it refuses is retried a share at a time, skipping the share refused.
 Blocks are submitted to the node first, so a database outage never costs a block.
 
 **Standby mode.** With `STRATUM_INGEST_URL` (and `XELDASH_CLUSTER_SECRET`) set, Stratum has no database at all: the store

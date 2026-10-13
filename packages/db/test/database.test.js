@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { createPool, ensureWorker, finalizeBlock, ingestRecords, listSubmittedBlocks, recordBan, recordBlock, recordShare, recordServiceEvent, listActiveBans } from "../src/index.js";
+import { createPool, ensureWorker, finalizeBlock, ingestRecords, listSubmittedBlocks, recordBan, recordBlock, recordShare, recordShares, recordServiceEvent, listActiveBans } from "../src/index.js";
 
 const url = process.env.TEST_DATABASE_URL;
 const skip = url ? false : "set TEST_DATABASE_URL to run the database tests";
@@ -48,6 +48,62 @@ test("shares: an accepted share is stored once, a repeat is recorded as a reject
   await recordShare(pool, { ...s, nonce: "n2", accepted: false, rejectReason: "stale", networkDifficulty: undefined });
   const { rows } = await pool.query("SELECT sum(accepted) a, sum(rejected) r, sum(stale) s, sum(sum_difficulty) d FROM worker_stats_1m WHERE worker_id = $1", [workerId]);
   assert.deepEqual([Number(rows[0].a), Number(rows[0].r), Number(rows[0].s), Number(rows[0].d)], [1, 2, 1, 1000], "1 accepted, a duplicate and a stale rejected, difficulty counted once");
+});
+
+test("a batch of shares gives the same stats as recording them one by one", { skip }, async () => {
+  const one = await ensureWorker(pool, { address: address(), name: "one-by-one" });
+  const many = await ensureWorker(pool, { address: address(), name: "batch" });
+  const at = "2026-03-04T05:06:07.000Z";
+  const later = "2026-03-04T05:07:30.000Z";
+  /** @param {string | bigint} workerId */
+  const shares = (workerId) => [
+    { workerId, jobId: "j", nonce: "a", difficulty: "1000", networkDifficulty: "300000", accepted: true, createdAt: at },
+    { workerId, jobId: "j", nonce: "b", difficulty: "1500.5", networkDifficulty: "300000", accepted: true, createdAt: at },
+    { workerId, jobId: "j", nonce: "c", difficulty: "1000", accepted: false, rejectReason: "stale", createdAt: at },
+    { workerId, jobId: "j", nonce: "d", difficulty: "1000", accepted: false, rejectReason: "duplicate", createdAt: at },
+    { workerId, jobId: "j", nonce: "e", difficulty: "1000", networkDifficulty: "250000", accepted: true, createdAt: later },
+    { workerId, jobId: "j", nonce: "f", difficulty: "1000", accepted: false, rejectReason: "low_difficulty", createdAt: later },
+  ];
+  for (const share of shares(one.workerId)) await recordShare(pool, share);
+  assert.deepEqual(await recordShares(pool, shares(many.workerId)), { recorded: 6 });
+  const stats = async (/** @type {string | bigint} */ workerId) => (await pool.query(
+    `SELECT bucket, accepted::text, rejected::text, stale::text, sum_difficulty::text, sum_effort::text
+     FROM worker_stats_1m WHERE worker_id = $1 ORDER BY bucket`, [workerId])).rows;
+  const expected = await stats(one.workerId);
+  assert.equal(expected.length, 2, "two minutes");
+  assert.deepEqual(await stats(many.workerId), expected);
+  const raw = async (/** @type {string | bigint} */ workerId) => (await pool.query(
+    "SELECT nonce, accepted, reject_reason, created_at FROM shares WHERE worker_id = $1 ORDER BY nonce", [workerId])).rows;
+  assert.deepEqual(await raw(many.workerId), await raw(one.workerId), "the same raw rows, with their own times");
+});
+
+test("a batch keeps last_seen current, for the worker and its address", { skip }, async () => {
+  const a = address();
+  const rig = await ensureWorker(pool, { address: a, name: "rig" });
+  const other = await ensureWorker(pool, { address: address(), name: "rig" });
+  const soon = new Date(Date.now() + 3_600_000).toISOString();
+  await recordShares(pool, [
+    { workerId: rig.workerId, jobId: "j", nonce: "1", difficulty: "1", accepted: true, createdAt: new Date(Date.now() + 60_000).toISOString() },
+    { workerId: rig.workerId, jobId: "j", nonce: "2", difficulty: "1", accepted: true, createdAt: soon },
+    { workerId: other.workerId, jobId: "j", nonce: "1", difficulty: "1", accepted: true },
+  ]);
+  const { rows } = await pool.query(
+    "SELECT w.last_seen AS worker, m.last_seen AS miner FROM workers w JOIN miners m ON m.id = w.miner_id WHERE w.id = $1", [rig.workerId]);
+  assert.equal(rows[0].worker.toISOString(), soon, "the latest share in the batch");
+  assert.equal(rows[0].miner.toISOString(), soon);
+});
+
+test("a batch is written whole or not at all, and skips an accepted share already on record", { skip }, async () => {
+  const { workerId } = await ensureWorker(pool, { address: address(), name: "w" });
+  const share = { workerId, jobId: "j", nonce: "same", difficulty: "10", accepted: true };
+  await recordShares(pool, [share, share]);
+  let { rows } = await pool.query("SELECT count(*)::int AS n FROM shares WHERE worker_id = $1", [workerId]);
+  assert.equal(rows[0].n, 1, "the safeguard keeps one row");
+  await assert.rejects(recordShares(pool, [{ ...share, nonce: "ok" }, { ...share, workerId: "999999999999", nonce: "no-such-worker" }]));
+  ({ rows } = await pool.query("SELECT count(*)::int AS n FROM shares WHERE worker_id = $1", [workerId]));
+  assert.equal(rows[0].n, 1, "nothing from the refused batch");
+  assert.deepEqual(await recordShares(pool, []), { recorded: 0 });
+  await assert.rejects(recordShares(pool, [{ ...share, difficulty: "0" }]), TypeError, "shares are checked like single ones");
 });
 
 test("a share recorded late keeps the time it was found", { skip }, async () => {

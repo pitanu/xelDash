@@ -30,6 +30,9 @@ const MAX_ISSUED_JOBS = 64;
 // Stale shares are recorded (the dashboard counts them), but at most this many a minute per connection: a rig sends a few after each
 // block, and old job ids replayed over and over would otherwise be free rows in the database.
 const MAX_STALE_RECORDS_PER_MINUTE = 30;
+// Work already credited is remembered per header, while a job on that header can still take shares; past this many on one header the
+// oldest is forgotten, so memory stays bounded whatever a miner sends.
+const MAX_SEEN_WORK_PER_HEADER = 100_000;
 
 /**
  * A fixed share difficulty requested in the Stratum password, as many miners and pools use:
@@ -54,7 +57,7 @@ export class StratumSession {
    * @param {{ socket: StratumSocket,
    *   authorizeAddress: (input: { address: string, workerName: string, password: string, ip?: string }) => Promise<MiningIdentity | null>,
    *   createJob?: ((input: { address: string, publicKey: string, extraNonce: string, algorithm: string, shareDifficulty: number }) => Promise<MiningJob>) | null,
-   *   submitShare?: ((input: { worker: MiningIdentity, workerName: string, job: MiningJob, nonce: string, minerWork?: Buffer | null, algorithm: string | null }) => Promise<ShareResult>) | null,
+   *   submitShare?: ((input: { worker: MiningIdentity, workerName: string, job: MiningJob, nonce: string, minerWork?: Buffer | null, algorithm: string | null, duplicate?: boolean }) => Promise<ShareResult>) | null,
    *   onHashrate?: (input: { worker: MiningIdentity, workerName: string, hashrate: number }) => void,
    *   onAuthorized?: () => void,
    *   onSubmission?: (valid: boolean) => void,
@@ -99,6 +102,12 @@ export class StratumSession {
     this.allowShare = allowShare;
     /** @type {Set<string>} */
     this.issuedJobs = new Set();
+    /**
+     * The work each share proved, by header, for duplicate detection. The work is the header, the timestamp, this connection's extra
+     * nonce and the nonce, so the same nonce sent under a reissued job id (same work, new difficulty) is caught too.
+     * @type {Map<string, Set<string>>}
+     */
+    this.seenWork = new Map();
     this.staleWindowStart = 0;
     this.staleRecorded = 0;
     this.logger = logger;
@@ -495,6 +504,24 @@ export class StratumSession {
       if (!oldestJobId) break;
       this.jobs.delete(oldestJobId);
     }
+    // Work on a header no job can take shares for any more cannot come back as a duplicate.
+    const live = new Set([...this.jobs.values(), ...this.liveGraceJobs()].map((j) => j.headerWorkHash));
+    for (const header of this.seenWork.keys()) if (!live.has(header)) this.seenWork.delete(header);
+  }
+
+  /**
+   * Remember the work a share proves, unless it was already credited on this connection.
+   * @param {MiningJob} job @param {string} nonce @param {boolean} fullWork getwork: `nonce` already holds the timestamp and thread id
+   * @returns {string | null} the key to forget if the share is not accepted, or null for a duplicate
+   */
+  claimWork(job, nonce, fullWork) {
+    const work = fullWork ? nonce : `${job.timestampHex}:${nonce}`;
+    let seen = this.seenWork.get(job.headerWorkHash);
+    if (!seen) this.seenWork.set(job.headerWorkHash, (seen = new Set()));
+    if (seen.has(work)) return null;
+    seen.add(work);
+    if (seen.size > MAX_SEEN_WORK_PER_HEADER) seen.delete(/** @type {string} */ (seen.values().next().value));
+    return work;
   }
 
   /** A current job, or one replaced by a new block within the grace window. @param {string} jobId */
@@ -592,7 +619,16 @@ export class StratumSession {
    */
   async processShare({ worker, workerName, job, nonce, minerWork }) {
     if (!this.submitShare) return { error: { code: STRATUM_ERRORS.STALE_JOB, message: "No active mining job" } };
-    const result = await this.submitShare({ worker, workerName, job, nonce, minerWork, algorithm: this.algorithm });
+    // Claimed before the hash, so the same share sent twice at once is caught as well.
+    const work = this.claimWork(job, nonce, minerWork !== null);
+    const duplicate = work === null;
+    let result;
+    try {
+      result = await this.submitShare({ worker, workerName, job, nonce, minerWork, algorithm: this.algorithm, duplicate });
+    } finally {
+      // Only accepted work is held against a repeat, as the database's check did before.
+      if (work !== null && result?.accepted !== true) this.seenWork.get(job.headerWorkHash)?.delete(work);
+    }
     if (result?.error) {
       if (result.error.code === STRATUM_ERRORS.LOW_DIFFICULTY || result.error.code === STRATUM_ERRORS.DUPLICATE_SHARE) {
         this.onSubmission(false);

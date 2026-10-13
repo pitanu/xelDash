@@ -151,8 +151,7 @@ restarting the mining server in the middle of the outage:
   database is not reachable. Mining continues." and catches up by itself.
 
 Limits: the journal is capped at `STRATUM_JOURNAL_MAX_MB` (200 MB by default, many days of shares even for a large
-farm). Past that, shares (statistics only) are dropped, never blocks or events. A share repeated
-during an outage is caught in memory, so a restart in the middle of an outage can let one duplicate through. The
+farm). Past that, shares (statistics only) are dropped, never blocks or events. The
 journal holds miner addresses and IP addresses; it is readable only by the mining server.
 
 ## Mining availability

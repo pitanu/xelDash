@@ -10,13 +10,15 @@ const down = () => { const e = new Error("connect ECONNREFUSED"); e.code = "ECON
 test("the journal is capped by kind so a flood cannot fill the disk", async () => {
 const calls = [];
 const db = {
-  ensureWorker: async () => { throw down(); }, recordShare: async () => { throw down(); }, recordBlock: async () => { throw down(); },
+  ensureWorker: async () => { throw down(); }, recordShare: async () => { throw down(); }, recordShares: async () => { throw down(); },
+  recordBlock: async () => { throw down(); },
   recordServiceEvent: async () => { throw down(); }, recordBan: async () => { throw down(); }, recordReportedHashrate: async () => { throw down(); },
 };
 const dir = await mkdtemp(join(tmpdir(), "cap-"));
 const store = new DurableStore({ pool: { query: async () => { throw down(); } }, dir, db, logger: { info() {}, warn() {} }, probeMs: 60_000, maxBytes: 1000 });
 await store.init();
 for (let i = 0; i < 40; i++) await store.recordShare({ workerId: 1n, jobId: "j", nonce: `n${i}`, difficulty: "1", accepted: true }, { address: "a", name: "w" });
+await store.flush();
 const afterShares = (await stat(join(dir, "journal.jsonl"))).size;
 check("shares stop at the limit", afterShares <= 1000, `size=${afterShares}`);
 for (let i = 0; i < 400; i++) await store.recordServiceEvent("login_problem", { reason: "invalid_address", address: "x".repeat(20), i });

@@ -215,6 +215,57 @@ test("shares: accepted, low difficulty, duplicate, stale and unknown are told ap
   h.session.close();
 });
 
+test("duplicates are caught by the work a share proves, before the database", async () => {
+  const h = harness();
+  await login(h);
+  const job = [...h.session.jobs.values()][0];
+  await submit(h, ["rig1", job.jobId, NONCE], 70);
+  await submit(h, ["rig1", job.jobId, NONCE], 71);
+  assert.deepEqual(h.events.shares.map((s) => s.duplicate), [false, true], "the repeat is flagged for the share checker");
+  // A new difficulty reissues the same work under a new job id: the same nonce on it is the same work.
+  h.session.applyDifficulty(5000);
+  const reissued = [...h.session.jobs.values()].at(-1);
+  assert.notEqual(reissued.jobId, job.jobId);
+  await submit(h, ["rig1", reissued.jobId, NONCE], 72);
+  assert.equal(h.events.shares.at(-1).duplicate, true, "not credited twice under two job ids");
+  // Work that was not accepted is not held against a later try.
+  h.state.shareResult = { error: { code: STRATUM_ERRORS.LOW_DIFFICULTY, message: "Low difficulty share" } };
+  await submit(h, ["rig1", job.jobId, "fedcba9876543210"], 73);
+  h.state.shareResult = { accepted: true };
+  await submit(h, ["rig1", job.jobId, "fedcba9876543210"], 74);
+  assert.equal(h.events.shares.at(-1).duplicate, false);
+  h.session.close();
+});
+
+test("the same share sent twice at once is credited once", async () => {
+  /** @type {(() => void)[]} */
+  const waiting = [];
+  const shares = [];
+  const h = harness({ submitShare: async (input) => { shares.push(input); await new Promise((r) => waiting.push(r)); return { accepted: true }; } });
+  await login(h);
+  const job = [...h.session.jobs.values()][0];
+  const both = Promise.all([submit(h, ["rig1", job.jobId, NONCE], 80), submit(h, ["rig1", job.jobId, NONCE], 81)]);
+  while (shares.length < 2) await new Promise((r) => setImmediate(r));
+  for (const done of waiting) done();
+  await both;
+  assert.deepEqual(shares.map((s) => s.duplicate), [false, true]);
+  h.session.close();
+});
+
+test("work on a header no job can take any more is forgotten", async () => {
+  const h = harness();
+  await login(h);
+  const job = [...h.session.jobs.values()][0];
+  await submit(h, ["rig1", job.jobId, NONCE], 90);
+  assert.equal(h.session.seenWork.get(job.headerWorkHash)?.size, 1);
+  h.session.trackJob({ ...job, jobId: "next-block", headerWorkHash: "22".repeat(32) }, true);
+  assert.ok(h.session.seenWork.has(job.headerWorkHash), "kept while the old job is in its grace window");
+  h.session.graceJobs.clear();
+  h.session.trackJob({ ...job, jobId: "next-template", headerWorkHash: "33".repeat(32) }, false);
+  assert.ok(!h.session.seenWork.has(job.headerWorkHash), "then dropped");
+  h.session.close();
+});
+
 test("stale shares are recorded at most 30 a minute per connection", async () => {
   const h = harness();
   await login(h);

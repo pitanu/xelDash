@@ -7,7 +7,9 @@ import { applyJournalRecord } from "@xeldash/db";
 
 // Everything Stratum records goes through here, so that mining does not depend on the database.
 //
-// Normally a write goes straight to PostgreSQL. When the database cannot be reached (it restarts,
+// Normally a write goes straight to PostgreSQL; shares are queued and written together, a batch every SHARE_FLUSH_MS or
+// SHARE_BATCH shares, so a share's answer never waits for the database and the database does one statement for many shares.
+// When the database cannot be reached (it restarts,
 // the computer holding it is down, the network is cut) the write is appended to a journal file
 // instead, miners keep mining, and a background loop injects the journal into the database, in
 // order and with the original timestamps, as soon as it answers again. Nothing is lost, including
@@ -27,6 +29,12 @@ const PROBE_MS = 3_000;
 const STATE_EVERY = 20;
 const DEFAULT_MAX_BYTES = 200 * 1024 * 1024;
 const RECENT_SHARES = 100_000;
+const SHARE_FLUSH_MS = 200;
+const SHARE_BATCH = 500;
+/** The most shares in one statement, when a slow database lets more pile up. */
+const MAX_SHARE_BATCH = 5_000;
+/** Shares waiting beyond this are dropped (statistics only), so a stuck database cannot fill Stratum's memory. */
+const MAX_QUEUED_SHARES = 200_000;
 
 const CONNECTION_CODES = new Set([
   "ECONNREFUSED", "ECONNRESET", "ENOTFOUND", "ETIMEDOUT", "EAI_AGAIN", "EPIPE", "ECONNABORTED", "EHOSTUNREACH", "ENETUNREACH",
@@ -56,18 +64,21 @@ const keyOf = (address, name) => `${address}\n${name}`;
 /**
  * @typedef {{ address: string, name: string }} WorkerKey
  * @typedef {{ minerId: string | bigint | null, workerId: string | bigint | null }} WorkerIds
+ * @typedef {{ workerId: string | bigint, jobId: string, nonce: string, difficulty: string | bigint, networkDifficulty?: string | bigint | null,
+ *   accepted: boolean, rejectReason?: string | null, createdAt: Date }} QueuedShare
  */
 
 export class DurableStore {
   /**
    * @param {{ pool: import("pg").Pool | null, dir?: string | null, db?: typeof defaultDb, maxBytes?: number,
-   *   logger?: Pick<Console, "info" | "warn">, probeMs?: number,
+   *   logger?: Pick<Console, "info" | "warn">, probeMs?: number, shareFlushMs?: number, shareBatch?: number,
    *   remote?: { url: string, secret: string, instance: string, batch?: number, flushMs?: number, fetch?: typeof fetch,
    *     onPing?: (body: any) => void, pingMs?: number } | null }} options
    *   `dir` null keeps no journal on disk (writes during an outage are dropped, as before).
    *   `remote` sends the journal to another server's ingest endpoint instead of writing to a database.
    */
-  constructor({ pool, dir = null, db = defaultDb, maxBytes = DEFAULT_MAX_BYTES, logger = console, probeMs = PROBE_MS, remote = null }) {
+  constructor({ pool, dir = null, db = defaultDb, maxBytes = DEFAULT_MAX_BYTES, logger = console, probeMs = PROBE_MS, remote = null,
+    shareFlushMs = SHARE_FLUSH_MS, shareBatch = SHARE_BATCH }) {
     this.pool = /** @type {import("pg").Pool} */ (pool);
     this.remote = remote;
     this.lastSeq = 0;
@@ -107,6 +118,14 @@ export class DurableStore {
     this.replayRun = null;
     /** Ends the replay loop's current pause early (set while it pauses). @type {(() => void) | null} */
     this.wakeUp = null;
+    this.shareFlushMs = shareFlushMs;
+    this.shareBatch = shareBatch;
+    /** Shares waiting to be written to the database together. @type {{ share: QueuedShare, key: WorkerKey }[]} */
+    this.shareQueue = [];
+    /** @type {ReturnType<typeof setTimeout> | null} */
+    this.flushTimer = null;
+    /** The batch write under way. @type {Promise<void> | null} */
+    this.flushing = null;
   }
 
   get pending() {
@@ -114,7 +133,7 @@ export class DurableStore {
   }
 
   status() {
-    return { online: this.online, pending: this.pending, oldestAt: this.oldestAt, dropped: this.dropped, remote: Boolean(this.remote) };
+    return { online: this.online, pending: this.pending, queued: this.shareQueue.length, oldestAt: this.oldestAt, dropped: this.dropped, remote: Boolean(this.remote) };
   }
 
   /** Load the journal and the workers seen before; start replaying if the last run left records behind. */
@@ -153,6 +172,8 @@ export class DurableStore {
   }
 
   async stop() {
+    // Shares still queued go to the database, or to the journal if it does not answer.
+    await this.flush();
     this.stopped = true;
     if (this.pingTimer) clearInterval(this.pingTimer);
     if (this.cacheTimer) clearTimeout(this.cacheTimer);
@@ -193,14 +214,27 @@ export class DurableStore {
    */
   async recordShare(share, key) {
     const ids = share.workerId ?? this.cache.get(keyOf(key.address, key.name))?.workerId ?? null;
-    if (this.online && !this.remote && ids !== null) {
-      try {
-        return await this.db.recordShare(this.pool, { ...share, workerId: ids });
-      } catch (error) {
-        if (!isConnectionError(error)) throw error;
-        this.#goOffline(error);
+    // After stop() a share still being checked goes to the journal, which the next start records.
+    if (this.online && !this.remote && !this.stopped && ids !== null) {
+      // Duplicates are caught before this, by the session (it knows the work each share proves), so nothing here needs the database's
+      // answer: the share waits in the queue and the miner is answered now.
+      if (this.shareQueue.length >= MAX_QUEUED_SHARES) {
+        if (this.dropped++ % 1_000 === 0) this.logger.warn?.("The database is not keeping up; share statistics are being dropped");
+        return { recorded: false, queued: false, journaled: false, duplicate: false, accepted: share.accepted };
       }
+      this.shareQueue.push({ share: { ...share, workerId: ids, createdAt: new Date() }, key });
+      this.#scheduleFlush();
+      return { recorded: false, queued: true, journaled: false, duplicate: false, accepted: share.accepted };
     }
+    return this.#journalShare(share, key, new Date());
+  }
+
+  /**
+   * @param {{ jobId: string, nonce: string, difficulty: string | bigint, networkDifficulty?: string | bigint | null, accepted: boolean,
+   *   rejectReason?: string | null }} share
+   * @param {WorkerKey} key @param {Date} at when the share arrived
+   */
+  async #journalShare(share, key, at) {
     // Journaled: the database's duplicate check is not available, so repeats are caught here.
     if (share.accepted) {
       const dup = `${key.address}\n${key.name}\n${share.jobId}\n${share.nonce}`;
@@ -211,9 +245,82 @@ export class DurableStore {
     await this.#append({
       t: "share", key, jobId: share.jobId, nonce: share.nonce, difficulty: String(share.difficulty),
       networkDifficulty: share.networkDifficulty === undefined || share.networkDifficulty === null ? null : String(share.networkDifficulty),
-      accepted: share.accepted, rejectReason: share.rejectReason ?? null, at: new Date().toISOString(),
+      accepted: share.accepted, rejectReason: share.rejectReason ?? null, at: at.toISOString(),
     });
-    return { recorded: false, journaled: true, duplicate: false, accepted: share.accepted };
+    return { recorded: false, queued: false, journaled: true, duplicate: false, accepted: share.accepted };
+  }
+
+  /** Writes every queued share now: to the database, or to the journal if it cannot be reached. */
+  async flush() {
+    if (this.flushTimer) clearTimeout(this.flushTimer);
+    this.flushTimer = null;
+    while (this.flushing || this.shareQueue.length > 0) await (this.flushing ?? this.#flushShares());
+  }
+
+  /** A batch once enough shares wait, or a short while after the first. */
+  #scheduleFlush() {
+    if (this.flushing) return;
+    if (this.shareQueue.length >= this.shareBatch) {
+      if (this.flushTimer) clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+      void this.#flushShares();
+      return;
+    }
+    this.flushTimer ??= setTimeout(() => {
+      this.flushTimer = null;
+      void this.#flushShares();
+    }, this.shareFlushMs);
+    this.flushTimer.unref?.();
+  }
+
+  /** Writes the queue in batches. Shares that arrive meanwhile wait for the next, so a busy server writes bigger batches. */
+  #flushShares() {
+    if (this.flushing) return this.flushing;
+    this.flushing = (async () => {
+      do {
+        await this.#writeShares(this.shareQueue.splice(0, MAX_SHARE_BATCH));
+      } while (this.shareQueue.length >= this.shareBatch);
+    })().finally(() => {
+      this.flushing = null;
+      if (this.shareQueue.length > 0) this.#scheduleFlush();
+    });
+    return this.flushing;
+  }
+
+  /** @param {{ share: QueuedShare, key: WorkerKey }[]} batch */
+  async #writeShares(batch) {
+    if (batch.length === 0) return;
+    if (this.online) {
+      try {
+        await this.db.recordShares(this.pool, batch.map(({ share }) => share));
+        return;
+      } catch (error) {
+        if (!isConnectionError(error)) {
+          // A share the database refuses must not cost the others: they are recorded one at a time, and the refused one skipped.
+          await this.#writeSharesOneByOne(batch);
+          return;
+        }
+        this.#goOffline(error);
+      }
+    }
+    // The database cannot be reached: the batch goes to the journal, in order and with the times the shares arrived.
+    await Promise.all(batch.map(({ share, key }) => this.#journalShare(share, key, share.createdAt)));
+  }
+
+  /** @param {{ share: QueuedShare, key: WorkerKey }[]} batch */
+  async #writeSharesOneByOne(batch) {
+    for (const [i, { share }] of batch.entries()) {
+      try {
+        await this.db.recordShare(this.pool, share);
+      } catch (error) {
+        if (isConnectionError(error)) {
+          this.#goOffline(error);
+          await Promise.all(batch.slice(i).map((rest) => this.#journalShare(rest.share, rest.key, rest.share.createdAt)));
+          return;
+        }
+        this.logger.warn?.("Skipping a share the database refused:", error instanceof Error ? error.message : String(error));
+      }
+    }
   }
 
   /** @param {{ hash: string, height?: number | null, topoheight?: number | null, minerId?: string | bigint | null, workerId?: string | bigint | null, status: string, foundAt?: Date | null }} block @param {WorkerKey | null} key */

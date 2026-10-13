@@ -226,8 +226,17 @@ difficulty 1 sending a share a second. Per share, on that processor:
   It now falls behind at about 1,200 a second on 4 cores, with the hash threads using 3.5 of them: the proof of work is the limit, as it should be.
 - **With the database on**, the virtual machine ran out of processor time at about 700 shares a second (the hash, PostgreSQL at about one core, and the
   simulated rigs). More database connections (`DB_POOL_MAX`) or not waiting for the disk on each commit made no difference, which also points to
-  processor time. Each share is its own database transaction (three statements, five round trips); writing shares in batches would cut the database's part, if a server
-  ever needs it.
+  processor time. Each share was its own database transaction (three statements, five round trips). After 0.2.0 shares are written in
+  batches, and checked for duplicates by their connection instead of by the database, so the answer no longer waits for it. The same
+  test before and after, on a desktop (AMD Ryzen 9 7900X, 24 threads, Docker Desktop on Windows, with another xelDash stack running):
+
+  | Shares per second | Time to answer, typical / slowest 5%: before → after | Database processor use: before → after | Stratum: before → after |
+  |---:|---|---|---|
+  | 500 | 3.1 / 4.0 ms → 1.5 / 1.9 ms | 0.37 → 0.05 core | 0.9 → 0.7 core |
+  | 1,000 | 3.4 / 4.5 ms → 1.5 / 1.9 ms | 0.79 → 0.06 core | 1.8 → 1.5 cores |
+  | 2,000 | 4.5 / 21.7 ms → 1.6 / 2.2 ms | 1.57 → 0.12 core | 3.6 → 3.0 cores |
+
+  Every share was still accepted and written (2,000 rows a second); the database now does about a thirteenth of the work.
 
 ## Two servers (redundancy)
 

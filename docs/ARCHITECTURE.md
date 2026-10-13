@@ -136,7 +136,7 @@ truth for columns, types and constraints; this section only summarizes them.
 | `miners` | One row per mining address | Stratum (on authorize) | Forever |
 | `workers` | Worker names per address, last IP, reported hashrate | Stratum | Forever |
 | `shares` | Every submission: difficulty, accepted or reject reason | Stratum | 7 days |
-| `worker_stats_1m` | Per-worker, per-minute accepted, rejected and stale counts, difficulty sum and effort sum | Stratum, with each share | 90 days |
+| `worker_stats_1m` | Per-worker, per-minute accepted, rejected and stale counts, difficulty sum and effort sum | Stratum, with each batch of shares | 90 days |
 | `worker_stats_1h` | Hourly rollup of the minute stats | Stratum's hourly retention job | Forever |
 | `blocks` | Block candidates with status, topoheight and miner reward | Stratum (submit and block tracker) | Forever |
 | `bans` | Stratum IP bans with reason and expiry | Stratum | 1 year |
@@ -172,7 +172,9 @@ Notes:
   1,000 and the network difficulty.
 - A miner can ask for a fixed difficulty in its password (`d=`), never below the minimum.
 - Shares are hashed (on a thread pool) before they are recorded; low-difficulty and
-  duplicate shares are recorded as rejected, malformed ones refused. Shares on the job a new
+  duplicate shares are recorded as rejected, malformed ones refused. Duplicates are caught by the connection, which
+  remembers the work each accepted share proved, before the hash; shares are written to the database in batches
+  (`services/stratum/README.md`), so the answer to a miner does not wait for it. Shares on the job a new
   block replaced are accepted for 1.5 seconds (`STRATUM_STALE_GRACE_MS`); later ones are
   recorded as stale.
 - Round effort is the effort since the last found block (100% = the work expected per
