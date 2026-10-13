@@ -258,7 +258,7 @@ Two computers. Their numbers depend on the processor and the disk, so compare yo
 | Used for | Everything on this page except the profile: the mainnet figures, the rig and share capacity tables | "Where the time goes": the Stratum profile and the journal before and after (2026-10-13) |
 | Processor | AMD Ryzen 9 7900X: 12 cores, 24 threads | Intel Xeon at 2.8 GHz (Skylake or Cascade Lake server class: family 6, model 85; AVX2 and AVX-512): 4 virtual cores, one thread each, 33 MB L3 cache |
 | Memory | 28 GB given to Docker (the capacity test reported 31 GB) | 15 GiB |
-| Disk | Not recorded | A 256 GB virtual disk (virtio); a synchronous 8 KB write takes about 0.5 ms (about 2,000 a second, `dd oflag=dsync`) |
+| Disk | NVMe SSD | A 256 GB virtual disk (virtio); a synchronous 8 KB write takes about 0.5 ms (about 2,000 a second, `dd oflag=dsync`) |
 | System | Windows 10 Pro, Docker Desktop 29.7 (WSL 2) | Ubuntu 24.04 in a cloud sandbox virtual machine (KVM, Firecracker), Linux 6.18, Docker Engine 29.8 |
 | How xelDash ran | The whole stack in Docker: the mainnet stack for several days with two nodes and one rig (about 8 KH/s), and the capacity test (`npm run load`) | Stratum straight on the machine (Node.js 22.22, `node --cpu-prof`); PostgreSQL 17.11 and a devnet XELIS node 1.25.0 in Docker; the simulated rigs (`test/load/rigs.js`) on the same 4 cores |
 
