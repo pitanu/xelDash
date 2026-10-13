@@ -224,15 +224,16 @@ calls to the node in all (`node-budget.js`). The limits and their defaults are i
 
 - Automated: `npm test` (Node's built-in runner, per service and for the launchers, Compose files and docs; the database tests run when
   `TEST_DATABASE_URL` is set), `npm run e2e` (the real images on a devnet, with a simulated miner) and `npm run load` (many simulated
-  rigs, for the capacity numbers in [REQUIREMENTS.md](REQUIREMENTS.md)). CI runs the tests, the typecheck, the dashboard build, Compose
+  rigs, for the capacity numbers in [REQUIREMENTS.md](REQUIREMENTS.md)). The dashboard's components have their own tests (`npm test` in
+  `web/`, in a simulated browser page with the API answered from a table). CI runs the tests, the typecheck, the dashboard build, Compose
   validation and the image builds; the end-to-end test has its own workflow.
 - By hand: the devnet checks in [DEVNET.md](DEVNET.md) (the official miner over getwork, two-node failover, snapshots) and the
-  [community testing list](COMMUNITY-TESTING.md). Not covered: the dashboard's components, and real hardware.
+  [community testing list](COMMUNITY-TESTING.md). Not covered: most of the dashboard's pages, and real hardware.
 
 ## 11. Open-source project setup
 
 - License: MIT (`LICENSE`).
-- CI (typecheck, dashboard build, Compose validation, image builds) and multi-arch release
+- CI (typecheck, dashboard build and tests, Compose validation, image builds) and multi-arch release
   images on `v*.*.*` tags.
 - SemVer and `CHANGELOG.md`; `CONTRIBUTING.md`, code of conduct, issue and PR templates.
 - JavaScript with JSDoc and TypeScript `checkJs`; Rust for the hash addon; npm workspaces.

@@ -92,6 +92,10 @@ export class DurableStore {
     /** @type {Set<string>} */
     this.recentShares = new Set();
     this.chain = Promise.resolve();
+    /** Records waiting for the journal, and the write that will take them. @type {{ line: string, keep?: string, at: string }[]} */
+    this.batch = [];
+    /** @type {Promise<void> | null} */
+    this.batchWritten = null;
     this.replaying = false;
     this.stopped = false;
     this.cacheDirty = false;
@@ -319,21 +323,41 @@ export class DurableStore {
     if (!this.journalFile) return Promise.resolve();
     this.lastSeq = Math.max(this.lastSeq + 1, Date.now() * 1000);
     record.s = this.lastSeq;
-    const line = `${JSON.stringify(record)}\n`;
-    const task = this.chain.then(async () => {
+    this.batch.push({ line: `${JSON.stringify(record)}\n`, keep, at: record.at });
+    // Records that arrive while a write is under way go out together in the next one: one file write for many records, instead
+    // of one each queued behind the share hashes on the thread pool (at a few hundred shares a second that queue was seconds long).
+    if (!this.batchWritten) {
+      this.chain = this.chain.then(() => this.#writeBatch())
+        .catch((error) => this.logger.warn?.("Could not write to the journal:", error instanceof Error ? error.message : String(error)));
+      this.batchWritten = this.chain;
+    }
+    return this.batchWritten;
+  }
+
+  /** Writes every record waiting for the journal, in order, with one append. */
+  async #writeBatch() {
+    const batch = this.batch;
+    this.batch = [];
+    this.batchWritten = null;
+    let text = "";
+    let oldestAt = null;
+    let count = 0;
+    for (const { line, keep, at } of batch) {
       const limit = keep === "always" ? Infinity : keep === "events" ? this.maxBytes * 2 : this.maxBytes;
-      if (this.bytes + line.length > limit) {
+      if (this.bytes + text.length + line.length > limit) {
         if (this.dropped++ % 1_000 === 0) this.logger.warn?.(`The journal is full (${Math.round(this.maxBytes / 1048576)} MB); statistics are being dropped until the database is back`);
-        return;
+        continue;
       }
-      await appendFile(/** @type {string} */ (this.journalFile), line, { mode: 0o600 });
-      this.bytes += line.length;
-      if (this.appended === this.applied) this.oldestAt = record.at;
-      this.appended += 1;
-      if (this.remote && !this.replaying && !this.stopped) this.#startReplay();
-    });
-    this.chain = task.catch((error) => this.logger.warn?.("Could not write to the journal:", error instanceof Error ? error.message : String(error)));
-    return this.chain;
+      text += line;
+      oldestAt ??= at;
+      count += 1;
+    }
+    if (count === 0) return;
+    await appendFile(/** @type {string} */ (this.journalFile), text, { mode: 0o600 });
+    this.bytes += text.length;
+    if (this.appended === this.applied) this.oldestAt = oldestAt;
+    this.appended += count;
+    if (this.remote && !this.replaying && !this.stopped) this.#startReplay();
   }
 
   async #probe() {

@@ -140,7 +140,7 @@ A home mining setup has a handful of rigs; even a large one has dozens. xelDash 
 XELIS's block time and what Stratum asks of a real rig, and a miner keeps finding blocks in the background, which makes the server
 refresh every rig's work.
 
-Measured on a Ryzen 9 7900X (24 threads, 31 GB) with Docker Desktop on Windows (2026-10-13), with blocks found about as
+Measured on the desktop described under [How these numbers were measured](#how-these-numbers-were-measured) (2026-10-13), with blocks found about as
 often as on mainnet (11 to 26 a minute; `LOAD_CHAIN_THREADS=8`), each rig sending a share every 5 seconds:
 
 | Rigs | Addresses | Shares per second | Stratum processor use (cores, average / peak) | Time to answer a share (typical / 95% / 99%) |
@@ -192,12 +192,42 @@ mostly the hash that proves it is valid work.
   proof of work.
 - Stratum itself, with the database switched off (shares are checked and answered, and kept in a journal file), answered **2,000 shares a second
   in about 2 ms** and about 2,900 a second at its limit; above that it fell behind (the time to answer grew to seconds and late shares were
-  counted stale). Its processor use then showed the hash threads were not yet all busy, so what saturates first is probably the one thread that
-  handles every connection's messages (not profiled).
+  counted stale), with the hash threads not yet all busy. The profile below found why: the journal, not the thread that handles every
+  connection's messages. That limit is gone in the releases after 0.2.0; this measurement is from before, and has not been repeated on this computer.
 
-So on this computer the limit is roughly 3,000 shares a second through Stratum, with the hash able to do about twice that on 8 threads. Real rigs
+So on this computer the limit was roughly 3,000 shares a second through Stratum, with the hash able to do about twice that on 8 threads. Real rigs
 send far fewer: Stratum asks each one for about a share every 5 seconds, so 3,000 shares a second would be around 15,000 rigs' worth of steady
 shares. The rig count above is what limits a server first, not the share rate.
+
+**Where the time goes (profiled).** Stratum was profiled (`node --cpu-prof`, and each thread's processor time) on the small virtual machine
+described under [How these numbers were measured](#how-these-numbers-were-measured): 4 cores, with the database, a devnet node and the simulated rigs on the same machine, each rig at
+difficulty 1 sending a share a second. Per share, on that processor:
+
+| | Processor time per share | Where it runs |
+|---|---:|---|
+| The hash (proof of work) | about 3.2 ms | the hash threads (`STRATUM_HASH_THREADS`) |
+| Everything else in Stratum: messages, jobs, answers | about 0.5 ms | the one main thread |
+| Writing the share to the database, Stratum's side | about 0.3 ms more | the main thread |
+| Writing the share, the database's side | about 1.3 ms | PostgreSQL |
+
+- **The main thread is not what fills up first.** At 0.75 ms a share it could handle about 1,300 shares a second here, and it was never more than
+  about half busy. The hash and the database together use about six times as much processor time, spread over several cores.
+- **With the database switched off, the journal was the limit.** Each share was written to the journal file in turn (opened, written and closed),
+  queued behind the hashes on the same thread pool, and its answer waited for that. At 800 shares a second the time to answer grew to 4.4 s with
+  about half the computer idle. After 0.2.0, the records that arrive while one write is under way go out together in the next. On the same
+  virtual machine, with the database off:
+
+  | Shares per second | Before: typical / slowest 5% | After: typical / slowest 5% |
+  |---:|---|---|
+  | 500 | 7 ms / 34 ms | 5 ms / 14 ms |
+  | 800 | 4,400 ms / 6,100 ms, some late shares counted stale | 12 ms / 52 ms |
+  | 1,000 | 5,000 ms / 7,900 ms, many stale | 28 ms / 230 ms |
+
+  It now falls behind at about 1,200 a second on 4 cores, with the hash threads using 3.5 of them: the proof of work is the limit, as it should be.
+- **With the database on**, the virtual machine ran out of processor time at about 700 shares a second (the hash, PostgreSQL at about one core, and the
+  simulated rigs). More database connections (`DB_POOL_MAX`) or not waiting for the disk on each commit made no difference, which also points to
+  processor time. Each share is its own database transaction (three statements, five round trips); writing shares in batches would cut the database's part, if a server
+  ever needs it.
 
 ## Two servers (redundancy)
 
@@ -221,9 +251,21 @@ xelDash does not need a graphics card.
 
 ## How these numbers were measured
 
-One computer: a Ryzen 9 7900X (12 cores, 24 threads) with 28 GB given to Docker, Windows 10 Pro, Docker Desktop 29.7, running
-the mainnet stack for several days with two nodes and one rig (about 8 KH/s). Memory and processor figures are from
-`docker stats` while it mined; disk figures are the volume sizes; traffic is the difference in each node's counters over
-2.7 hours. **Nothing has been measured on a low-end computer yet**, so the minimums are cautious rather than proven; the
+Two computers. Their numbers depend on the processor and the disk, so compare yours with these before reading them as yours.
+
+| | Desktop | Small virtual machine |
+|---|---|---|
+| Used for | Everything on this page except the profile: the mainnet figures, the rig and share capacity tables | "Where the time goes": the Stratum profile and the journal before and after (2026-10-13) |
+| Processor | AMD Ryzen 9 7900X: 12 cores, 24 threads | Intel Xeon at 2.8 GHz (Skylake or Cascade Lake server class: family 6, model 85; AVX2 and AVX-512): 4 virtual cores, one thread each, 33 MB L3 cache |
+| Memory | 28 GB given to Docker (the capacity test reported 31 GB) | 15 GiB |
+| Disk | NVMe SSD | A 256 GB virtual disk (virtio); a synchronous 8 KB write takes about 0.5 ms (about 2,000 a second, `dd oflag=dsync`) |
+| System | Windows 10 Pro, Docker Desktop 29.7 (WSL 2) | Ubuntu 24.04 in a cloud sandbox virtual machine (KVM, Firecracker), Linux 6.18, Docker Engine 29.8 |
+| How xelDash ran | The whole stack in Docker: the mainnet stack for several days with two nodes and one rig (about 8 KH/s), and the capacity test (`npm run load`) | Stratum straight on the machine (Node.js 22.22, `node --cpu-prof`); PostgreSQL 17.11 and a devnet XELIS node 1.25.0 in Docker; the simulated rigs (`test/load/rigs.js`) on the same 4 cores |
+
+The virtual machine's processor is shared with other virtual machines, so its numbers vary more from run to run than a desktop's;
+read them as proportions (which part of the work costs what) more than as a capacity.
+
+On the desktop, memory and processor figures are from `docker stats` while it mined; disk figures are the volume sizes; traffic is
+the difference in each node's counters over 2.7 hours. **Nothing has been measured on a low-end computer yet**, so the minimums are cautious rather than proven; the
 [community testing list](COMMUNITY-TESTING.md) asks for a first start on a 2-core, 4 GB computer and on a Raspberry
 Pi to confirm or lower them.
