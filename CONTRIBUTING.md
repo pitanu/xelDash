@@ -49,6 +49,15 @@ docker run -d --name xeldash-test-db -e POSTGRES_PASSWORD=test -p 127.0.0.1:5543
 TEST_DATABASE_URL=postgres://postgres:test@127.0.0.1:55432/postgres npm test
 ```
 
+The dashboard's components have their own tests, in `web/` with its dependencies: they mount a page or a card in a simulated browser
+page ([happy-dom](https://github.com/capricorn86/happy-dom)) and answer its API calls from a table (`web/test/dom/render.js`), so they need
+nothing running:
+
+```sh
+cd web
+npm test
+```
+
 `npm run load` is the capacity test: it connects simulated rigs to the real stack on a private devnet, 100 up to 2,000 at a time by default (`LOAD_STAGES` sets others), and
 prints what it costs (see `docs/REQUIREMENTS.md`). It needs Docker and about 15 minutes and is not part of CI.
 
@@ -72,7 +81,7 @@ The hash addon is Rust (`packages/xelis-hash`); it is built inside the Stratum i
   user would notice. Mark breaking changes **Breaking**.
 - Commit messages: a short, plain summary line in the imperative ("Add worker page"), with
   a body only when the reason is not obvious.
-- CI must pass: typecheck, dashboard build, tests, Compose validation and image builds. Add a test with a fix or a new behaviour.
+- CI must pass: typecheck, dashboard build, tests (both `npm test`), Compose validation and image builds. Add a test with a fix or a new behaviour.
 - Database changes go in a new numbered file in `packages/db/migrations/`. Never edit a
   migration that has been released.
 

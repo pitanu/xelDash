@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   check:
-    name: Typecheck and dashboard build
+    name: Typecheck, dashboard build and tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -30,6 +30,8 @@ jobs:
       - run: npm ci
         working-directory: web
       - run: npm run build
+        working-directory: web
+      - run: npm test
         working-directory: web
       - name: Validate Compose file
         run: docker compose config --quiet

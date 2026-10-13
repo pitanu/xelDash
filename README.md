@@ -256,8 +256,8 @@ result from your own hardware or miner, good or bad, is a real contribution (the
 - **Two-server redundancy and the front door** are tested with containers on one computer (failover timing, data kept and replayed,
   real miner addresses preserved), not yet on separate computers or with a Windows main server. Treat them as new.
 - **Wallets.** xelDash does not handle wallets or keys; rewards go straight to your address.
-- **Not covered by automated tests:** the dashboard's components, the PowerShell launcher beyond its update flow and a syntax check, and anything that
-  needs real hardware.
+- **Not covered by automated tests:** most of the dashboard's pages (the tests cover the setup guide, the public view, the notices, connection
+  problems and alert settings), the PowerShell launcher beyond its update flow and a syntax check, and anything that needs real hardware.
 
 ## Documentation
 

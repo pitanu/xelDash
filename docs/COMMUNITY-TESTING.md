@@ -205,6 +205,7 @@ certificate that appears or is renewed without a restart. Not tested with a real
 
 - On Docker Desktop, xelDash cannot tell a LAN computer from an internet one; the Windows
   firewall rules and the router are what protect it. See [SECURITY.md](SECURITY.md).
-- Automated tests cover the services, the launchers and a container-level end-to-end run (`npm test`, `npm run e2e`); they do not cover the dashboard's components or real hardware.
+- Automated tests cover the services, the launchers, a container-level end-to-end run (`npm test`, `npm run e2e`) and the dashboard's
+  setup guide, public view, notices and alert settings (`npm test` in `web/`); they do not cover the rest of the dashboard or real hardware.
 - Node upgrades check checksums but not a PGP signature, because XELIS has not published a
   signing key.
