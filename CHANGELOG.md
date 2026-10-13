@@ -14,8 +14,8 @@ server on the internet.
 
 ### Mining
 
-- Vardiff now aims for one share every 5 seconds, XELIS's block time (it was 10). An existing `.env` that sets
-  `STRATUM_TARGET_SHARE_SECONDS=10` keeps 10 until changed.
+- Vardiff now aims for one share every 5 seconds, XELIS's block time (it was 10). `xeldash update` changes the old default in an
+  existing `.env` (`STRATUM_TARGET_SHARE_SECONDS=10`) to 5 and says so; any other value you set is kept.
 - When the node accepts a block found by one of our rigs, every rig gets new work at once instead of waiting for the node's
   new-block event.
 - Rigs share the node's work between all addresses (one template per block for every miner), once the node is seen to give

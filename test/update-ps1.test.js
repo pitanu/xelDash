@@ -39,7 +39,7 @@ async function fakeGithub(archiveVersion) {
 function installFolder(version) {
   const dir = mkdtempSync(join(tmpdir(), "install-"));
   copyFileSync(LAUNCHER, join(dir, "xeldash.ps1"));
-  writeFileSync(join(dir, ".env"), `XELDASH_VERSION=${version}\nPOSTGRES_PASSWORD=keepme\n`);
+  writeFileSync(join(dir, ".env"), `XELDASH_VERSION=${version}\nPOSTGRES_PASSWORD=keepme\nSTRATUM_TARGET_SHARE_SECONDS=10\n`);
   writeFileSync(join(dir, "docker-compose.yml"), "services: {old: true}\n");
   writeFileSync(join(dir, "VERSION"), `${version}\n`);
   mkdirSync(join(dir, "backups"));
@@ -67,6 +67,7 @@ test("Windows: a release install is moved to the newest release, keeping .env an
   const env = readFileSync(join(dir, ".env"), "utf8");
   assert.match(env, /^XELDASH_VERSION=9\.9\.9\s*$/m);
   assert.match(env, /^POSTGRES_PASSWORD=keepme\s*$/m);
+  assert.match(env, /^STRATUM_TARGET_SHARE_SECONDS=5\s*$/m, "the old default share target (10 s) becomes the block time");
   assert.equal(readFileSync(join(dir, "VERSION"), "utf8").trim(), "9.9.9");
   assert.equal(readFileSync(join(dir, "NEW.txt"), "utf8").trim(), "from the new release");
   assert.equal(readFileSync(join(dir, "backups", "mine.dump"), "utf8"), "my data");

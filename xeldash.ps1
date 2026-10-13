@@ -507,8 +507,17 @@ function Update-Release([string]$Current) {
     exit $LASTEXITCODE
 }
 
+# Settings whose default changed since an older .env was written. Only the old default itself is changed, so a value chosen on purpose stays.
+function Update-EnvDefaults {
+    if ((Get-EnvValue "STRATUM_TARGET_SHARE_SECONDS") -eq "10") {
+        Set-EnvValue "STRATUM_TARGET_SHARE_SECONDS" "5"
+        Say "Rigs now send a share about every 5 seconds, XELIS's block time (STRATUM_TARGET_SHARE_SECONDS was the old default, 10)."
+    }
+}
+
 function Invoke-FinishUpdate([string[]]$Rest) {
     $v = "the new version"; if ($Rest -and $Rest.Count -gt 0) { $v = $Rest[0] }
+    Update-EnvDefaults
     if ($env:XELDASH_UPDATE_NO_START) { Ok "Updated to $v (not started: XELDASH_UPDATE_NO_START)."; return }
     Assert-Docker
     Invoke-ComposeUp
@@ -529,6 +538,7 @@ function Invoke-Update {
         Warn "This folder was not downloaded with git, so it cannot update itself. Download the newest release and copy your .env into it."
         exit 1
     }
+    Update-EnvDefaults
     Invoke-ComposeUp
     Ok "xelDash is updated and running. Your settings and data were kept."
 }

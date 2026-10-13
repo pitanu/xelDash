@@ -99,7 +99,7 @@ function runUpdate(dir, github) {
 function installFolder(version) {
   const dir = mkdtempSync(join(tmpdir(), "install-"));
   copyFileSync(LAUNCHER, join(dir, "xeldash.sh"));
-  writeFileSync(join(dir, ".env"), `XELDASH_VERSION=${version}\nPOSTGRES_PASSWORD=keepme\nXELIS_NETWORK=mainnet\n`);
+  writeFileSync(join(dir, ".env"), `XELDASH_VERSION=${version}\nPOSTGRES_PASSWORD=keepme\nXELIS_NETWORK=mainnet\nSTRATUM_TARGET_SHARE_SECONDS=10\n`);
   writeFileSync(join(dir, "docker-compose.yml"), "services: {old: true}\n");
   writeFileSync(join(dir, "VERSION"), `${version}\n`);
   mkdirSync(join(dir, "backups"));
@@ -119,6 +119,7 @@ test("update: a release install is moved to the newest release, keeping .env and
   const env = readFileSync(join(dir, ".env"), "utf8");
   assert.match(env, /^XELDASH_VERSION=9\.9\.9$/m);
   assert.match(env, /^POSTGRES_PASSWORD=keepme$/m, "the password is kept");
+  assert.match(env, /^STRATUM_TARGET_SHARE_SECONDS=5$/m, "the old default share target (10 s) becomes the block time");
   assert.equal(readFileSync(join(dir, "VERSION"), "utf8").trim(), "9.9.9");
   assert.equal(readFileSync(join(dir, "NEW.txt"), "utf8").trim(), "from the new release");
   assert.equal(readFileSync(join(dir, "docker-compose.yml"), "utf8").trim(), "services: {}", "the compose file is the new one");

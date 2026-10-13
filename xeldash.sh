@@ -411,7 +411,16 @@ update_release() {
   exec bash ./xeldash.sh _finish-update "$version"   # this folder is the script's own (it changed into it at the start)
 }
 
+# Settings whose default changed since an older .env was written. Only the old default itself is changed, so a value chosen on purpose stays.
+migrate_env() {
+  if [ "$(get_env STRATUM_TARGET_SHARE_SECONDS)" = 10 ]; then
+    set_env STRATUM_TARGET_SHARE_SECONDS 5
+    say "Rigs now send a share about every 5 seconds, XELIS's block time (STRATUM_TARGET_SHARE_SECONDS was the old default, 10)."
+  fi
+}
+
 cmd_finish_update() {
+  migrate_env
   [ -z "${XELDASH_UPDATE_NO_START:-}" ] || { ok "Updated to ${1:-the new version} (not started: XELDASH_UPDATE_NO_START)."; return 0; }
   check_docker
   compose_up
@@ -431,6 +440,7 @@ cmd_update() {
     warn "This folder was not downloaded with git, so it cannot update itself. Download the newest release and copy your .env into it."
     exit 1
   fi
+  migrate_env
   compose_up
   ok "xelDash is updated and running. Your settings and data were kept."
 }
