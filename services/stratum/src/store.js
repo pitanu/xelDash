@@ -99,6 +99,10 @@ export class DurableStore {
     this.cacheTimer = null;
     /** @type {ReturnType<typeof setInterval> | null} */
     this.pingTimer = null;
+    /** The running replay loop, which stop() waits for. @type {Promise<void> | null} */
+    this.replayRun = null;
+    /** Ends the replay loop's current pause early (set while it pauses). @type {(() => void) | null} */
+    this.wakeUp = null;
   }
 
   get pending() {
@@ -148,8 +152,11 @@ export class DurableStore {
     this.stopped = true;
     if (this.pingTimer) clearInterval(this.pingTimer);
     if (this.cacheTimer) clearTimeout(this.cacheTimer);
+    // The replay loop may be between tries or reading the journal: wake it, and let it finish before the journal can go away.
+    this.wakeUp?.();
     await this.#saveCache();
     await this.chain;
+    await this.replayRun?.catch(() => {});
   }
 
   // ------------------------------------------------------------------ writes
@@ -299,7 +306,7 @@ export class DurableStore {
       this.logger.warn?.("The database cannot be reached. Mining continues; records are kept in a journal and recorded when it is back.",
         error instanceof Error ? error.message : "");
     }
-    if (!this.replaying && !this.stopped) void this.#replayLoop();
+    if (!this.replaying && !this.stopped) this.#startReplay();
   }
 
   /**
@@ -323,7 +330,7 @@ export class DurableStore {
       this.bytes += line.length;
       if (this.appended === this.applied) this.oldestAt = record.at;
       this.appended += 1;
-      if (this.remote && !this.replaying && !this.stopped) void this.#replayLoop();
+      if (this.remote && !this.replaying && !this.stopped) this.#startReplay();
     });
     this.chain = task.catch((error) => this.logger.warn?.("Could not write to the journal:", error instanceof Error ? error.message : String(error)));
     return this.chain;
@@ -350,19 +357,33 @@ export class DurableStore {
     }
   }
 
+  #startReplay() {
+    this.replayRun = this.#replayLoop();
+  }
+
+  /** A pause in the replay loop that stop() can end early. @param {number} ms */
+  #pause(ms) {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => { this.wakeUp = null; resolve(undefined); }, ms);
+      timer.unref?.();
+      this.wakeUp = () => { clearTimeout(timer); this.wakeUp = null; resolve(undefined); };
+    });
+  }
+
   async #replayLoop() {
     this.replaying = true;
     try {
       while (!this.stopped) {
-        if (this.remote && this.pending > 0) await sleep(this.remote.flushMs ?? 1_000);
+        if (this.remote && this.pending > 0) await this.#pause(this.remote.flushMs ?? 1_000);
+        if (this.stopped) break;
         if (!(await this.#probe())) {
           this.online = this.remote ? false : this.online;
-          await sleep(this.probeMs);
+          await this.#pause(this.probeMs);
           continue;
         }
         if (this.remote) this.online = true;
         if (this.remote ? await this.#drainRemote() : await this.#drain()) break;
-        await sleep(this.probeMs);
+        await this.#pause(this.probeMs);
       }
     } finally {
       this.replaying = false;
