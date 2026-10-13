@@ -128,3 +128,39 @@ test("a global connection cap: all addresses together, freed again on disconnect
   guard.disconnect("203.0.113.9");
   assert.equal(guard.total, 3, "an address that was never connected does not lower the count");
 });
+
+test("raw connections are refused at accept when banned or too many from one address; closing frees the place; unsettled ones close at the deadline", async () => {
+  const { createServer, connect } = await import("node:net");
+  const { guardRawConnections } = await import("../src/ip-guard.js");
+  const guard = new IpGuard({ ...DEFAULT_IP_GUARD, maxConnectionsPerIp: 2 });
+  const server = createServer(() => {});
+  const refused = [];
+  const raw = guardRawConnections(server, guard, { slack: 1, deadlineMs: 800, onRefused: (ip, reason) => refused.push(reason) });
+  server.on("connection", (s) => { if (raw.openFrom("127.0.0.1") <= 2) raw.settled(s); });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const port = /** @type {import("node:net").AddressInfo} */ (server.address()).port;
+  // Resolves once connected, or at once if the server already closed it.
+  const open = () => new Promise((resolve) => {
+    const s = connect(port, "127.0.0.1");
+    s.on("error", () => {});
+    s.once("connect", () => resolve(s));
+    s.once("close", () => resolve(s));
+  });
+  const closedSoon = (s) => new Promise((resolve) => { const t = setTimeout(() => resolve(false), 500); s.once("close", () => { clearTimeout(t); resolve(true); }); });
+  const kept = [await open(), await open()];
+  const unsettled = await open();
+  const extra = await open();
+  assert.ok(extra.destroyed || await closedSoon(extra), "one too many");
+  for (const s of kept) assert.equal(await closedSoon(s), false, "within the limit plus slack");
+  assert.deepEqual(refused, ["too many connections"]);
+  assert.ok(unsettled.destroyed || await closedSoon(unsettled), "the one never settled is closed at its deadline");
+  kept[0].destroy();
+  await new Promise((r) => setTimeout(r, 100));
+  const again = await open();
+  assert.equal(await closedSoon(again), false, "a closed one frees its place");
+  guard.ban("127.0.0.1", "test");
+  const banned = await open();
+  assert.ok(banned.destroyed || await closedSoon(banned), "a banned address is refused at once");
+  for (const s of [...kept, again]) s.destroy();
+  await new Promise((r) => server.close(r));
+});

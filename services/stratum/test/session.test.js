@@ -423,3 +423,16 @@ test("on a public server d= in the password is where the difficulty starts, and 
   assert.equal(pub.session.vardiff.floor, 5000);
   pub.session.close();
 });
+
+test("a login with something not shaped like an address is refused before the address is looked up", async () => {
+  const looked = [];
+  const h = harness({ authorizeAddress: async (input) => { looked.push(input.address); return null; } });
+  await subscribe(h);
+  for (const [i, bad] of [`xel:${"q".repeat(60_000)}`, "not-an-address", "xel:short", "xel:has space in it"].entries()) {
+    await authorize(h, [bad, "rig1", ""], 10 + i);
+    assert.equal(h.reply(10 + i).error.code, STRATUM_ERRORS.UNAUTHORIZED, bad.slice(0, 20));
+  }
+  assert.deepEqual(looked, [], "nothing reached the node or the caches");
+  assert.deepEqual(h.events.submissions, [false, false, false, false], "each counts as a failed login");
+  assert.ok(h.events.problems.every((p) => p.reason === "invalid_address"));
+});

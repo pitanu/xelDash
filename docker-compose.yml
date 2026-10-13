@@ -219,6 +219,8 @@ services:
       # address on your network (set by the installer).
       CONNECT_HOST: ${XELDASH_PUBLIC_HOST:-}
       CONNECT_BIND_IP: ${XELDASH_STRATUM_BIND_IP:-127.0.0.1}
+      # Where this API's own port is published (below): a public server warns unless it is this computer only.
+      API_BIND_IP: ${XELDASH_API_BIND_IP:-127.0.0.1}
       CONNECT_STRATUM_PORT: ${XELDASH_STRATUM_PORT:-3333}
       CONNECT_TLS_PORT: ${XELDASH_STRATUM_TLS_PORT:-3334}
       CONNECT_GETWORK_PORT: ${XELDASH_GETWORK_PORT:-8090}

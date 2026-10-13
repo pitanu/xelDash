@@ -64,3 +64,34 @@ test("a client that resets the connection while it is being refused cannot stop 
   assert.equal(await upgradeStatus(s.port, "/api/v1/live", { Origin: "https://evil.example" }), "403");
   await s.close();
 });
+
+test("a public viewer gets only block news; the operator gets every event", async () => {
+  const { EventEmitter } = await import("node:events");
+  const { WebSocket } = await import("ws");
+  const listener = Object.assign(new EventEmitter(), { query: async () => {}, release: () => {} });
+  const server = createServer((request, response) => response.writeHead(404).end());
+  const live = startLiveUpdates({ server, pool: /** @type {any} */ ({ connect: async () => listener }), logger: quiet,
+    isPublic: (request) => request.headers["x-xeldash-view"] !== "admin" });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = /** @type {import("node:net").AddressInfo} */ (server.address()).port;
+  /** @param {Record<string, string>} headers */
+  const viewer = (headers) => new Promise((resolve) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/api/v1/live`, { headers });
+    const got = [];
+    ws.on("message", (data) => got.push(JSON.parse(String(data)).eventType ?? JSON.parse(String(data)).type));
+    ws.on("open", () => resolve({ ws, got }));
+  });
+  const visitor = await viewer({});
+  const operator = await viewer({ "X-Xeldash-View": "admin" });
+  for (const payload of [{ type: "event", id: "1", eventType: "ip_banned" }, { type: "event", id: "2", eventType: "block_submitted" },
+    { type: "block", height: 5, hash: "ab" }, { type: "event", id: "3", eventType: "backup_done" }]) {
+    listener.emit("notification", { channel: "xeldash_live", payload: JSON.stringify(payload) });
+  }
+  await new Promise((r) => setTimeout(r, 200));
+  assert.deepEqual(visitor.got, ["hello", "block_submitted", "block"]);
+  assert.deepEqual(operator.got, ["hello", "ip_banned", "block_submitted", "block", "backup_done"]);
+  visitor.ws.close();
+  operator.ws.close();
+  await live.stop();
+  server.close();
+});

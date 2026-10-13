@@ -2,7 +2,8 @@ import { createServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import { acceptWithProxyHeader } from "./proxy-protocol.js";
 import { WebSocketServer } from "ws";
-import { MessageRateLimiter, normalizeIp } from "./ip-guard.js";
+import { MessageRateLimiter, guardRawConnections, normalizeIp } from "./ip-guard.js";
+import { ADDRESS_SHAPE } from "./session.js";
 
 // The daemon's getwork server limits worker names to 32 characters; so do we.
 const MAX_WORKER_NAME = 32;
@@ -25,7 +26,7 @@ export function parseGetworkPath(url) {
     if (parts.length !== 4 || parts[1] !== "getwork") return null;
     const address = decodeURIComponent(parts[2] ?? "");
     const worker = decodeURIComponent(parts[3] ?? "");
-    if (!address || !worker || worker.length > MAX_WORKER_NAME || CONTROL_CHARACTERS.test(worker)) return null;
+    if (!ADDRESS_SHAPE.test(address) || !worker || worker.length > MAX_WORKER_NAME || CONTROL_CHARACTERS.test(worker)) return null;
     return { address, worker };
   } catch {
     return null;
@@ -115,12 +116,23 @@ class GetworkSocket {
  *   logger?: Pick<Console, "info" | "warn"> }} options
  */
 export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, createSession, onRefused = () => {}, proxyTrust = null, logger = console }) {
-  const server = createServer((_, response) => {
+  // A miner sends its upgrade request at once: connections that have not within 10 s are closed (checked every 2 s).
+  const server = createServer({ headersTimeout: 10_000, requestTimeout: 10_000, connectionsCheckingInterval: 2_000 }, (_, response) => {
     response.writeHead(426, { "content-type": "text/plain" }).end("Connect with a getwork WebSocket client");
+  });
+  // Before the upgrade (when the guard starts counting), banned addresses and too many sockets from one address are refused at accept.
+  // A socket that has not asked for the upgrade within 10 s (even one that never sends a byte) is closed.
+  const raw = guardRawConnections(server, ipGuard, {
+    deadlineMs: 10_000,
+    onRefused: (ip, reason) => {
+      logger.warn?.(`Refusing getwork connection from ${ip}: ${reason}`);
+      onRefused(ip, reason);
+    },
   });
   const wss = new WebSocketServer({ noServer: true, maxPayload: 4096 });
 
   server.on("upgrade", (request, socket, head) => {
+    raw.settled(socket);
     // Once a connection is handed over as an upgrade, Node no longer listens for its errors. A client that resets the connection while it is
     // being refused (or before the WebSocket takes it over) would otherwise raise an unhandled error and stop the whole Stratum server.
     socket.on("error", () => {});

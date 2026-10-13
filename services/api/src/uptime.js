@@ -41,7 +41,7 @@ export function computePauses(events, initial, start, end) {
  * @param {import("pg").Pool} pool @param {{ range?: string }} [options]
  */
 export async function getUptime(pool, { range = "7d" } = {}) {
-  const hours = RANGES[range] ?? RANGES["7d"];
+  const hours = Object.hasOwn(RANGES, range) ? RANGES[range] : RANGES["7d"];
   const end = new Date();
   const first = (await pool.query("SELECT min(created_at) AS at FROM service_events")).rows[0]?.at ?? end;
   const start = new Date(Math.max(end.getTime() - hours * 3_600_000, first.getTime()));
@@ -65,7 +65,7 @@ export async function getUptime(pool, { range = "7d" } = {}) {
   );
   const totalMs = Math.max(1, end.getTime() - start.getTime());
   return {
-    range: RANGES[range] ? range : "7d",
+    range: Object.hasOwn(RANGES, range) ? range : "7d",
     since: start.toISOString(),
     seconds: Math.round(totalMs / 1000),
     pausedSeconds: Math.round(pausedMs / 1000),

@@ -50,6 +50,11 @@ export function publicModeWarnings(env) {
   if (!(env.XELDASH_PUBLIC_DOMAIN ?? "").trim()) {
     warnings.push("XELDASH_PUBLIC_DOMAIN is empty, so the built-in HTTPS (profile public-https) is not set up: unless your own HTTPS reverse proxy is in front, visitors use plain HTTP. See docs/OPERATIONS.md#public-mode.");
   }
+  // The API believes the view header, which only the web servers set: reached directly, anyone could ask for the operator's view.
+  const apiBind = (env.API_BIND_IP ?? "127.0.0.1").trim().toLowerCase();
+  if (!["127.0.0.1", "localhost", "::1", ""].includes(apiBind)) {
+    warnings.push(`XELDASH_API_BIND_IP is ${apiBind}: anyone who reaches the API's port directly can ask for the operator's view, IP addresses included. Keep it 127.0.0.1; visitors use the dashboard.`);
+  }
   if ((env.XELIS_DEFAULT_ADDRESS ?? "").trim()) {
     warnings.push("XELIS_DEFAULT_ADDRESS is ignored in public mode: every miner must log in with its own address.");
   }

@@ -15,7 +15,7 @@ import { startGetworkServer } from "./getwork.js";
 import { acceptWithProxyHeader, proxyTrustFromEnv } from "./proxy-protocol.js";
 import { startHealthServer } from "./health.js";
 import { readDefaultGateway } from "./gateway.js";
-import { DEFAULT_IP_GUARD, IpGuard, MessageRateLimiter, ipGuardConfigFromEnv, normalizeIp } from "./ip-guard.js";
+import { DEFAULT_IP_GUARD, IpGuard, MessageRateLimiter, guardRawConnections, ipGuardConfigFromEnv, normalizeIp } from "./ip-guard.js";
 import { MiningJobProvider } from "./job-provider.js";
 import { NodeBudget, burstFor } from "./node-budget.js";
 import { NodePool, rpcUrlsFromEnv } from "./node-pool.js";
@@ -293,12 +293,27 @@ const HASHRATE_WRITE_INTERVAL_MS = 30_000;
 /** @type {Map<string, number>} */
 const hashrateWrites = new Map();
 
+// A public server must see each miner's own address: bans and per-IP limits depend on it. Miners arriving from Docker's gateway
+// (Docker Desktop, or IPv6 through Docker's own proxy on Linux) all look like one address, which is exempt from those limits.
+let maskedWarnedAt = 0;
+/** @param {string} ip */
+function warnIfMasked(ip) {
+  if (!dockerGateway || ip !== dockerGateway || !isPublic()) return;
+  const now = Date.now();
+  if (now - maskedWarnedAt < 3_600_000) return;
+  maskedWarnedAt = now;
+  console.warn(`Public mode: miners are arriving from Docker's gateway (${ip}), which hides their real addresses, so bans and per-IP `
+    + "limits cannot work for them. Run a public server on Linux with Docker Engine, with Stratum and getwork published on an IPv4 "
+    + "address (XELDASH_STRATUM_BIND_IP=0.0.0.0, not ::). See docs/OPERATIONS.md#public-mode.");
+}
+
 /**
  * A mining session with this server's job source, share pipeline, vardiff and abuse limits.
  * Stratum and getwork connections both use it.
  * @param {import("./session.js").StratumSocket} socket @param {string} ip @param {() => void} [onAuthorized]
  */
 function newSession(socket, ip, onAuthorized = () => {}) {
+  warnIfMasked(ip);
   return new StratumSession({
     socket,
     // The connection's real address (a front door's PROXY line, getwork's own), for the per-IP address limit.
@@ -498,7 +513,9 @@ const tlsWatch = tls
         console.info(`Stratum TLS certificate renewed (valid until ${validTo.toISOString()})`);
         return;
       }
-      const listener = createTlsServer({ cert, key, minVersion: "TLSv1.2" }, handleConnection);
+      // The guard counts a connection once its handshake is done: until then, a short handshake time and the same per-address limits.
+      const listener = createTlsServer({ cert, key, minVersion: "TLSv1.2", handshakeTimeout: 10_000 }, handleConnection);
+      guardRawConnections(listener, ipGuard, { onRefused: (ip, reason) => console.warn(`Refusing Stratum TLS connection from ${ip}: ${reason}`) });
       // Failed handshakes (plain Stratum sent to the TLS port, untrusted certs) never reach a session.
       listener.on("tlsClientError", (error, socket) => {
         const code = /** @type {{ code?: string }} */ (error).code;

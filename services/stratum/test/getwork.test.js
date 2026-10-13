@@ -14,7 +14,7 @@ test("the getwork path is /getwork/<address>/<worker>, and nothing else is accep
   assert.deepEqual(parseGetworkPath(`/getwork/${ADDRESS}/rig1`), { address: ADDRESS, worker: "rig1" });
   assert.deepEqual(parseGetworkPath(`/getwork/${ADDRESS}/my%20rig`), { address: ADDRESS, worker: "my rig" });
   for (const bad of [undefined, "/", "/getwork", `/getwork/${ADDRESS}`, `/getwork/${ADDRESS}/a/b`, `/other/${ADDRESS}/rig`, `/getwork//rig`,
-    `/getwork/${ADDRESS}/${"w".repeat(33)}`, `/getwork/${ADDRESS}/bad%0Aname`, `/getwork/${ADDRESS}/%E0%A4%A`, `/getwork/${ADDRESS}/%1b%5b31m`]) {
+    `/getwork/${ADDRESS}/${"w".repeat(33)}`, `/getwork/xel:${"q".repeat(60000)}/rig`, "/getwork/not-an-address/rig", `/getwork/${ADDRESS}/bad%0Aname`, `/getwork/${ADDRESS}/%E0%A4%A`, `/getwork/${ADDRESS}/%1b%5b31m`]) {
     assert.equal(parseGetworkPath(bad), null, String(bad));
   }
   assert.ok(parseGetworkPath(`/getwork/${ADDRESS}/${"w".repeat(32)}`), "32 characters is allowed");
@@ -183,4 +183,18 @@ test("a client that resets the connection while it is being refused cannot stop 
   assert.deepEqual(errors.map((e) => e.message), [], "no unhandled error escaped");
   assert.equal(await upgradeStatus(s.port, `/getwork/${ADDRESS}/rig1`, { Origin: "https://evil.example" }), "403", "and it still answers");
   await s.close();
+});
+
+test("a connection that never sends its upgrade request is closed after about 10 seconds", { timeout: 20_000 }, async () => {
+  const g = await start();
+  try {
+    const socket = net.connect(g.port, "127.0.0.1");
+    socket.on("error", () => {});
+    const started = Date.now();
+    await new Promise((resolve) => socket.once("close", resolve));
+    const seconds = (Date.now() - started) / 1000;
+    assert.ok(seconds >= 9 && seconds < 14, `closed after ${seconds.toFixed(1)} s`);
+  } finally {
+    await g.close();
+  }
 });

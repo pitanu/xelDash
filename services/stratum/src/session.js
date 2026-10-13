@@ -14,6 +14,8 @@ import { reissueJob } from "./job-provider.js";
 import { DEFAULT_VARDIFF, Vardiff } from "./vardiff.js";
 
 const MAX_WORKER_NAME = 128;
+// What a XELIS address can look like (bech32 after xel: or xet:); the node decides whether it is valid. The same as the API's.
+export const ADDRESS_SHAPE = /^xe[lt]:[a-z0-9]{10,120}$/i;
 // Each new worker costs a daemon lookup and a database row; one rig needs only a few.
 const MAX_WORKERS_PER_CONNECTION = 32;
 // Control characters (terminal escapes, bells, newlines) could spoof log lines and alerts.
@@ -250,6 +252,13 @@ export class StratumSession {
     }
     // Failed logins count toward the abuse limits like invalid shares: each one costs the node
     // an address lookup.
+    // Anything not shaped like an address is refused here, before it costs the node a lookup or a place in the caches.
+    if (!ADDRESS_SHAPE.test(address)) {
+      this.onSubmission(false);
+      this.onProblem({ reason: "invalid_address", address });
+      this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, "Address is invalid or unauthorized"));
+      return;
+    }
     if (this.miningAddress !== null && this.miningAddress !== address) {
       this.onSubmission(false);
       this.onProblem({ reason: "second_address", address });

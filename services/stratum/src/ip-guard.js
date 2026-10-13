@@ -256,3 +256,48 @@ export class IpGuard {
     this.onBan({ ip, reason, until });
   }
 }
+
+/**
+ * For servers where a connection is counted by the IpGuard only once it is set up (getwork's WebSocket upgrade, the TLS
+ * handshake): until then nobody counts it, so a client could hold any number of half-open sockets. At TCP accept this refuses
+ * banned addresses and more than `maxConnectionsPerIp` (the same limit, read at each connection) plus `slack` open sockets from
+ * one address; exempt addresses (Docker's gateway) are not capped. With `deadlineMs`, a socket not marked `settled` by then is
+ * closed (for TLS, the server's own handshakeTimeout does that). Addresses outside the allowed networks are left to the server,
+ * which answers them.
+ * @param {import("node:net").Server} server @param {IpGuard} guard
+ * @param {{ slack?: number, deadlineMs?: number, onRefused?: (ip: string, reason: string) => void }} [options]
+ */
+export function guardRawConnections(server, guard, { slack = 16, deadlineMs = 0, onRefused = () => {} } = {}) {
+  /** @type {Map<string, number>} */
+  const open = new Map();
+  /** @type {WeakMap<object, ReturnType<typeof setTimeout>>} */
+  const deadlines = new WeakMap();
+  server.on("connection", (/** @type {import("node:net").Socket} */ socket) => {
+    const ip = normalizeIp(socket.remoteAddress);
+    const refused = guard.isBanned(ip) ? "banned"
+      : !guard.exempt.has(ip) && (open.get(ip) ?? 0) >= guard.config.maxConnectionsPerIp + slack ? "too many connections"
+        : null;
+    if (refused) {
+      onRefused(ip, refused);
+      socket.destroy();
+      return;
+    }
+    open.set(ip, (open.get(ip) ?? 0) + 1);
+    if (deadlineMs > 0) {
+      const timer = setTimeout(() => socket.destroy(), deadlineMs);
+      timer.unref?.();
+      deadlines.set(socket, timer);
+    }
+    socket.once("close", () => {
+      clearTimeout(deadlines.get(socket));
+      const left = (open.get(ip) ?? 1) - 1;
+      if (left <= 0) open.delete(ip);
+      else open.set(ip, left);
+    });
+  });
+  return {
+    /** The connection is set up (and counted by the guard from now on): its deadline no longer applies. @param {object} socket */
+    settled: (socket) => clearTimeout(deadlines.get(socket)),
+    openFrom: (/** @type {string} */ ip) => open.get(ip) ?? 0,
+  };
+}

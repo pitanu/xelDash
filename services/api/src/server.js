@@ -444,7 +444,8 @@ async function start() {
   if (publicMode) console.info("Public mode: visitors get no IP addresses, no connection problems and no node administration.");
   const alerts = watchAlerts({ pool, env: process.env, file: join(process.env.CONFIG_DIR ?? "/config", "alerts.json") });
   // A public server has many more visitors: 1000 live connections in all (each visitor's own few are limited by the web server).
-  const live = startLiveUpdates({ server, pool, onNotification: (payload) => alerts?.handleNotification(payload), maxClients: publicMode ? 1_000 : 100 });
+  const live = startLiveUpdates({ server, pool, onNotification: (payload) => alerts?.handleNotification(payload), maxClients: publicMode ? 1_000 : 100,
+    isPublic: (request) => isPublicView(publicMode, request) });
 
   server.listen(port, host, () => {
     console.info(`xelDash API listening on ${host}:${port}`);

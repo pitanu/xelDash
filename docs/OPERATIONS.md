@@ -324,6 +324,11 @@ community to notice a bad or tampered release. node-admin logs a warning at star
   idle connections are closed soon (the HTTPS proxy and the web server both have short timeouts).
 - **The official node fallback is never used** by a public server, so its miners' load cannot reach node.xelis.io.
 
+The per-IP limits and bans need each miner's real address. Run a public server on Linux with Docker Engine and keep
+`XELDASH_STRATUM_BIND_IP` an IPv4 address (`0.0.0.0`): Docker Desktop, and IPv6 connections that go through Docker's own proxy,
+show every miner as Docker's gateway address, which cannot be limited without stopping everyone. Stratum's log warns about it
+when it happens.
+
 Leave a limit empty in `.env` to get its public default (`.env.example` explains each); a value you set is kept (a server
 warns if `STRATUM_MAX_CONNECTIONS_PER_IP` is set below what a farm needs). Floods large enough to fill the server's network
 connection itself are for the hosting provider to stop. `npm run load` with `LOAD_PUBLIC=1` measures a public server's limits

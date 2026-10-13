@@ -46,6 +46,10 @@ test("risky public-mode settings are warned about, and nothing is said when publ
   assert.match(all.join("\n"), /XELDASH_PUBLIC_DOMAIN/);
   assert.match(all.join("\n"), /XELIS_DEFAULT_ADDRESS is ignored/);
   assert.deepEqual(publicModeWarnings({ XELDASH_PUBLIC_MODE: "true", XELDASH_ALLOWED_NETWORKS: "any", XELDASH_PUBLIC_DOMAIN: "solo.example.org" }), []);
+  const open = publicModeWarnings({ XELDASH_PUBLIC_MODE: "true", XELDASH_ALLOWED_NETWORKS: "any", XELDASH_PUBLIC_DOMAIN: "solo.example.org", API_BIND_IP: "0.0.0.0" });
+  assert.equal(open.length, 1);
+  assert.match(open[0], /XELDASH_API_BIND_IP is 0\.0\.0\.0/);
+  assert.deepEqual(publicModeWarnings({ XELDASH_PUBLIC_MODE: "true", XELDASH_ALLOWED_NETWORKS: "any", XELDASH_PUBLIC_DOMAIN: "solo.example.org", API_BIND_IP: "127.0.0.1" }), []);
 });
 
 test("a public server's visitors are never offered the operator's address", async () => {
@@ -58,4 +62,15 @@ test("a public server's visitors are never offered the operator's address", asyn
   assert.equal(visitor.view, "public");
   assert.equal(visitor.publicMode, true);
   assert.equal((await getConnectInfo(env)).publicMode, false, "off by default");
+});
+
+test("the public cache reads the path as the router does: ingest is never cached, however the path is written", async () => {
+  const { publicCacheKey } = await import("../src/public-cache.js");
+  const get = (url) => publicCacheKey(/** @type {any} */ ({ method: "GET", url }));
+  assert.equal(get("/api/v1/overview?x=1"), "/api/v1/overview?x=1");
+  for (const url of ["/api/v1/ingest/alerts", "/api/v1/./ingest/alerts", "/api/v1/miners/../ingest/ping", "/api/v1/live", "/api/v1/blocks.csv"]) {
+    assert.equal(get(url), null, url);
+  }
+  assert.equal(get("/api/v1/./overview"), "/api/v1/overview", "one key for one route");
+  assert.equal(publicCacheKey(/** @type {any} */ ({ method: "POST", url: "/api/v1/overview" })), null);
 });

@@ -32,6 +32,19 @@ function sameOrigin(request) {
   }
 }
 
+/**
+ * Whether a notification may go to the public view: new blocks only. Other events (bans, login problems, node changes, backups,
+ * failovers) are the operator's, like the recent events list. @param {string} payload
+ */
+export function publicPayload(payload) {
+  try {
+    const m = JSON.parse(payload);
+    return m?.type === "block" || (m?.type === "event" && typeof m.eventType === "string" && m.eventType.startsWith("block_"));
+  } catch {
+    return false;
+  }
+}
+
 /** @param {unknown} error */
 function message(error) {
   return error instanceof Error ? error.message : String(error);
@@ -42,12 +55,16 @@ function message(error) {
  * hints to refetch ({ type: "block" | "event", ... }); the REST endpoints stay the source of
  * truth. Clients fall back to polling whenever the socket is down.
  * @param {{ server: import("node:http").Server, pool: import("pg").Pool,
- *   onNotification?: (payload: string) => void, logger?: Pick<Console, "info" | "warn">, maxClients?: number }} options
+ *   onNotification?: (payload: string) => void, logger?: Pick<Console, "info" | "warn">, maxClients?: number,
+ *   isPublic?: (request: import("node:http").IncomingMessage) => boolean }} options
+ *   isPublic: whether a connection gets the public view (public mode): then only what the public dashboard uses is sent
  */
-export function startLiveUpdates({ server, pool, onNotification = () => {}, logger = console, maxClients = MAX_CLIENTS }) {
+export function startLiveUpdates({ server, pool, onNotification = () => {}, logger = console, maxClients = MAX_CLIENTS, isPublic = () => false }) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
   /** @type {WeakSet<import("ws").WebSocket>} */
   const alive = new WeakSet();
+  /** Connections with the public view. @type {WeakSet<import("ws").WebSocket>} */
+  const publicClients = new WeakSet();
   /** @type {import("pg").PoolClient | null} */
   let listener = null;
   let stopped = false;
@@ -63,7 +80,11 @@ export function startLiveUpdates({ server, pool, onNotification = () => {}, logg
       socket.destroy();
       return;
     }
-    wss.handleUpgrade(request, socket, head, (ws) => wss.emit("connection", ws));
+    const publicView = isPublic(request);
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      if (publicView) publicClients.add(ws);
+      wss.emit("connection", ws);
+    });
   });
 
   wss.on("connection", (ws) => {
@@ -89,8 +110,9 @@ export function startLiveUpdates({ server, pool, onNotification = () => {}, logg
 
   /** @param {string} payload */
   function broadcast(payload) {
+    const forPublic = publicPayload(payload);
     for (const ws of wss.clients) {
-      if (ws.readyState === ws.OPEN) ws.send(payload);
+      if (ws.readyState === ws.OPEN && (forPublic || !publicClients.has(ws))) ws.send(payload);
     }
   }
 

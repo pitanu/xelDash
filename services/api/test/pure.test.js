@@ -85,3 +85,15 @@ test("uptime: a Stratum restart ends an open pause and is counted, a repeated st
   assert.equal(r.restarts, 2);
   assert.equal(r.pauses[0].reason, "node_unreachable");
 });
+
+test("a range that is not one of the listed ones falls back to the default, including names Object already has", async () => {
+  const { getHashrateHistory } = await import("../src/queries.js");
+  const { getUptime } = await import("../src/uptime.js");
+  const { getRewardsHistory } = await import("../src/luck.js");
+  const pool = /** @type {any} */ ({ query: async () => ({ rows: [] }) });
+  for (const range of ["constructor", "__proto__", "toString", "nope"]) {
+    assert.equal((await getHashrateHistory(pool, { address: null, range })).range, "24h", range);
+    assert.equal((await getUptime(pool, { range })).range, "7d", range);
+    assert.equal((await getRewardsHistory(pool, { address: null, range })).range, "90d", range);
+  }
+});

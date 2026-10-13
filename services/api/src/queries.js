@@ -26,7 +26,8 @@ export function clampLimit(value, fallback, max) {
  * @param {PgPool} pool @param {{ address: string | null, worker?: string | null, range: string }} input
  */
 export async function getHashrateHistory(pool, { address, worker = null, range }) {
-  const settings = HISTORY_RANGES[/** @type {keyof typeof HISTORY_RANGES} */ (range)] ?? HISTORY_RANGES["24h"];
+  // Own keys only: "constructor" or "__proto__" must not pick something from Object.prototype.
+  const settings = Object.hasOwn(HISTORY_RANGES, range) ? HISTORY_RANGES[/** @type {keyof typeof HISTORY_RANGES} */ (range)] : HISTORY_RANGES["24h"];
   const result = await pool.query(
     `WITH buckets AS (
        SELECT generate_series(
@@ -61,7 +62,7 @@ export async function getHashrateHistory(pool, { address, worker = null, range }
     [`${settings.hours} hours`, `${settings.bucketMinutes} minutes`, address, worker],
   );
   return {
-    range: HISTORY_RANGES[/** @type {keyof typeof HISTORY_RANGES} */ (range)] ? range : "24h",
+    range: Object.hasOwn(HISTORY_RANGES, range) ? range : "24h",
     bucketSeconds: settings.bucketMinutes * 60,
     points: result.rows.map((row) => ({
       time: row.bucket.toISOString(),

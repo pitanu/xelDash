@@ -122,7 +122,7 @@ const REWARD_RANGES = /** @type {Record<string, number>} */ ({ "30d": 30, "90d":
  * @param {PgPool} pool @param {{ address?: string | null, range?: string }} [filter]
  */
 export async function getRewardsHistory(pool, { address = null, range = "90d" } = {}) {
-  const days = REWARD_RANGES[range] ?? REWARD_RANGES["90d"];
+  const days = Object.hasOwn(REWARD_RANGES, range) ? REWARD_RANGES[range] : REWARD_RANGES["90d"];
   const result = await pool.query(
     `WITH ${STATS},
      paid AS (
@@ -143,7 +143,7 @@ export async function getRewardsHistory(pool, { address = null, range = "90d" } 
     [address, days],
   );
   return {
-    range: REWARD_RANGES[range] ? range : "90d",
+    range: Object.hasOwn(REWARD_RANGES, range) ? range : "90d",
     points: result.rows.map((row) => ({
       day: row.day.toISOString(),
       blocks: row.blocks,

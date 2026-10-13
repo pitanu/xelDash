@@ -43,6 +43,15 @@ breaking changes; they are marked **Breaking**.
   recorded at most 30 a minute per connection. Before, made-up job ids were recorded as stale shares without limit.
 - Workers that never had a share accepted are deleted after a day unused (`RETENTION_UNUSED_WORKER_DAYS`), with their address if
   nothing else uses it.
+- A login whose address is not shaped like a XELIS address (`xel:` or `xet:` and 10 to 120 letters and digits) is refused before
+  it reaches the node or any cache; before, an address could be as long as a message (64 KiB).
+- Getwork and Stratum TLS turn away banned addresses, and more connections from one address than its limit allows, as soon as they
+  connect, and close a connection that has not finished its upgrade or handshake within 10 seconds. Before, a connection was only
+  counted once it was set up, so idle ones could be held open for a minute or two without limit.
+- Public mode: Stratum warns when miners arrive from Docker's gateway address, which hides their real addresses (Docker Desktop, or
+  IPv6 through Docker's proxy), so per-IP limits cannot work; the API warns when its own port is published beyond this computer.
+  Live updates to visitors carry only new blocks, not the operator's other events. The public answer cache reads request paths
+  the way the API's router does, and `range` parameters accept only the listed ranges.
 
 ### Operations
 

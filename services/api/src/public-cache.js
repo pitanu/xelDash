@@ -9,11 +9,17 @@
  */
 export function publicCacheKey(request) {
   if (request.method !== "GET") return null;
-  const url = request.url ?? "";
-  const path = url.split("?")[0];
+  // The same normalised path the router reads (dot segments resolved), so a request cannot be cached as one route and answered as another.
+  let url;
+  try {
+    url = new URL(request.url ?? "/", "http://localhost");
+  } catch {
+    return null;
+  }
+  const path = url.pathname;
   if (!path.startsWith("/api/v1/")) return null;
   if (path.startsWith("/api/v1/ingest") || path === "/api/v1/live" || path === "/api/v1/blocks.csv") return null;
-  return url;
+  return path + url.search;
 }
 
 /** Results by key, each kept `ttlMs`; one computation at a time per key. */
