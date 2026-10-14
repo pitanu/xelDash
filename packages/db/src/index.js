@@ -101,96 +101,28 @@ function checkShare(share) {
   return { difficulty, networkDifficulty };
 }
 
-/** @param {PgPool} pool @param {ShareInput} share */
+/**
+ * Record one share (a journal replayed after an outage, a standby server's batch): a batch of one.
+ * @param {PgPool} pool @param {ShareInput} share
+ */
 export async function recordShare(pool, share) {
-  const { difficulty, networkDifficulty } = checkShare(share);
-
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    let inserted = await client.query(
-      `INSERT INTO shares (worker_id, job_id, nonce, difficulty, accepted, reject_reason, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::timestamptz, now()))
-       ON CONFLICT (worker_id, job_id, nonce) WHERE accepted DO NOTHING
-       RETURNING id, worker_id, difficulty, accepted, created_at`,
-      [
-        share.workerId,
-        share.jobId,
-        share.nonce,
-        difficulty,
-        share.accepted,
-        share.rejectReason ?? null,
-        share.createdAt ?? null,
-      ],
-    );
-
-    let duplicate = false;
-    if (inserted.rowCount === 0) {
-      duplicate = true;
-      const rejectedDuplicate = await client.query(
-        `INSERT INTO shares (worker_id, job_id, nonce, difficulty, accepted, reject_reason, created_at)
-         VALUES ($1, $2, $3, $4, false, 'duplicate', COALESCE($5::timestamptz, now()))
-         RETURNING id, worker_id, difficulty, accepted, created_at`,
-        [share.workerId, share.jobId, share.nonce, difficulty, share.createdAt ?? null],
-      );
-      inserted = rejectedDuplicate;
-    }
-
-    const row = inserted.rows[0];
-    await client.query(
-      `INSERT INTO worker_stats_1m (bucket, worker_id, accepted, rejected, stale, sum_difficulty, sum_effort)
-       VALUES (
-         date_trunc('minute', $1::timestamptz), $2,
-         CASE WHEN $3 THEN 1 ELSE 0 END,
-         CASE WHEN $3 THEN 0 ELSE 1 END,
-         CASE WHEN $6 THEN 1 ELSE 0 END,
-         CASE WHEN $3 THEN $4::numeric ELSE 0 END,
-         CASE WHEN $3 AND $5::numeric IS NOT NULL THEN round($4::numeric / $5::numeric, 20) ELSE 0 END
-       )
-       ON CONFLICT (bucket, worker_id) DO UPDATE SET
-         accepted = worker_stats_1m.accepted + EXCLUDED.accepted,
-         rejected = worker_stats_1m.rejected + EXCLUDED.rejected,
-         stale = worker_stats_1m.stale + EXCLUDED.stale,
-         sum_difficulty = worker_stats_1m.sum_difficulty + EXCLUDED.sum_difficulty,
-         sum_effort = worker_stats_1m.sum_effort + EXCLUDED.sum_effort`,
-      [row.created_at, row.worker_id, row.accepted, row.difficulty, networkDifficulty, !row.accepted && !duplicate && share.rejectReason === "stale"],
-    );
-    // Keep last_seen current while a rig stays connected; at most one write per 30 s.
-    await client.query(
-      `WITH w AS (
-         UPDATE workers SET last_seen = $2
-         WHERE id = $1 AND last_seen < $2::timestamptz - interval '30 seconds'
-         RETURNING miner_id
-       )
-       UPDATE miners SET last_seen = $2 FROM w WHERE miners.id = w.miner_id AND miners.last_seen < $2`,
-      [row.worker_id, row.created_at],
-    );
-    await client.query("COMMIT");
-    return { recorded: true, shareId: row.id, duplicate, accepted: row.accepted };
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
+  await recordShares(pool, [share]);
+  return { recorded: true, duplicate: false, accepted: share.accepted };
 }
 
 /**
- * Record many shares in one statement: the raw rows, the per-minute stats added up per worker and minute, and each worker's
- * last_seen. Stratum checks for duplicates itself (the work a share proves is known per connection), so this does not look
- * for them; an accepted share already on record is skipped by the unique index, as a safeguard, and still counted in the stats.
- * Rejected duplicates arrive as rejected shares with the reason "duplicate". Everything is written, or nothing.
+ * Record many shares in one statement: the per-minute stats and reject reasons added up per worker and minute, and each worker's
+ * last_seen. There is no row per share. Stratum checks for duplicates itself (the work a share proves is known per connection);
+ * a duplicate arrives as a rejected share with the reason "duplicate". Everything is written, or nothing.
  * @param {PgPool} pool @param {ShareInput[]} shares
  */
 export async function recordShares(pool, shares) {
   if (shares.length === 0) return { recorded: 0 };
-  /** @type {{ worker: string[], job: string[], nonce: string[], difficulty: string[], network: (string | null)[], accepted: boolean[], reason: (string | null)[], at: (string | null)[] }} */
-  const columns = { worker: [], job: [], nonce: [], difficulty: [], network: [], accepted: [], reason: [], at: [] };
+  /** @type {{ worker: string[], difficulty: string[], network: (string | null)[], accepted: boolean[], reason: (string | null)[], at: (string | null)[] }} */
+  const columns = { worker: [], difficulty: [], network: [], accepted: [], reason: [], at: [] };
   for (const share of shares) {
     const { difficulty, networkDifficulty } = checkShare(share);
     columns.worker.push(String(share.workerId));
-    columns.job.push(share.jobId);
-    columns.nonce.push(share.nonce);
     columns.difficulty.push(difficulty);
     columns.network.push(networkDifficulty);
     columns.accepted.push(share.accepted);
@@ -199,14 +131,17 @@ export async function recordShares(pool, shares) {
   }
   await pool.query(
     `WITH input AS (
-       SELECT worker_id, job_id, nonce, difficulty, network_difficulty, accepted, reject_reason, COALESCE(created_at, now()) AS created_at
-       FROM unnest($1::bigint[], $2::text[], $3::text[], $4::numeric[], $5::numeric[], $6::boolean[], $7::text[], $8::timestamptz[])
-         AS t(worker_id, job_id, nonce, difficulty, network_difficulty, accepted, reject_reason, created_at)
+       SELECT worker_id, difficulty, network_difficulty, accepted, reject_reason, COALESCE(created_at, now()) AS created_at
+       FROM unnest($1::bigint[], $2::numeric[], $3::numeric[], $4::boolean[], $5::text[], $6::timestamptz[])
+         AS t(worker_id, difficulty, network_difficulty, accepted, reject_reason, created_at)
      ),
-     raw AS (
-       INSERT INTO shares (worker_id, job_id, nonce, difficulty, accepted, reject_reason, created_at)
-       SELECT worker_id, job_id, nonce, difficulty, accepted, reject_reason, created_at FROM input
-       ON CONFLICT (worker_id, job_id, nonce) WHERE accepted DO NOTHING
+     rejects AS (
+       INSERT INTO worker_rejects_1m (worker_id, bucket, reason, count)
+       SELECT worker_id, date_trunc('minute', created_at), reject_reason, count(*)
+       FROM input
+       WHERE NOT accepted
+       GROUP BY 1, 2, 3
+       ON CONFLICT (worker_id, bucket, reason) DO UPDATE SET count = worker_rejects_1m.count + EXCLUDED.count
      ),
      stats AS (
        INSERT INTO worker_stats_1m (bucket, worker_id, accepted, rejected, stale, sum_difficulty, sum_effort)
@@ -235,7 +170,7 @@ export async function recordShares(pool, shares) {
      UPDATE miners SET last_seen = m.at
      FROM (SELECT miner_id, max(at) AS at FROM seen GROUP BY miner_id) m
      WHERE miners.id = m.miner_id AND miners.last_seen < m.at`,
-    [columns.worker, columns.job, columns.nonce, columns.difficulty, columns.network, columns.accepted, columns.reason, columns.at],
+    [columns.worker, columns.difficulty, columns.network, columns.accepted, columns.reason, columns.at],
   );
   return { recorded: shares.length };
 }

@@ -279,11 +279,11 @@ export async function getWorker(pool, address, name) {
       [row.id],
     ),
     pool.query(
-      `SELECT reject_reason AS reason, COUNT(*)::text AS count
-       FROM shares
-       WHERE worker_id = $1 AND NOT accepted AND created_at >= now() - interval '24 hours'
-       GROUP BY reject_reason
-       ORDER BY COUNT(*) DESC`,
+      `SELECT reason, SUM(count)::text AS count
+       FROM worker_rejects_1m
+       WHERE worker_id = $1 AND bucket >= date_trunc('minute', now()) - interval '24 hours'
+       GROUP BY reason
+       ORDER BY SUM(count) DESC`,
       [row.id],
     ),
   ]);

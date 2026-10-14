@@ -135,7 +135,8 @@ truth for columns, types and constraints; this section only summarizes them.
 |-------|-------|-----------|------|
 | `miners` | One row per mining address | Stratum (on authorize) | Forever |
 | `workers` | Worker names per address, last IP, reported hashrate | Stratum | Forever |
-| `shares` | Every submission: difficulty, accepted or reject reason | Stratum | 7 days |
+| `worker_rejects_1m` | Per-worker, per-minute count of rejected shares by reason | Stratum, with each batch of shares | 90 days |
+| `shares` | Raw shares from before migration 009; nothing writes to it any more, and retention empties it | Nobody | 7 days |
 | `worker_stats_1m` | Per-worker, per-minute accepted, rejected and stale counts, difficulty sum and effort sum | Stratum, with each batch of shares | 90 days |
 | `worker_stats_1h` | Hourly rollup of the minute stats | Stratum's hourly retention job | Forever |
 | `blocks` | Block candidates with status, topoheight and miner reward | Stratum (submit and block tracker) | Forever |
@@ -148,7 +149,7 @@ Notes:
 - Hashrate is accepted share difficulty divided by elapsed seconds over completed buckets
   (section 6). The API reads minute stats for ranges up to 30 days and hourly rollups for a year.
 - Effort (`sum_effort`, migration 005): each accepted share adds share difficulty ÷ network
-  difficulty at the time, so luck and round effort survive the raw-share retention.
+  difficulty at the time, so luck and round effort need no raw shares.
 - `stale` (migration 007) counts the rejected shares that were stale, found just after the network moved on.
 - Stratum writes through a store (`services/stratum/src/store.js`). When the database cannot be reached, records go to a
   journal file on the `xeldash-spool` volume and are injected in order, with their original times, when it answers;
@@ -156,7 +157,7 @@ Notes:
 - `stale` and the journal above also explain a gap that is not one: a record written during an outage is stored with its
   original time, so charts show no hole.
 - Every `service_events` insert is announced on the `xeldash_live` channel for live updates.
-- Retention periods are set with `RETENTION_*` (raw shares 7 days, minute stats 90 days, events and bans 365 days). There is no partitioning at this size.
+- Retention periods are set with `RETENTION_*` (minute stats and reject reasons 90 days, events and bans 365 days). There is no partitioning at this size.
 - There are no balance, payout or wallet tables: rewards go straight to each miner's address.
 
 ## 6. Difficulty and stats

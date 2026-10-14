@@ -16,6 +16,10 @@ breaking changes; they are marked **Breaking**.
 - Shares are written to the database in batches (every 200 ms or 500 shares, one statement each) instead of one transaction each,
   and a miner's answer no longer waits for the database. At 2,000 shares a second the database used 0.12 of a core instead of 1.6,
   and the slowest 5% of answers came in 2 ms instead of 22. See docs/REQUIREMENTS.md.
+- Shares are no longer stored one by one. They are counted in the per-minute stats as before, and rejected ones by reason in a new
+  per-minute table, which the worker page's "Rejected shares by reason" reads. The upgrade (migration 009) counts the rejected shares
+  still on record, so the last day stays visible. The old `shares` table is left in place, so going back to 0.2.x still works:
+  nothing writes to it, and retention empties it within `RETENTION_RAW_SHARE_DAYS` (7 days, 1 on a public server).
 - Duplicate shares are caught by their connection, from the work each accepted share proved. The same nonce sent under a job id
   reissued at a new difficulty (the same work) was counted twice before; it is now a duplicate.
 

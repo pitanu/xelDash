@@ -46,8 +46,14 @@ test("a miner's page lists its workers with shares, and leaves hidden workers ou
   const row = (await listMiners(pool)).find((m) => m.address === a);
   assert.equal(row.workers, "2");
   assert.equal(row.accepted1h, "6");
+  await recordShare(pool, { workerId: w1.workerId, jobId: "j", nonce: `s-${hex(3)}`, difficulty: "1000", accepted: false, rejectReason: "stale" });
+  await recordShare(pool, { workerId: w1.workerId, jobId: "j", nonce: `s-${hex(3)}`, difficulty: "1000", accepted: false, rejectReason: "stale" });
+  await recordShare(pool, { workerId: w1.workerId, jobId: "j", nonce: `o-${hex(3)}`, difficulty: "1000", accepted: false, rejectReason: "stale",
+    createdAt: new Date(Date.now() - 25 * 3_600_000).toISOString() });
   const worker = await getWorker(pool, a, "rig1");
   assert.equal(worker.name, "rig1");
+  assert.deepEqual(worker.rejectReasons24h, [{ reason: "stale", count: "2" }, { reason: "low difficulty", count: "1" }],
+    "the last day's rejected shares by reason, most first");
 });
 
 test("hashrate history has a bucket for every interval, zero where nothing was found, and filters by miner and worker", { skip }, async () => {

@@ -97,8 +97,8 @@ Leave it unset if you do not need these features.
   seconds per kind of question; the dashboard limits each visitor and all visitors together, with short timeouts; and the official
   node fallback is never used. A test floods Stratum with fresh addresses from many IP addresses and checks the node budget holds.
 - **Database growth.** Shares for job ids a connection was never given count as invalid and are not recorded, late (stale)
-  shares are recorded at most 30 a minute per connection, workers that never mined are deleted after a day unused, and raw shares
-  are kept 7 days (1 on a public server). Every container's log is rotated.
+  shares are recorded at most 30 a minute per connection, workers that never mined are deleted after a day unused, and shares are
+  counted in the minute stats instead of stored one by one. Every container's log is rotated.
 - **Containers.** The API and Stratum run as an unprivileged user. Backups are owner-only
   files.
 

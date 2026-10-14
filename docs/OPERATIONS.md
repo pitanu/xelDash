@@ -100,9 +100,8 @@ Use your `POSTGRES_USER` and `POSTGRES_DB` if you changed them.
 
 ### Size
 
-Raw shares are kept 7 days, per-minute stats 90 days and events (node changes, problems, failovers) a year (see `RETENTION_*`). Dumps stay
-small: roughly 15 MB of raw shares per active worker at steady state, plus the hourly stats
-and blocks, which grow slowly.
+Per-minute stats are kept 90 days and events (node changes, problems, failovers) a year (see `RETENTION_*`); shares are counted in
+those stats, not stored one by one. Dumps stay small: the minute stats, plus the hourly stats and blocks, which grow slowly.
 
 ## Restore
 
@@ -315,7 +314,7 @@ community to notice a bad or tampered release. node-admin logs a warning at star
   On every server, a share for a job the connection was never given counts as invalid (towards a ban), and late shares are
   recorded at most 30 a minute per connection.
 - **The database:** at most 1,000 new worker names an hour per IP address (`STRATUM_NEW_WORKERS_PER_IP_PER_HOUR`; rigs logging in
-  again under their own names do not count), and raw shares are kept one day instead of seven (`RETENTION_RAW_SHARE_DAYS`). On every
+  again under their own names do not count). On every
   server, workers that never had a share accepted are deleted after a day unused (`RETENTION_UNUSED_WORKER_DAYS`; they come back
   when they log in), and every container's log is rotated (`XELDASH_LOG_MAX_SIZE`, `XELDASH_LOG_FILES`: 50 MB each by default).
 - **Visitors of the dashboard:** per visitor, 10 API requests a second (bursts of 20), 6 CSV exports a minute, 20 open connections

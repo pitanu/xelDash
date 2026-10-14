@@ -36,7 +36,7 @@ space for a while as it reorganises itself while syncing, and nobody has timed a
 | The official snapshot (what a first start downloads) | about 9.2 GB, temporary |
 | **Peak during a first start** | about **21 GB**: the snapshot download plus the unpacked chain, before the download is deleted |
 | xelDash's own images | about 1.5 GB |
-| The statistics database | small: about 18 MB after five days with one rig. Raw shares are kept 7 days (roughly 15 MB per active rig), per-minute stats 90 days, hourly stats forever |
+| The statistics database | small: about 18 MB after five days with one rig, measured when every share was still stored (it no longer is). Per-minute stats are kept 90 days, hourly stats forever |
 | The same node **after pruning** (see below) | about **6.0 to 6.2 GB**, down from about 10.6 GB, once the node has pruned and been restarted |
 | A second node (optional) | another 10.7 GB, plus 21 GB while it first starts, unless you copy the first node's chain (minutes) |
 | Old chain copies kept after a snapshot or a copy | up to one more chain size each, until you delete them on the Nodes page |
@@ -236,7 +236,9 @@ difficulty 1 sending a share a second. Per share, on that processor:
   | 1,000 | 3.4 / 4.5 ms → 1.5 / 1.9 ms | 0.79 → 0.06 core | 1.8 → 1.5 cores |
   | 2,000 | 4.5 / 21.7 ms → 1.6 / 2.2 ms | 1.57 → 0.12 core | 3.6 → 3.0 cores |
 
-  Every share was still accepted and written (2,000 rows a second); the database now does about a thirteenth of the work.
+  Every share was still accepted and written (2,000 rows a second); the database now does about a thirteenth of the work. Since
+  shares are no longer stored one by one either (only counted, migration 009), the same test needs 0.02, 0.02 and 0.05 of a core
+  of the database at 500, 1,000 and 2,000 shares a second, with the same answer times.
 
 ## Two servers (redundancy)
 

@@ -6,6 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPool, ensureWorker, finalizeBlock, ingestRecords, listSubmittedBlocks, recordBan, recordBlock, recordShare, recordShares, recordServiceEvent, listActiveBans } from "../src/index.js";
 
@@ -38,16 +39,21 @@ test("a worker is created once per address and name, and keeps its last address"
   assert.equal(rows[0].last_ip, "10.0.0.5", "a missing address does not erase the known one");
 });
 
-test("shares: an accepted share is stored once, a repeat is recorded as a rejected duplicate, stats follow", { skip }, async () => {
+test("shares: stats and reject reasons follow, with no row per share", { skip }, async () => {
   const { workerId } = await ensureWorker(pool, { address: address(), name: "w" });
   const s = { workerId, jobId: "job1", nonce: "n1", difficulty: "1000", networkDifficulty: "100000", accepted: true };
   const first = await recordShare(pool, s);
   assert.deepEqual([first.duplicate, first.accepted], [false, true]);
-  const dup = await recordShare(pool, s);
-  assert.deepEqual([dup.duplicate, dup.accepted], [true, false]);
+  // Stratum finds duplicates itself and sends them as rejected shares.
+  await recordShare(pool, { ...s, accepted: false, rejectReason: "duplicate" });
   await recordShare(pool, { ...s, nonce: "n2", accepted: false, rejectReason: "stale", networkDifficulty: undefined });
+  await recordShare(pool, { ...s, nonce: "n3", accepted: false, rejectReason: "stale", networkDifficulty: undefined });
   const { rows } = await pool.query("SELECT sum(accepted) a, sum(rejected) r, sum(stale) s, sum(sum_difficulty) d FROM worker_stats_1m WHERE worker_id = $1", [workerId]);
-  assert.deepEqual([Number(rows[0].a), Number(rows[0].r), Number(rows[0].s), Number(rows[0].d)], [1, 2, 1, 1000], "1 accepted, a duplicate and a stale rejected, difficulty counted once");
+  assert.deepEqual([Number(rows[0].a), Number(rows[0].r), Number(rows[0].s), Number(rows[0].d)], [1, 3, 2, 1000], "1 accepted; a duplicate and two stale rejected");
+  const reasons = await pool.query("SELECT reason, sum(count)::int AS n FROM worker_rejects_1m WHERE worker_id = $1 GROUP BY reason ORDER BY reason", [workerId]);
+  assert.deepEqual(reasons.rows.map((r) => [r.reason, r.n]), [["duplicate", 1], ["stale", 2]]);
+  const shares = await pool.query("SELECT to_regclass('shares') IS NOT NULL AS kept, (SELECT count(*)::int FROM shares WHERE worker_id = $1) AS n", [workerId]);
+  assert.deepEqual([shares.rows[0].kept, shares.rows[0].n], [true, 0], "the old table is kept, but nothing is written to it");
 });
 
 test("a batch of shares gives the same stats as recording them one by one", { skip }, async () => {
@@ -72,9 +78,10 @@ test("a batch of shares gives the same stats as recording them one by one", { sk
   const expected = await stats(one.workerId);
   assert.equal(expected.length, 2, "two minutes");
   assert.deepEqual(await stats(many.workerId), expected);
-  const raw = async (/** @type {string | bigint} */ workerId) => (await pool.query(
-    "SELECT nonce, accepted, reject_reason, created_at FROM shares WHERE worker_id = $1 ORDER BY nonce", [workerId])).rows;
-  assert.deepEqual(await raw(many.workerId), await raw(one.workerId), "the same raw rows, with their own times");
+  const rejects = async (/** @type {string | bigint} */ workerId) => (await pool.query(
+    "SELECT bucket, reason, count::int FROM worker_rejects_1m WHERE worker_id = $1 ORDER BY bucket, reason", [workerId])).rows;
+  assert.equal((await rejects(one.workerId)).length, 3, "stale and duplicate in the first minute, low difficulty in the next");
+  assert.deepEqual(await rejects(many.workerId), await rejects(one.workerId), "the same reject reasons, in their own minutes");
 });
 
 test("a batch keeps last_seen current, for the worker and its address", { skip }, async () => {
@@ -93,25 +100,24 @@ test("a batch keeps last_seen current, for the worker and its address", { skip }
   assert.equal(rows[0].miner.toISOString(), soon);
 });
 
-test("a batch is written whole or not at all, and skips an accepted share already on record", { skip }, async () => {
+test("a batch is written whole or not at all", { skip }, async () => {
   const { workerId } = await ensureWorker(pool, { address: address(), name: "w" });
-  const share = { workerId, jobId: "j", nonce: "same", difficulty: "10", accepted: true };
-  await recordShares(pool, [share, share]);
-  let { rows } = await pool.query("SELECT count(*)::int AS n FROM shares WHERE worker_id = $1", [workerId]);
-  assert.equal(rows[0].n, 1, "the safeguard keeps one row");
+  const share = { workerId, jobId: "j", nonce: "n", difficulty: "10", accepted: true };
+  const counted = async () => Number((await pool.query("SELECT coalesce(sum(accepted + rejected), 0) AS n FROM worker_stats_1m WHERE worker_id = $1", [workerId])).rows[0].n);
+  await recordShares(pool, [share]);
   await assert.rejects(recordShares(pool, [{ ...share, nonce: "ok" }, { ...share, workerId: "999999999999", nonce: "no-such-worker" }]));
-  ({ rows } = await pool.query("SELECT count(*)::int AS n FROM shares WHERE worker_id = $1", [workerId]));
-  assert.equal(rows[0].n, 1, "nothing from the refused batch");
+  assert.equal(await counted(), 1, "nothing from the refused batch");
   assert.deepEqual(await recordShares(pool, []), { recorded: 0 });
   await assert.rejects(recordShares(pool, [{ ...share, difficulty: "0" }]), TypeError, "shares are checked like single ones");
 });
 
-test("a share recorded late keeps the time it was found", { skip }, async () => {
+test("a share recorded late counts in the minute it was found", { skip }, async () => {
   const { workerId } = await ensureWorker(pool, { address: address(), name: "w" });
-  const found = "2026-01-02T03:04:05.000Z";
-  await recordShare(pool, { workerId, jobId: "j", nonce: "late", difficulty: "5", accepted: true, createdAt: found });
-  const { rows } = await pool.query("SELECT created_at FROM shares WHERE worker_id = $1 AND nonce = 'late'", [workerId]);
-  assert.equal(rows[0].created_at.toISOString(), found);
+  await recordShare(pool, { workerId, jobId: "j", nonce: "late", difficulty: "5", accepted: true, createdAt: "2026-01-02T03:04:05.000Z" });
+  await recordShare(pool, { workerId, jobId: "j", nonce: "late-r", difficulty: "5", accepted: false, rejectReason: "stale", createdAt: "2026-01-02T03:04:59.000Z" });
+  const stats = await pool.query("SELECT bucket FROM worker_stats_1m WHERE worker_id = $1", [workerId]);
+  const rejects = await pool.query("SELECT bucket FROM worker_rejects_1m WHERE worker_id = $1", [workerId]);
+  assert.deepEqual([...stats.rows, ...rejects.rows].map((r) => r.bucket.toISOString()), ["2026-01-02T03:04:00.000Z", "2026-01-02T03:04:00.000Z"]);
 });
 
 test("blocks: a hash keeps its first found time, only the status moves on; finalizing stores the reward", { skip }, async () => {
@@ -166,8 +172,8 @@ test("ingest: a batch is applied once, a resent batch is skipped, bad records ar
   assert.equal(first.lastSeq, base + 6);
   const again = await ingestRecords(pool, instance, records);
   assert.deepEqual([again.applied, again.skipped], [0, 5], "resending applies nothing twice");
-  const { rows } = await pool.query("SELECT count(*)::int AS n FROM shares s JOIN workers w ON w.id = s.worker_id JOIN miners m ON m.id = w.miner_id WHERE m.address = $1", [addr]);
-  assert.equal(rows[0].n, 3, "three shares, each stored once; a worker first seen in a share is created");
+  const { rows } = await pool.query("SELECT sum(s.accepted)::int AS n FROM worker_stats_1m s JOIN workers w ON w.id = s.worker_id JOIN miners m ON m.id = w.miner_id WHERE m.address = $1", [addr]);
+  assert.equal(rows[0].n, 3, "three shares, each counted once; a worker first seen in a share is created");
   const second = await ingestRecords(pool, instance, [{ t: "event", s: base + 7, at, type: "ingest_test", payload: {} }]);
   assert.equal(second.applied, 1, "new records after the resend still go through");
   await assert.rejects(ingestRecords(pool, "", []), TypeError);
@@ -246,4 +252,50 @@ test("retention: workers that never mined are deleted once unused, with their ad
   // A worker logging in again after it was deleted simply comes back.
   const back = await ensureWorker(pool, { address: junkAddress, name: "made-up" });
   assert.ok(back.workerId);
+});
+
+test("retention: reject reasons go with the minute stats they belong to", { skip }, async () => {
+  const { runRetention } = await import("../src/index.js");
+  const { workerId } = await ensureWorker(pool, { address: address(), name: "rejects" });
+  const daysAgo = (d) => new Date(Date.now() - d * 86_400_000).toISOString();
+  await recordShare(pool, { workerId, jobId: "j", nonce: "old", difficulty: "1", accepted: false, rejectReason: "stale", createdAt: daysAgo(100) });
+  await recordShare(pool, { workerId, jobId: "j", nonce: "new", difficulty: "1", accepted: false, rejectReason: "stale" });
+  const result = await runRetention(pool, { rawShareDays: 7, minuteStatsDays: 90, eventDays: 365 });
+  assert.ok(result.rejects >= 1);
+  const { rows } = await pool.query("SELECT count(*)::int AS n FROM worker_rejects_1m WHERE worker_id = $1", [workerId]);
+  assert.equal(rows[0].n, 1, "only the recent minute is left");
+});
+
+test("upgrading counts the reject reasons of the raw shares on record", { skip }, async () => {
+  const { readdir, readFile } = await import("node:fs/promises");
+  const pg = (await import("pg")).default;
+  const dir = fileURLToPath(new URL("../migrations/", import.meta.url));
+  const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
+  const upgrade = files.indexOf("009_reject_reasons.sql");
+  const name = `xeldash_upgrade_${hex(4)}`;
+  await pool.query(`CREATE DATABASE ${name}`);
+  const client = new pg.Client({ connectionString: url.replace(/\/[^/?]*(\?|$)/, `/${name}$1`) });
+  await client.connect();
+  try {
+    for (const file of files.slice(0, upgrade)) await client.query(await readFile(join(dir, file), "utf8"));
+    const { rows: [w] } = await client.query(
+      "WITH m AS (INSERT INTO miners (address) VALUES ('xet:upgrade') RETURNING id) INSERT INTO workers (miner_id, name) SELECT id, 'rig' FROM m RETURNING id");
+    await client.query(
+      `INSERT INTO shares (worker_id, job_id, nonce, difficulty, accepted, reject_reason, created_at) VALUES
+         ($1, 'j', 'a', 1, true, NULL, '2026-10-01T10:00:10Z'),
+         ($1, 'j', 'b', 1, false, 'stale', '2026-10-01T10:00:20Z'),
+         ($1, 'j', 'c', 1, false, 'stale', '2026-10-01T10:00:30Z'),
+         ($1, 'j', 'd', 1, false, 'low_difficulty', '2026-10-01T10:01:00Z')`, [w.id]);
+    await client.query(await readFile(join(dir, files[upgrade]), "utf8"));
+    const { rows } = await client.query("SELECT bucket, reason, count::int FROM worker_rejects_1m ORDER BY bucket, reason");
+    assert.deepEqual(rows.map((r) => [r.bucket.toISOString(), r.reason, r.count]), [
+      ["2026-10-01T10:00:00.000Z", "stale", 2],
+      ["2026-10-01T10:01:00.000Z", "low_difficulty", 1],
+    ]);
+    const kept = await client.query("SELECT count(*)::int AS n FROM shares");
+    assert.equal(kept.rows[0].n, 4, "the raw shares are left for retention");
+  } finally {
+    await client.end();
+    await pool.query(`DROP DATABASE ${name}`);
+  }
 });

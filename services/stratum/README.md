@@ -59,7 +59,7 @@ and survive restarts. All limits are `STRATUM_*` settings in `.env.example`.
 Every miner must log in with its own address. Unless set in `.env`, the limits become: 1,000 connections per IP address and
 5,000 in all, 32 different addresses and 1,000 new worker names an hour per IP address (`src/authorize-worker.js`), 300 checked
 shares a second per IP address (`src/ip-guard.js`), and 100 calls a second to the node (`src/node-budget.js`; found blocks
-never wait). The official node fallback is never used, and raw shares are kept one day. See docs/OPERATIONS.md#public-mode.
+never wait). The official node fallback is never used. See docs/OPERATIONS.md#public-mode.
 
 **Getwork.** Miners that only speak getwork, like the official `xelis_miner`, connect to
 `ws://<host>:8090/getwork/<address>/<worker>`. Each connection is a normal session with vardiff,
@@ -73,7 +73,7 @@ Stratum running meanwhile (a public server's certificate arrives after its first
 
 **Records and outages** (`src/store.js`). Everything Stratum records (workers, shares, blocks, events, bans)
 goes through one store. Normally a write goes straight to PostgreSQL, except shares: they are queued and written together,
-a batch every 200 ms or 500 shares, in one statement (raw rows, the minute stats added up per worker, last seen), so a miner's
+a batch every 200 ms or 500 shares, in one statement (the minute stats and reject reasons added up per worker, last seen; no row per share), so a miner's
 answer never waits for the database. A share is checked for duplicates before that, by its connection, which remembers the
 work each accepted share proved (header, timestamp and nonce) while a job on that header can still take shares; the same
 nonce sent under a reissued job id is the same work and is caught too. When the database cannot be reached the write is
@@ -102,5 +102,6 @@ and 503 with the reason otherwise (the cluster's address manager asks it, so the
 cannot mine); `/status` adds the instance, mode (`main` or `standby`), connected rigs and the journal's size, for the
 standby's offline page. It is published on this computer's loopback only, and only when the cluster is set up.
 
-**Retention.** Raw shares are kept 7 days (1 in public mode), per-minute stats 90 days, and events and bans a year; hourly
-rollups and blocks are kept. Workers that never had a share accepted are deleted after a day unused (`RETENTION_*`).
+**Retention.** Per-minute stats and reject reasons are kept 90 days, and events and bans a year; hourly
+rollups and blocks are kept. Shares are not stored one by one (raw shares an older version left are cleared after
+`RETENTION_RAW_SHARE_DAYS`). Workers that never had a share accepted are deleted after a day unused (`RETENTION_*`).

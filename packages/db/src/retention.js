@@ -73,6 +73,7 @@ export async function runRetention(pool, config) {
   // Late records can only be in minutes that still exist: stay inside the minute-stats retention, so no hour is ever recomputed from a
   // partly deleted set of minutes.
   const rolledUp = await rollUpHourlyStats(pool, { lookbackDays: Math.max(0, Math.min(7, config.minuteStatsDays - 1)) });
+  // Nothing writes raw shares since migration 009; the rows from before it age out here.
   const shares = await deleteInBatches(
     pool,
     `DELETE FROM shares WHERE id IN (
@@ -83,6 +84,14 @@ export async function runRetention(pool, config) {
     pool,
     `DELETE FROM worker_stats_1m WHERE (bucket, worker_id) IN (
        SELECT bucket, worker_id FROM worker_stats_1m
+       WHERE bucket < date_trunc('hour', now()) - $1::interval LIMIT $2)`,
+    `${config.minuteStatsDays} days`,
+  );
+  // Reject reasons are only shown for the last day, but are kept as long as the minute stats they belong to.
+  const rejects = await deleteInBatches(
+    pool,
+    `DELETE FROM worker_rejects_1m WHERE (worker_id, bucket, reason) IN (
+       SELECT worker_id, bucket, reason FROM worker_rejects_1m
        WHERE bucket < date_trunc('hour', now()) - $1::interval LIMIT $2)`,
     `${config.minuteStatsDays} days`,
   );
@@ -125,5 +134,5 @@ export async function runRetention(pool, config) {
        LIMIT $2)`,
     unusedAge,
   );
-  return { rolledUp, shares, minuteStats, events, bans, unusedWorkers, unusedMiners };
+  return { rolledUp, shares, minuteStats, rejects, events, bans, unusedWorkers, unusedMiners };
 }

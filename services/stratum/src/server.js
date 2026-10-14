@@ -52,8 +52,8 @@ const proxyTrust = proxyTrustFromEnv(process.env.STRATUM_PROXY_FROM, { gateway: 
 if (proxyTrust) console.info(`Connections from ${proxyTrust.text} must start with a PROXY line naming the real miner`);
 console.info(`Miners may connect from: ${ipGuardConfig.allowedNetworks}`);
 const retention = retentionConfigFromEnv(process.env);
-// A public server keeps raw shares one day unless .env says otherwise: they are only read for the last day's reject reasons, and
-// strangers' rigs add up to millions of rows a day.
+// Raw shares are no longer written (migration 009); the ones an older version left are cleared after RETENTION_RAW_SHARE_DAYS, or
+// a day on a public server, where strangers' rigs could have left millions of rows.
 const rawShareDaysSet = (process.env.RETENTION_RAW_SHARE_DAYS ?? "").trim() !== "";
 const tls = tlsConfigFromEnv(process.env);
 if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {

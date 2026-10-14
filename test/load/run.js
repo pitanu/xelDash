@@ -109,7 +109,7 @@ async function sampler() {
     }
     try { const o = await get("/api/v1/overview"); row.overviewMs = o.ms; row.height = o.body.node?.height ?? null; } catch { row.overviewMs = null; }
     try { row.statusMs = (await get("/api/v1/status")).ms; } catch { row.statusMs = null; }
-    const shares = compose(["exec", "-T", "postgres", "psql", "-U", "xeldash", "-d", "xeldash", "-tAc", "select count(*) from shares"], { allowFail: true, timeout: 30_000 });
+    const shares = compose(["exec", "-T", "postgres", "psql", "-U", "xeldash", "-d", "xeldash", "-tAc", "select coalesce(sum(accepted + rejected), 0) from worker_stats_1m"], { allowFail: true, timeout: 30_000 });
     row.shares = Number.parseInt(shares.text.trim(), 10);
     if (Number.isNaN(row.shares)) row.shares = lastShares;
     lastShares = row.shares;
@@ -217,7 +217,7 @@ async function main() {
   for (const r of rows.filter((x) => x.label !== "idle")) {
     console.log(`| ${r.rigs} | ${r.connected} (${r.failed} failed, ${r.dropped} dropped) | ${fmt(r.sent, 1)} | ${fmt(r.accepted / r.holdSeconds, 1)} | ${r.rejected} | ${fmt(r.p50, 1)} / ${fmt(r.p95, 1)} / ${fmt(r.p99, 1)} | ${fmt(r.jobs, 1)} | ${fmt(r.blocksPerMinute, 1)} |`);
   }
-  console.log("\n| rigs | Stratum CPU avg / max (% of one core) | Stratum memory (MB) | node CPU avg | database CPU avg | API CPU avg | dashboard /overview avg / p95 (ms) | rows written/s |");
+  console.log("\n| rigs | Stratum CPU avg / max (% of one core) | Stratum memory (MB) | node CPU avg | database CPU avg | API CPU avg | dashboard /overview avg / p95 (ms) | shares recorded/s |");
   console.log("|---:|---|---:|---:|---:|---:|---|---:|");
   for (const r of rows) {
     console.log(`| ${r.label === "idle" ? "0 (idle)" : r.rigs} | ${fmt(r.stratumCpuAvg)} / ${fmt(r.stratumCpuMax)} | ${fmt(r.stratumMb)} | ${fmt(r.daemonCpuAvg)} | ${fmt(r.postgresCpuAvg)} | ${fmt(r.apiCpuAvg)} | ${fmt(r.overviewAvg)} / ${fmt(r.overviewP95)} | ${fmt(r.sharesPerSecond, 1)} |`);
