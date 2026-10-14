@@ -3,7 +3,7 @@ import { appendFile, mkdir, readFile, rename, rm, stat, writeFile } from "node:f
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import * as defaultDb from "@xeldash/db";
-import { applyJournalRecord } from "@xeldash/db";
+import { applyJournalRecords } from "@xeldash/db";
 
 // Everything Stratum records goes through here, so that mining does not depend on the database.
 //
@@ -26,7 +26,8 @@ import { applyJournalRecord } from "@xeldash/db";
 // Logins during an outage use a cache of the workers seen before, which is also kept on disk.
 
 const PROBE_MS = 3_000;
-const STATE_EVERY = 20;
+/** Journal lines read and recorded together when the database is back (the shares among them in batches). */
+const REPLAY_CHUNK = 2_000;
 const DEFAULT_MAX_BYTES = 200 * 1024 * 1024;
 const RECENT_SHARES = 100_000;
 const SHARE_FLUSH_MS = 200;
@@ -527,6 +528,8 @@ export class DurableStore {
       const total = this.pending;
       this.logger.info?.(`The database is back: recording ${total} kept record${total === 1 ? "" : "s"}`);
       let index = 0;
+      /** @type {{ line: number, record: any }[]} */
+      let chunk = [];
       const lines = createInterface({ input: createReadStream(this.journalFile), crlfDelay: Infinity });
       for await (const line of lines) {
         if (!line.trim()) continue;
@@ -534,26 +537,48 @@ export class DurableStore {
         if (index <= this.applied) continue;
         const record = safeParse(line);
         if (!record) {
-          // A half-written last line: leave it for the next round.
+          // A half-written last line: what came before it is recorded, the rest is left for the next round.
           lines.close();
+          await this.#applyChunk(chunk);
           return false;
         }
-        try {
-          await this.#apply(record);
-        } catch (error) {
-          if (isConnectionError(error)) {
-            await this.#saveState();
+        chunk.push({ line: index, record });
+        if (chunk.length >= REPLAY_CHUNK) {
+          const done = await this.#applyChunk(chunk);
+          chunk = [];
+          if (!done) {
             lines.close();
             return false;
           }
-          this.logger.warn?.(`Skipping a journal record that the database refused (${record.t}):`, error instanceof Error ? error.message : String(error));
         }
-        this.applied = index;
-        if (this.applied % STATE_EVERY === 0) await this.#saveState();
       }
-      await this.#saveState();
+      if (!(await this.#applyChunk(chunk))) return false;
     }
     return this.#finishDrain();
+  }
+
+  /**
+   * Record a run of journal lines, shares in batches. False when the database went away part way; what was recorded is saved.
+   * @param {{ line: number, record: any }[]} chunk
+   */
+  async #applyChunk(chunk) {
+    if (chunk.length === 0) return true;
+    try {
+      await applyJournalRecords(this.pool, chunk.map((c) => c.record), this.cache, {
+        api: this.db,
+        remember: (key, ids) => this.#remember(key, ids),
+        isFatal: isConnectionError,
+        onApplied: (i) => { this.applied = chunk[i].line; },
+        onRefused: (record, error) => this.logger.warn?.(`Skipping a journal record that the database refused (${record?.t}):`,
+          error instanceof Error ? error.message : String(error)),
+      });
+      return true;
+    } catch (error) {
+      if (!isConnectionError(error)) throw error;
+      return false;
+    } finally {
+      await this.#saveState();
+    }
   }
 
   /** Clear the journal once everything in it has been recorded, unless more arrived meanwhile. */
@@ -647,11 +672,6 @@ export class DurableStore {
       }
     }
     return this.#finishDrain();
-  }
-
-  /** @param {any} record */
-  async #apply(record) {
-    await applyJournalRecord(this.pool, record, this.cache, { api: this.db, remember: (key, ids) => this.#remember(key, ids) });
   }
 }
 

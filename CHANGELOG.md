@@ -20,6 +20,9 @@ breaking changes; they are marked **Breaking**.
   per-minute table, which the worker page's "Rejected shares by reason" reads. The upgrade (migration 009) counts the rejected shares
   still on record, so the last day stays visible. The old `shares` table is left in place, so going back to 0.2.x still works:
   nothing writes to it, and retention empties it within `RETENTION_RAW_SHARE_DAYS` (7 days, 1 on a public server).
+- After a database outage, the shares kept meanwhile are recorded in batches as well: about 56,000 a second instead of 540. A
+  standby server's batches are recorded the same way. Before, a busy server (more than about 540 shares a second) could fall further behind while catching up,
+  since new shares wait in the journal until it is empty.
 - Duplicate shares are caught by their connection, from the work each accepted share proved. The same nonce sent under a job id
   reissued at a new difficulty (the same work) was counted twice before; it is now a duplicate.
 

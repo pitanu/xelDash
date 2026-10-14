@@ -239,6 +239,10 @@ difficulty 1 sending a share a second. Per share, on that processor:
   Every share was still accepted and written (2,000 rows a second); the database now does about a thirteenth of the work. Since
   shares are no longer stored one by one either (only counted, migration 009), the same test needs 0.02, 0.02 and 0.05 of a core
   of the database at 500, 1,000 and 2,000 shares a second, with the same answer times.
+- **After an outage**, the journal used to be recorded one record at a time: about 540 shares a second on the desktop above. New
+  shares go to the journal until it is empty, so a server receiving more than that could fall further behind instead of catching up.
+  Shares in the journal are now recorded in batches too: 50,000 of them in 0.9 s (about 56,000 a second) instead of 92 s, with the
+  same counts.
 
 ## Two servers (redundancy)
 

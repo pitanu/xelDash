@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyJournalRecord, ensureWorker, journalRecordProblem, recordBlock, recordShare, recordServiceEvent } from "../src/index.js";
+import { applyJournalRecord, applyJournalRecords, ensureWorker, journalRecordProblem, recordBlock, recordShare, recordServiceEvent } from "../src/index.js";
 
 const NOW = Date.parse("2026-10-03T12:00:00Z");
 const at = "2026-10-03T11:59:00.000Z";
@@ -50,6 +50,7 @@ function fakeApi() {
     calls,
     ensureWorker: async (_pool, w) => { calls.push(["ensureWorker", w.address, w.name, w.ip ?? null]); return { minerId: 7n, workerId: BigInt(nextId++) }; },
     recordShare: async (_pool, s) => { calls.push(["recordShare", String(s.workerId), s.nonce, s.createdAt]); },
+    recordShares: async (_pool, shares) => { calls.push(["recordShares", ...shares.map((s) => s.nonce)]); },
     recordBlock: async (_pool, b) => { calls.push(["recordBlock", b.hash, b.workerId === null ? null : String(b.workerId), b.foundAt.toISOString()]); },
     recordServiceEvent: async (_pool, type, payload, when) => { calls.push(["recordServiceEvent", type, when.toISOString()]); },
     recordBan: async (_pool, ban) => { calls.push(["recordBan", ban.ip, ban.until.toISOString()]); },
@@ -95,4 +96,52 @@ test("the database functions refuse bad input before touching the database", asy
   await assert.rejects(recordBlock(pool, { hash: "short", status: "submitted" }), TypeError);
   await assert.rejects(recordBlock(pool, { hash: "ab".repeat(32), status: "" }), TypeError);
   await assert.rejects(recordServiceEvent(pool, ""), TypeError);
+});
+
+const down = () => Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" });
+const isFatal = (/** @type {any} */ error) => error?.code === "ECONNREFUSED";
+const event = (type) => ({ t: "event", s: 1, at, type, payload: {} });
+
+test("a replay writes runs of shares in batches, in order with the records around them", async () => {
+  const api = fakeApi();
+  const settled = [];
+  const records = [share({ nonce: "a" }), share({ nonce: "b" }), share({ nonce: "c" }), event("between"), share({ nonce: "d" })];
+  await applyJournalRecords(null, records, new Map(), { api, isFatal, batch: 2, onApplied: (i) => settled.push(i) });
+  assert.deepEqual(api.calls.filter((c) => c[0] !== "ensureWorker").map((c) => `${c[0]}:${c.slice(1, c[0] === "recordShares" ? undefined : 2)}`),
+    ["recordShares:a,b", "recordShares:c", "recordServiceEvent:between", "recordShares:d"]);
+  assert.deepEqual(settled, [1, 2, 3, 4], "progress only ever moves forward, once records are written");
+  assert.equal(api.calls.filter((c) => c[0] === "ensureWorker").length, 1, "the worker is created once");
+});
+
+test("a refused batch is retried a share at a time, skipping only the share at fault", async () => {
+  const api = fakeApi();
+  api.recordShares = async () => { throw Object.assign(new Error("out of range"), { code: "22003" }); };
+  api.recordShare = async (_pool, s) => { if (s.nonce === "bad") throw Object.assign(new Error("out of range"), { code: "22003" }); api.calls.push(["recordShare", s.nonce]); };
+  const refused = [];
+  const settled = [];
+  await applyJournalRecords(null, [share({ nonce: "a" }), share({ nonce: "bad" }), share({ nonce: "b" })], new Map(), {
+    api, isFatal, onRefused: (r) => refused.push(r.nonce), onApplied: (i) => settled.push(i) });
+  assert.deepEqual(api.calls.filter((c) => c[0] === "recordShare").map((c) => c[1]), ["a", "b"]);
+  assert.deepEqual(refused, ["bad"]);
+  assert.deepEqual(settled, [0, 1, 2]);
+});
+
+test("when the database goes away part way, progress stops at the last batch written", async () => {
+  const api = fakeApi();
+  let batches = 0;
+  api.recordShares = async (_pool, shares) => { if (++batches === 2) throw down(); api.calls.push(["recordShares", ...shares.map((s) => s.nonce)]); };
+  const settled = [];
+  const records = ["a", "b", "c", "d", "e"].map((nonce) => share({ nonce }));
+  await assert.rejects(applyJournalRecords(null, records, new Map(), { api, isFatal, batch: 2, onApplied: (i) => settled.push(i) }), /ECONNREFUSED/);
+  assert.deepEqual(settled, [1], "a and b are written; the replay resumes at c");
+});
+
+test("a record that cannot be applied is skipped after the shares before it are written", async () => {
+  const api = fakeApi();
+  const order = [];
+  const settled = [];
+  await applyJournalRecords(null, [share({ nonce: "a" }), { t: "mystery", s: 1, at }, share({ nonce: "b" })], new Map(), {
+    api, isFatal, onRefused: (r) => order.push(`refused:${r.t}`), onApplied: (i) => { order.push(`settled:${i}`); settled.push(i); } });
+  assert.deepEqual(api.calls.filter((c) => c[0] === "recordShares").map((c) => c.slice(1)), [["a"], ["b"]]);
+  assert.deepEqual(order, ["settled:0", "refused:mystery", "settled:1", "settled:2"]);
 });

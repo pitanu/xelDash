@@ -278,16 +278,8 @@ export async function recordReportedHashrate(pool, workerId, hashrate) {
  *   recordServiceEvent: typeof recordServiceEvent, recordBan: typeof recordBan }, remember?: (key: string, ids: WorkerIds) => void }} [options]
  */
 export async function applyJournalRecord(pool, record, workers, { api = { ensureWorker, recordShare, recordBlock, recordServiceEvent, recordBan }, remember = () => {} } = {}) {
-  /** @param {WorkerKey} key @returns {Promise<WorkerIds>} */
-  async function resolve(key) {
-    const k = `${key.address}\n${key.name}`;
-    const known = workers.get(k);
-    if (known && known.workerId !== null && known.workerId !== undefined) return known;
-    const ids = await api.ensureWorker(pool, { address: key.address, name: key.name });
-    workers.set(k, ids);
-    remember(k, ids);
-    return ids;
-  }
+  /** @param {WorkerKey} key */
+  const resolve = (key) => resolveJournalWorker(pool, key, workers, api, remember);
   switch (record?.t) {
     case "worker": {
       const ids = await api.ensureWorker(pool, { address: record.address, name: record.name, ip: record.ip });
@@ -296,15 +288,9 @@ export async function applyJournalRecord(pool, record, workers, { api = { ensure
       remember(k, ids);
       return;
     }
-    case "share": {
-      const ids = await resolve(record.key);
-      if (ids.workerId === null) throw new TypeError("The worker could not be created");
-      await api.recordShare(pool, {
-        workerId: ids.workerId, jobId: record.jobId, nonce: record.nonce, difficulty: record.difficulty,
-        networkDifficulty: record.networkDifficulty, accepted: record.accepted, rejectReason: record.rejectReason, createdAt: record.at,
-      });
+    case "share":
+      await api.recordShare(pool, await journalShare(pool, record, workers, api, remember));
       return;
-    }
     case "block": {
       const ids = record.key ? await resolve(record.key) : { minerId: null, workerId: null };
       await api.recordBlock(pool, {
@@ -322,6 +308,101 @@ export async function applyJournalRecord(pool, record, workers, { api = { ensure
     default:
       throw new TypeError(`Unknown journal record type: ${record?.t}`);
   }
+}
+
+/**
+ * A journaled worker's ids, creating it if it was first seen while the database was out of reach.
+ * @param {PgPool} pool @param {WorkerKey} key @param {Map<string, WorkerIds>} workers
+ * @param {{ ensureWorker: typeof ensureWorker }} api @param {(key: string, ids: WorkerIds) => void} remember
+ * @returns {Promise<WorkerIds>}
+ */
+async function resolveJournalWorker(pool, key, workers, api, remember) {
+  const k = `${key.address}\n${key.name}`;
+  const known = workers.get(k);
+  if (known && known.workerId !== null && known.workerId !== undefined) return known;
+  const ids = await api.ensureWorker(pool, { address: key.address, name: key.name });
+  workers.set(k, ids);
+  remember(k, ids);
+  return ids;
+}
+
+/**
+ * The share a journal record stands for, with its worker's id.
+ * @param {PgPool} pool @param {any} record @param {Map<string, WorkerIds>} workers
+ * @param {{ ensureWorker: typeof ensureWorker }} api @param {(key: string, ids: WorkerIds) => void} remember
+ * @returns {Promise<ShareInput>}
+ */
+async function journalShare(pool, record, workers, api, remember) {
+  const ids = await resolveJournalWorker(pool, record.key, workers, api, remember);
+  if (ids.workerId === null) throw new TypeError("The worker could not be created");
+  return {
+    workerId: ids.workerId, jobId: record.jobId, nonce: record.nonce, difficulty: record.difficulty,
+    networkDifficulty: record.networkDifficulty, accepted: record.accepted, rejectReason: record.rejectReason, createdAt: record.at,
+  };
+}
+
+/** Shares written together when a journal is replayed. */
+const JOURNAL_SHARE_BATCH = 500;
+
+/**
+ * Apply journal records in order, with runs of shares written in batches (a long outage can leave millions of them). Everything
+ * else is applied one record at a time, after the shares before it.
+ *
+ * `isFatal` tells an error that stops the replay (the database went away: the caller retries later from where it stopped) from one
+ * that only the record caused, which is passed to `onRefused` and skipped; a refused batch of shares is retried one share at a
+ * time, so only the share at fault is skipped. `onApplied(i)` says that every record up to index i is settled (applied or
+ * skipped); it is called in order, and only once the records are written.
+ * @param {PgPool} pool @param {any[]} records @param {Map<string, WorkerIds>} workers
+ * @param {{ isFatal: (error: unknown) => boolean, onApplied?: (index: number) => void, onRefused?: (record: any, error: unknown) => void,
+ *   api?: { ensureWorker: typeof ensureWorker, recordShare: typeof recordShare, recordShares: typeof recordShares, recordBlock: typeof recordBlock,
+ *     recordServiceEvent: typeof recordServiceEvent, recordBan: typeof recordBan },
+ *   remember?: (key: string, ids: WorkerIds) => void, batch?: number }} options
+ */
+export async function applyJournalRecords(pool, records, workers, {
+  isFatal, onApplied = () => {}, onRefused = () => {}, remember = () => {}, batch = JOURNAL_SHARE_BATCH,
+  api = { ensureWorker, recordShare, recordShares, recordBlock, recordServiceEvent, recordBan },
+}) {
+  /** @type {{ index: number, share: ShareInput }[]} */
+  let pending = [];
+  async function flush() {
+    if (pending.length === 0) return;
+    const shares = pending;
+    pending = [];
+    try {
+      await api.recordShares(pool, shares.map((p) => p.share));
+    } catch (error) {
+      if (isFatal(error)) throw error;
+      for (const { index, share } of shares) {
+        try {
+          await api.recordShare(pool, share);
+        } catch (one) {
+          if (isFatal(one)) throw one;
+          onRefused(records[index], one);
+        }
+        onApplied(index);
+      }
+      return;
+    }
+    onApplied(/** @type {{ index: number }} */ (shares.at(-1)).index);
+  }
+  for (const [index, record] of records.entries()) {
+    try {
+      if (record?.t === "share") {
+        pending.push({ index, share: await journalShare(pool, record, workers, api, remember) });
+        if (pending.length >= batch) await flush();
+        continue;
+      }
+      await flush();
+      await applyJournalRecord(pool, record, workers, { api, remember });
+    } catch (error) {
+      if (isFatal(error)) throw error;
+      // The shares before this one are settled first, so progress never skips over one not yet written.
+      await flush();
+      onRefused(record, error);
+    }
+    onApplied(index);
+  }
+  await flush();
 }
 
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -376,30 +457,26 @@ export async function ingestRecords(pool, instance, records) {
   const progress = await pool.query("SELECT last_seq FROM ingest_progress WHERE instance = $1", [instance]);
   let last = progress.rows[0] ? Number(progress.rows[0].last_seq) : 0;
   const start = last;
-  const workers = new Map();
-  let applied = 0;
   let skipped = 0;
   let rejected = 0;
+  let refused = 0;
+  /** @type {any[]} */
+  const fresh = [];
+  for (const record of records) {
+    if (journalRecordProblem(record)) rejected += 1;
+    else if (record.s <= last || record.s <= (fresh.at(-1)?.s ?? 0)) skipped += 1;
+    else fresh.push(record);
+  }
+  let settled = 0;
   try {
-    for (const record of records) {
-      if (journalRecordProblem(record)) {
-        rejected += 1;
-        continue;
-      }
-      const seq = record.s;
-      if (seq <= last) {
-        skipped += 1;
-        continue;
-      }
-      try {
-        await applyJournalRecord(pool, record, workers);
-        applied += 1;
-      } catch (error) {
-        if (!isPermanentRecordError(error)) throw error;
-        rejected += 1;
-      }
-      last = seq;
-    }
+    await applyJournalRecords(pool, fresh, new Map(), {
+      isFatal: (error) => !isPermanentRecordError(error),
+      onRefused: () => { refused += 1; },
+      onApplied: (index) => {
+        settled = index + 1;
+        last = fresh[index].s;
+      },
+    });
   } finally {
     if (last > start) {
       await pool.query(
@@ -409,7 +486,7 @@ export async function ingestRecords(pool, instance, records) {
       ).catch(() => {});
     }
   }
-  return { applied, skipped, rejected, lastSeq: last };
+  return { applied: settled - refused, skipped, rejected: rejected + refused, lastSeq: last };
 }
 
 /** Channel the API relays to live dashboards (see migration 002). */

@@ -79,7 +79,8 @@ work each accepted share proved (header, timestamp and nonce) while a job on tha
 nonce sent under a reissued job id is the same work and is caught too. When the database cannot be reached the write is
 appended to a JSON-lines journal on its own volume (`STRATUM_JOURNAL_DIR`, `/spool` in Compose), a circuit breaker
 keeps miners from waiting on a dead database, and miners stay connected and keep mining. A background loop checks the
-database every few seconds and injects the journal in order with the original timestamps, then deletes it. Workers are
+database every few seconds and injects the journal in order with the original timestamps (shares in batches, like live ones),
+then deletes it. Workers are
 named by address and name in the journal, since a worker first seen during an outage has no id yet; logins during an
 outage use a cache of the workers seen before (also kept on disk), and a new worker gets a provisional identity that
 is created when the database returns. The journal survives restarts, is capped at `STRATUM_JOURNAL_MAX_MB` (200; past
