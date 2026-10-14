@@ -9,8 +9,12 @@ const LIVE_DEBOUNCE_MS = 400;
 
 /** @typedef {{ data: any, error: (Error & { code?: string }) | null, loading: boolean }} Polled */
 
+/** Requests under way, by path: panels that ask for the same thing at the same moment (a live update) share one. */
+/** @type {Map<string, Promise<any>>} */
+const inFlight = new Map();
+
 /** @param {string} path */
-async function getJson(path) {
+async function fetchJson(path) {
   const response = await fetch(path, { headers: { accept: "application/json" } });
   if (!response.ok) {
     // Keep the API's reason ("node_unavailable", ...) so a page can say what is actually wrong.
@@ -22,6 +26,17 @@ async function getJson(path) {
   return response.json();
 }
 
+/** @param {string} path @param {{ fresh?: boolean }} [options] fresh: a new request even if one is under way */
+function getJson(path, { fresh = false } = {}) {
+  const shared = fresh ? undefined : inFlight.get(path);
+  if (shared) return shared;
+  const request = fetchJson(path).finally(() => {
+    if (inFlight.get(path) === request) inFlight.delete(path);
+  });
+  inFlight.set(path, request);
+  return request;
+}
+
 export function useLive() {
   return useSyncExternalStore(subscribeLive, getLiveState);
 }
@@ -29,22 +44,24 @@ export function useLive() {
 /**
  * Fetch a JSON endpoint, refetch on live updates, and poll as a fallback. While a refetch is
  * in flight the previous data stays, so views hold their frame instead of flashing.
- * `intervalMs` polls faster than usual, for progress that should feel live.
- * @param {string | null} path @param {{ intervalMs?: number }} [options]
+ * `intervalMs` polls faster than usual, for progress that should feel live. `everyBlock` also
+ * refetches on every new block of the network, for what follows the chain tip (status, overview);
+ * everything else waits for an event (our blocks, node changes) or the next poll.
+ * @param {string | null} path @param {{ intervalMs?: number, everyBlock?: boolean }} [options]
  */
-export function usePolled(path, { intervalMs } = {}) {
+export function usePolled(path, { intervalMs, everyBlock = false } = {}) {
   const [state, setState] = useState(/** @type {Polled} */ ({ data: null, error: null, loading: true }));
   const live = useLive();
   const current = useRef(path);
-  const loadRef = useRef(() => {});
+  const loadRef = useRef((/** @type {{ fresh?: boolean }} */ _options = {}) => {});
 
   useEffect(() => {
     current.current = path;
     if (!path) return undefined;
     let cancelled = false;
-    const load = () => {
+    const load = (/** @type {{ fresh?: boolean }} */ options = {}) => {
       setState((previous) => ({ ...previous, loading: true }));
-      getJson(path)
+      getJson(path, options)
         .then((data) => {
           if (!cancelled && current.current === path) setState({ data, error: null, loading: false });
         })
@@ -66,12 +83,13 @@ export function usePolled(path, { intervalMs } = {}) {
     return () => clearInterval(timer);
   }, [path, live.status, intervalMs]);
 
+  const tip = everyBlock ? live.tip : 0;
   useEffect(() => {
-    if (live.version === 0) return undefined;
+    if (live.version === 0 && tip === 0) return undefined;
     const timer = setTimeout(() => loadRef.current(), LIVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [live.version]);
+  }, [live.version, tip]);
 
-  // reload() refetches now, for example after a change made from the page.
-  return { ...state, reload: () => loadRef.current() };
+  // reload() refetches now, for example after a change made from the page: never an answer from before it.
+  return { ...state, reload: () => loadRef.current({ fresh: true }) };
 }

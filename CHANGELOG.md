@@ -14,6 +14,12 @@ breaking changes; they are marked **Breaking**.
   simulated release on both launchers, with a node always healthy. Before, every update restarted every service, both nodes
   included, even ones that had not changed: on Docker Desktop each build gave every image a new id, and the `migrate` and `api`
   services built the same image twice. Now only what changed is restarted.
+- Less processor time while idle. The health checks of node-admin (every 5 s), the API and Stratum started a Node.js process each
+  time, about 0.1 s of processor time; they use `wget` and a plain TCP check now, which cost next to nothing.
+- An open dashboard asks for much less. A new block of the network (every few seconds on mainnet) refetched every panel on the
+  page, the database queries behind them included; now it refetches only the chain tip (the Overview's figures and the Health
+  page's node status), and the rest follows events (our blocks, node changes) and the usual polling. Panels that ask for the same
+  thing at the same moment share one request.
 
 ### Mining
 

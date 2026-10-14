@@ -3,10 +3,14 @@
 
 const MAX_BACKOFF_MS = 30_000;
 
-/** @typedef {{ status: "connecting" | "live" | "offline", version: number }} LiveState */
+/**
+ * `version` moves on anything that may change what a page shows (our blocks, node changes, a reconnect); `tip` moves on every new
+ * block of the network, every few seconds on mainnet, which only changes the chain tip (height, difficulty, node status).
+ * @typedef {{ status: "connecting" | "live" | "offline", version: number, tip: number }} LiveState
+ */
 
 /** @type {LiveState} */
-let state = { status: "connecting", version: 0 };
+let state = { status: "connecting", version: 0, tip: 0 };
 /** @type {Set<() => void>} */
 const listeners = new Set();
 let backoff = 1_000;
@@ -30,7 +34,7 @@ function connect() {
   socket.onopen = () => {
     backoff = 1_000;
     // Anything may have changed while we were offline.
-    update({ status: "live", version: state.version + 1 });
+    update({ status: "live", version: state.version + 1, tip: state.tip + 1 });
   };
   socket.onmessage = (event) => {
     let message;
@@ -39,7 +43,8 @@ function connect() {
     } catch {
       return;
     }
-    if (message.type === "block" || message.type === "event") update({ version: state.version + 1 });
+    if (message.type === "block") update({ tip: state.tip + 1 });
+    if (message.type === "event") update({ version: state.version + 1 });
     if (message.type === "event" && message.eventType === "block_submitted") for (const listener of blockListeners) listener();
   };
   socket.onclose = () => {

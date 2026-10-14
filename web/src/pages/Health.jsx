@@ -63,7 +63,7 @@ function NodesList({ nodes }) {
 export default function Health() {
   // Disk, cluster, front door and connection problems (with miners' IP addresses) are for the operator only.
   const operator = useOperatorView();
-  const status = usePolled("/api/v1/status");
+  const status = usePolled("/api/v1/status", { everyBlock: true });
   const events = usePolled("/api/v1/events?limit=30");
   const s = status.data;
   const node = s?.node;

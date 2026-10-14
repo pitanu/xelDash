@@ -20,11 +20,11 @@ export default function Overview() {
   // The setup guide, disk warning and "you found a block" note are for the server's operator, not a public server's visitors.
   const operator = useOperatorView();
   const [range, setRange] = useState("24h");
-  const overview = usePolled("/api/v1/overview");
+  const overview = usePolled("/api/v1/overview", { everyBlock: true });
   const history = usePolled(`/api/v1/hashrate?range=${range}`);
   const blocks = usePolled("/api/v1/blocks?limit=10");
   const events = usePolled("/api/v1/events?limit=10");
-  const status = usePolled("/api/v1/status");
+  const status = usePolled("/api/v1/status", { everyBlock: true });
 
   const o = overview.data;
   const blockRows = o?.blocks ?? [];

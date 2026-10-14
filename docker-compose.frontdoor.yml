@@ -67,7 +67,7 @@ services:
       - xeldash-config:/config
       - ./docker/hostdisk:/hostdisk:ro
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8095/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8095/healthz"]
       interval: 5s
       timeout: 3s
       retries: 12
@@ -114,7 +114,7 @@ services:
       daemon:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "const n=require('node:net');const s=n.connect(3333,'127.0.0.1');s.once('connect',()=>{s.end();process.exit(0)});s.once('error',()=>process.exit(1));"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/3333"]
       interval: 10s
       timeout: 5s
       retries: 5
