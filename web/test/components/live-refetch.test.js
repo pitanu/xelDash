@@ -73,8 +73,12 @@ test("a new network block refetches only what follows the chain tip; an event re
   assert.equal(count(calls, "/api/v1/miners"), before.miners, "the miners list waits");
   assert.equal(count(calls, "/api/v1/events"), before.events, "the events list waits");
 
+  await send({ type: "block", height: 3, hash: "cd" });
+  await afterDebounce();
+  assert.equal(count(calls, "/api/v1/status"), before.status + 1, "the next block, seconds later, waits for the 10-second pace");
+
   await send({ type: "event", eventType: "block_submitted" });
   await afterDebounce();
-  assert.equal(count(calls, "/api/v1/miners"), before.miners + 1, "an event refetches everything");
+  assert.equal(count(calls, "/api/v1/miners"), before.miners + 1, "an event refetches everything, at once");
   assert.equal(count(calls, "/api/v1/events"), before.events + 1);
 });

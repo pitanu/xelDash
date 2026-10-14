@@ -107,10 +107,32 @@ async function daemonCall(method, timeoutMs = 5_000) {
   }
 }
 
+// The overview's statistics change by the minute (and when we find a block), while dashboards ask on every new block of the network,
+// every few seconds on mainnet: they are kept briefly and shared, and only the node's figures are fresh on each request.
+const OVERVIEW_STATS_MS = 10_000;
+/** @type {{ at: number, promise: Promise<Awaited<ReturnType<typeof getOverviewStats>>> } | null} */
+let overviewStats = null;
+
 async function getOverview() {
-  const [node, network, activity, blocks] = await Promise.all([
-    daemonCall("get_info"),
-    daemonCall("get_difficulty"),
+  if (!overviewStats || Date.now() - overviewStats.at >= OVERVIEW_STATS_MS) {
+    const promise = getOverviewStats();
+    overviewStats = { at: Date.now(), promise };
+    promise.catch(() => { if (overviewStats?.promise === promise) overviewStats = null; });
+  }
+  const [node, network, stats] = await Promise.all([daemonCall("get_info"), daemonCall("get_difficulty"), overviewStats.promise]);
+  return {
+    node,
+    network,
+    miners: stats.miners,
+    shares: stats.shares,
+    miningEstimates: estimateMining(stats.shares, network),
+    blocks: stats.blocks,
+    luck: stats.luck,
+  };
+}
+
+async function getOverviewStats() {
+  const [activity, blocks] = await Promise.all([
     pool.query(`
       SELECT
         COALESCE(SUM(accepted) FILTER (WHERE bucket >= date_trunc('minute', now()) - interval '5 minutes' AND bucket < date_trunc('minute', now())), 0)::text AS accepted_5m,
@@ -143,15 +165,7 @@ async function getOverview() {
       AND s.bucket >= date_trunc('minute', now()) - interval '4 minutes'
   `);
 
-  return {
-    node,
-    network,
-    miners: workerCounts.rows[0],
-    shares: activity.rows[0],
-    miningEstimates: estimateMining(activity.rows[0], network),
-    blocks: blocks.rows,
-    luck,
-  };
+  return { miners: workerCounts.rows[0], shares: activity.rows[0], blocks: blocks.rows, luck };
 }
 
 /** Decoded path segment, or null for a malformed %-escape. @param {string | undefined} segment */

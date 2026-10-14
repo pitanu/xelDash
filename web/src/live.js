@@ -34,7 +34,7 @@ function connect() {
   socket.onopen = () => {
     backoff = 1_000;
     // Anything may have changed while we were offline.
-    update({ status: "live", version: state.version + 1, tip: state.tip + 1 });
+    update({ status: "live", version: state.version + 1 });
   };
   socket.onmessage = (event) => {
     let message;

@@ -18,7 +18,8 @@ breaking changes; they are marked **Breaking**.
   time, about 0.1 s of processor time; they use `wget` and a plain TCP check now, which cost next to nothing.
 - An open dashboard asks for much less. A new block of the network (every few seconds on mainnet) refetched every panel on the
   page, the database queries behind them included; now it refetches only the chain tip (the Overview's figures and the Health
-  page's node status), and the rest follows events (our blocks, node changes) and the usual polling. Panels that ask for the same
+  page's node status), at most every 10 s, and the API keeps the overview's statistics for 10 s (they change by the minute), so
+  each of those asks only the node; the rest follows events (our blocks, node changes) and the usual polling. Panels that ask for the same
   thing at the same moment share one request. The checks on every page poll quickly only while there is something to watch: the
   setup guide until setup is done, the cluster banner on a server in a cluster, and the offline notice once a check fails (every
   30 s otherwise, and at once when the live connection drops).

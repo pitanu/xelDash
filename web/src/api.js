@@ -6,6 +6,8 @@ const POLL_MS = 15_000;
 const LIVE_POLL_MS = 60_000;
 // Coalesces a burst of live messages (new block, block submitted, block final) into one fetch.
 const LIVE_DEBOUNCE_MS = 400;
+// The network's blocks (side blocks too, in XELIS's DAG) can come every few seconds; the chain tip is refetched at most this often.
+const TIP_MIN_MS = 10_000;
 
 /** @typedef {{ data: any, error: (Error & { code?: string }) | null, loading: boolean }} Polled */
 
@@ -86,12 +88,24 @@ export function usePolled(path, { intervalMs, everyBlock = false } = {}) {
     return () => clearInterval(timer);
   }, [path, every]);
 
-  const tip = everyBlock ? live.tip : 0;
   useEffect(() => {
-    if (live.version === 0 && tip === 0) return undefined;
+    if (live.version === 0) return undefined;
     const timer = setTimeout(() => loadRef.current(), LIVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [live.version, tip]);
+  }, [live.version]);
+
+  // A new block refetches at most every TIP_MIN_MS, measured from the last time it did, so a fast run of blocks ends with the latest.
+  const tipLoaded = useRef(0);
+  const tip = everyBlock ? live.tip : 0;
+  useEffect(() => {
+    if (tip === 0) return undefined;
+    const wait = Math.max(LIVE_DEBOUNCE_MS, tipLoaded.current + TIP_MIN_MS - Date.now());
+    const timer = setTimeout(() => {
+      tipLoaded.current = Date.now();
+      loadRef.current();
+    }, wait);
+    return () => clearTimeout(timer);
+  }, [tip]);
 
   // reload() refetches now, for example after a change made from the page: never an answer from before it.
   return { ...state, reload: () => loadRef.current({ fresh: true }) };
