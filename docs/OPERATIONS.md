@@ -444,6 +444,15 @@ page.
    `ghcr.io/pitanu/xeldash/{api,stratum,web,node-admin,daemon}` (`XELDASH_IMAGE_REGISTRY` overrides the
    prefix), for amd64 and arm64.
 
+**What an update restarts.** The launcher (`xeldash update`, `xeldash start`) restarts only the services whose image or settings
+changed. With two nodes running, it updates everything else first and then the nodes one at a time, `daemon2` before `daemon`, and
+restarts the second only once the first has caught up with it again (it waits up to ten minutes, and otherwise leaves the second on
+its old version and says so), so there is always a node to give work and mining does not pause. What remains is Stratum's own
+restart when it changed: rigs reconnect within a few seconds (with a front door or a second server, they mine elsewhere meanwhile).
+With one node, a release update restarts it, and mining pauses until it is back and caught up. Running `docker compose up -d`
+by hand restarts every changed service at once, both nodes included; on Docker Desktop, set `BUILDX_NO_DEFAULT_ATTESTATIONS=1`
+when building by hand, or every build looks changed.
+
 The one-shot `migrate` service applies new migrations before the API and Stratum start.
 Migrations only move forward. To go back to an older version, restore the backup you took in
 step 1 as well as checking out the older code.

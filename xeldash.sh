@@ -273,15 +273,59 @@ cmd_install() {
 
 # ---------------------------------------------------------------- run
 
-compose_up() {
-  local log=".xeldash-start.log" version; version="$(get_env XELDASH_VERSION)"
+# Docker Desktop's image store gives every build a fresh attestation, so an image that did not change would still get a new id each
+# time and Compose would recreate its container: an update restarted every service, both nodes at once.
+export BUILDX_NO_DEFAULT_ATTESTATIONS=1
+
+# A node's topoheight, or nothing if it does not answer.
+node_height() {
+  docker compose exec -T "$1" busybox wget -q -O - --header 'Content-Type: application/json' \
+    --post-data '{"jsonrpc":"2.0","id":1,"method":"get_info"}' http://127.0.0.1:8080/json_rpc 2>/dev/null \
+    | grep -o '"topoheight":[0-9]*' | head -1 | cut -d: -f2 || true
+}
+
+# Waits (up to ten minutes) until a node that was just restarted has caught up with the other one, within two blocks.
+node_caught_up() {
+  local node="$1" other="$2" mine theirs i
+  for i in $(seq 1 200); do
+    mine="$(node_height "$node")"; theirs="$(node_height "$other")"
+    if [ -n "$mine" ] && [ -n "$theirs" ] && [ "$mine" -ge $((theirs - 2)) ]; then return 0; fi
+    sleep 3
+  done
+  return 1
+}
+
+# Brings the stack up to date. With both nodes running it is an update without a pause in mining: everything else first, leaving the
+# nodes alone, then one node at a time, the second only once the first has caught up again, so Stratum always has a node for work.
+# A node whose image and settings did not change is left running.
+compose_steps() {
+  local version running others
+  version="$(get_env XELDASH_VERSION)"
   if [ -n "$version" ] && [ "$version" != "local" ]; then
     # A released version: download the ready-made images instead of building them.
-    docker compose pull >"$log" 2>&1 || true
-    docker compose up -d >>"$log" 2>&1 &
+    docker compose pull || true
   else
-    docker compose up -d --build >"$log" 2>&1 &
+    docker compose build
   fi
+  running="$(docker compose ps --services --status running 2>/dev/null || true)"
+  if ! printf '%s\n' "$running" | grep -qx daemon || ! printf '%s\n' "$running" | grep -qx daemon2; then
+    docker compose up -d
+    return
+  fi
+  others="$(docker compose config --services | grep -vx -e daemon -e daemon2 | tr '\n' ' ')"
+  # shellcheck disable=SC2086 # one word per service
+  docker compose up -d --no-deps $others
+  echo "Updating daemon2, then daemon, one at a time"
+  if ! { docker compose up -d --no-deps --wait daemon2 && node_caught_up daemon2 daemon; }; then
+    echo "XELDASH_NODE_BEHIND daemon2"
+    return 0
+  fi
+  docker compose up -d --no-deps --wait daemon && node_caught_up daemon daemon2 || echo "XELDASH_NODE_BEHIND daemon"
+}
+
+compose_up() {
+  local log=".xeldash-start.log"
+  compose_steps >"$log" 2>&1 &
   local pid=$!
   printf '%s' "Starting xelDash "
   while kill -0 "$pid" 2>/dev/null; do printf '.'; sleep 3; done
@@ -290,6 +334,10 @@ compose_up() {
     say ""; tail -n 25 "$log"
     die "xelDash could not start. The last lines of the log are above (full log: $log)."
   fi
+  case "$(grep -o 'XELDASH_NODE_BEHIND [a-z0-9]*' "$log" | head -1)" in
+    *daemon2) warn "daemon2 did not catch up with the network within ten minutes, so daemon was left on its old version to keep mining. Run this again later (./xeldash.sh start)." ;;
+    *daemon)  warn "daemon is updated but still catching up with the network; mining uses daemon2 meanwhile." ;;
+  esac
 }
 
 cmd_start() {

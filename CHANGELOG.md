@@ -7,6 +7,14 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Operations
+
+- Updates no longer restart both nodes at once. With two nodes, `xeldash update` (and `xeldash start`) updates everything else
+  first, then the nodes one at a time, the second only once the first has caught up, so mining does not pause; tested with a
+  simulated release on both launchers, with a node always healthy. Before, every update restarted every service, both nodes
+  included, even ones that had not changed: on Docker Desktop each build gave every image a new id, and the `migrate` and `api`
+  services built the same image twice. Now only what changed is restarted.
+
 ### Mining
 
 - While the database cannot be reached, Stratum keeps answering shares quickly at a high share rate. Each share was written to the

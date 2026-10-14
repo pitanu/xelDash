@@ -165,10 +165,10 @@ services:
   # neither service's startup depends on the other's health.
   migrate:
     logging: *logging
+    # The API's image, built (or pulled) by the api service. Building it here as well would give the same tag two different images
+    # (each build is labelled with its service), so every update would recreate the API, and everything after it, for nothing.
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/api:${XELDASH_VERSION:-local}
-    build:
-      context: .
-      dockerfile: services/api/Dockerfile
+    pull_policy: never
     command: ["node", "packages/db/src/migrate.js"]
     restart: "no"
     environment:

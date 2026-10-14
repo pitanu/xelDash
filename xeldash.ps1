@@ -233,28 +233,82 @@ function Invoke-Lan([string[]]$Rest) {
 
 # ---------------------------------------------------------------- run
 
-# Runs docker compose with its noisy output in a log file and shows dots while it works.
-function Invoke-ComposeUp {
+# Docker Desktop's image store gives every build a fresh attestation, so an image that did not change would still get a new id each
+# time and Compose would recreate its container: an update restarted every service, both nodes at once.
+$env:BUILDX_NO_DEFAULT_ATTESTATIONS = "1"
+
+# Runs one docker command (a single command line, passed as it is) with its output added to the start log, showing dots while it
+# works. Returns the exit code.
+function Invoke-DockerStep([string]$CommandLine) {
     $log = Join-Path $PSScriptRoot ".xeldash-start.log"
-    $version = Get-EnvValue "XELDASH_VERSION"
-    if ($version -and $version -ne "local") {
-        # A released version: download the ready-made images instead of building them.
-        $pull = Start-Process -FilePath "docker" -ArgumentList @("compose", "pull") -NoNewWindow -PassThru -Wait -RedirectStandardOutput $log -RedirectStandardError "$log.err"
-        $upArgs = @("compose", "up", "-d")
-    } else {
-        $upArgs = @("compose", "up", "-d", "--build")
-    }
-    $p = Start-Process -FilePath "docker" -ArgumentList $upArgs -NoNewWindow -PassThru -RedirectStandardOutput "$log.up" -RedirectStandardError "$log.err"
+    $p = Start-Process -FilePath "docker" -ArgumentList $CommandLine -NoNewWindow -PassThru -RedirectStandardOutput "$log.step" -RedirectStandardError "$log.steperr"
     $null = $p.Handle
-    Write-Host -NoNewline "Starting xelDash "
     while (-not $p.HasExited) { Write-Host -NoNewline "."; Start-Sleep -Seconds 3 }
     $p.WaitForExit()
-    Write-Host ""
-    if ($p.ExitCode -ne 0) {
+    foreach ($part in @("$log.step", "$log.steperr")) {
+        if (Test-Path $part) { Get-Content $part | Add-Content "$log.err"; Remove-Item $part -Force }
+    }
+    return $p.ExitCode
+}
+
+# A node's topoheight, or $null if it does not answer.
+function Get-NodeHeight([string]$Node) {
+    $out = Join-Path $PSScriptRoot ".xeldash-height.tmp"
+    $line = "compose exec -T $Node busybox wget -q -O - --header ""Content-Type: application/json"" --post-data ""{\""jsonrpc\"":\""2.0\"",\""id\"":1,\""method\"":\""get_info\""}"" http://127.0.0.1:8080/json_rpc"
+    $p = Start-Process -FilePath "docker" -ArgumentList $line -NoNewWindow -PassThru -Wait -RedirectStandardOutput $out -RedirectStandardError "$out.err"
+    $text = if (Test-Path $out) { Get-Content $out -Raw } else { "" }
+    Remove-Item $out, "$out.err" -Force -ErrorAction SilentlyContinue
+    if ($p.ExitCode -eq 0 -and $text -match '"topoheight":(\d+)') { return [long]$Matches[1] }
+    return $null
+}
+
+# Waits (up to ten minutes) until a node that was just restarted has caught up with the other one, within two blocks.
+function Wait-NodeCaughtUp([string]$Node, [string]$Other) {
+    for ($i = 0; $i -lt 200; $i++) {
+        $mine = Get-NodeHeight $Node
+        $theirs = Get-NodeHeight $Other
+        if ($null -ne $mine -and $null -ne $theirs -and $mine -ge ($theirs - 2)) { return $true }
+        Write-Host -NoNewline "."
+        Start-Sleep -Seconds 3
+    }
+    return $false
+}
+
+# Brings the stack up to date, with docker compose's noisy output in a log file and dots while it works. With both nodes running it
+# is an update without a pause in mining: everything else first, leaving the nodes alone, then one node at a time, the second only
+# once the first has caught up again, so Stratum always has a node for work. A node whose image and settings did not change is left
+# running.
+function Invoke-ComposeUp {
+    $log = Join-Path $PSScriptRoot ".xeldash-start.log"
+    Set-Content -Path "$log.err" -Value "" -Encoding utf8
+    $fail = {
+        Write-Host ""
         Say ""
         if (Test-Path "$log.err") { Get-Content "$log.err" -Tail 25 | ForEach-Object { Say $_ } }
         Die "xelDash could not start. The last lines of the log are above (full log: $log.err)."
     }
+    Write-Host -NoNewline "Starting xelDash "
+    $version = Get-EnvValue "XELDASH_VERSION"
+    if ($version -and $version -ne "local") {
+        # A released version: download the ready-made images instead of building them.
+        $null = Invoke-DockerStep "compose pull"
+    } elseif ((Invoke-DockerStep "compose build") -ne 0) { & $fail }
+    $running = @(docker compose ps --services --status running 2>$null)
+    if (-not ($running -contains "daemon" -and $running -contains "daemon2")) {
+        if ((Invoke-DockerStep "compose up -d") -ne 0) { & $fail }
+        Write-Host ""
+        return
+    }
+    $others = @(docker compose config --services 2>$null | Where-Object { $_ -and $_ -ne "daemon" -and $_ -ne "daemon2" })
+    if ((Invoke-DockerStep ("compose up -d --no-deps " + ($others -join " "))) -ne 0) { & $fail }
+    if ((Invoke-DockerStep "compose up -d --no-deps --wait daemon2") -ne 0 -or -not (Wait-NodeCaughtUp "daemon2" "daemon")) {
+        Write-Host ""
+        Warn "daemon2 did not catch up with the network within ten minutes, so daemon was left on its old version to keep mining. Run this again later (xeldash start)."
+        return
+    }
+    $daemonDone = (Invoke-DockerStep "compose up -d --no-deps --wait daemon") -eq 0 -and (Wait-NodeCaughtUp "daemon" "daemon2")
+    Write-Host ""
+    if (-not $daemonDone) { Warn "daemon is updated but still catching up with the network; mining uses daemon2 meanwhile." }
 }
 
 function Invoke-Start([bool]$First = $false) {
