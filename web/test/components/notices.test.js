@@ -54,6 +54,17 @@ test("a gateway error from the web server counts as the server being down; other
   assert.equal(view.text(), "", "a refusal is an answer, not an outage");
 });
 
+test("while everything answers, the offline check waits half a minute instead of asking every 5 seconds", async () => {
+  mock.timers.enable({ apis: ["setInterval", "Date"] });
+  const calls = fakeApi({ "/api/v1/events?limit=1": { events: [] } });
+  await render(h(OfflineNotice));
+  assert.equal(calls.length, 1);
+  for (let i = 0; i < 5; i++) await nextCheck();
+  assert.equal(calls.length, 1, "25 seconds: no new check");
+  await nextCheck();
+  assert.equal(calls.length, 2, "30 seconds: checked again");
+});
+
 const release = { current: "0.2.0", latest: "0.3.0", available: true, url: "https://github.com/pitanu/xelDash/releases/tag/v0.3.0" };
 
 test("a newer release is announced with the command to update and a link to what changed", async () => {

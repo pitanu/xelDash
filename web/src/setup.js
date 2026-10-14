@@ -38,7 +38,10 @@ function useEta(remaining, stamp) {
  * state, the snapshot download, the saved address, and the miners that have connected.
  * @param {{ intervalMs?: number }} [options]
  */
-export function useSetup({ intervalMs = 5_000 } = {}) {
+export function useSetup({ intervalMs: fast = 5_000 } = {}) {
+  // Quick while there is progress to show; once set up, at the usual pace (every page's banner would otherwise ask every few seconds).
+  const [settled, setSettled] = useState(false);
+  const intervalMs = settled ? undefined : fast;
   const status = usePolled("/api/v1/status", { intervalMs });
   const miners = usePolled("/api/v1/miners", { intervalMs });
   const snapshot = usePolled("/api/v1/node/snapshot/status", { intervalMs });
@@ -144,6 +147,8 @@ export function useSetup({ intervalMs = 5_000 } = {}) {
   const loaded = Boolean(status.data || status.error) && Boolean(miners.data || miners.error);
   // The miner list comes from the database: while it cannot be read, "no miner yet" would be a guess.
   const unavailable = Boolean(miners.error && !miners.data);
+  const allDone = steps.every((step) => step.state === "done");
+  useEffect(() => setSettled(allDone), [allDone]);
   return {
     steps,
     done: steps.filter((step) => step.state === "done").length,

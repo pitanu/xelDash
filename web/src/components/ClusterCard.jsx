@@ -2,6 +2,9 @@ import { usePolled } from "../api.js";
 import { formatAgo } from "../format.js";
 import { Card } from "./ui.jsx";
 
+/** Every 10 s on a server in a cluster, where a failover should show at once; at the usual pace on every other server. @param {any} c */
+const clusterPace = (c) => (c?.configured ? 10_000 : undefined);
+
 const ROLES = /** @type {Record<string, { label: string, level: "good" | "info" | "critical", text: (vip: string) => string }>} */ ({
   MASTER: {
     label: "Active",
@@ -22,7 +25,7 @@ const ROLES = /** @type {Record<string, { label: string, level: "good" | "info" 
 
 /** The address manager's view of this server in a two-server cluster. Shows nothing without one. */
 export default function ClusterCard() {
-  const cluster = usePolled("/api/v1/node/cluster", { intervalMs: 10_000 });
+  const cluster = usePolled("/api/v1/node/cluster", { intervalMs: clusterPace });
   const c = cluster.data;
   if (!c?.configured) return null;
   const role = ROLES[c.state] ?? { label: String(c.state), level: "info", text: () => "" };
@@ -43,7 +46,7 @@ export default function ClusterCard() {
 
 /** A line at the top of every page while this server is the standby. */
 export function ClusterBanner() {
-  const cluster = usePolled("/api/v1/node/cluster", { intervalMs: 10_000 });
+  const cluster = usePolled("/api/v1/node/cluster", { intervalMs: clusterPace });
   const c = cluster.data;
   if (!c?.configured || c.state === "MASTER") return null;
   return (

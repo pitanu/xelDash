@@ -1,4 +1,9 @@
 import { useEffect, useState } from "react";
+import { useLive } from "../api.js";
+
+// Checked every 30 s while everything answers, and every 5 s once a check fails, until it answers again.
+const CHECK_OK_MS = 30_000;
+const CHECK_FAILING_MS = 5_000;
 
 /** @typedef {"ok" | "database" | "server"} Reach */
 
@@ -8,16 +13,20 @@ import { useEffect, useState } from "react";
  *    record and records it when the database is back), so the data here is simply paused;
  *  - the server cannot be reached at all: this page cannot know about mining, so it only says it
  *    will reconnect, and that a backup server (if there is one) keeps mining.
- * Checked every few seconds; it disappears by itself when the data is back.
+ * Checked now and then, at once when the live connection drops, and every few seconds while something is wrong; it disappears
+ * by itself when the data is back.
  */
 export default function OfflineNotice() {
   const [reach, setReach] = useState(/** @type {Reach} */ ("ok"));
   const [since, setSince] = useState(/** @type {number | null} */ (null));
+  const live = useLive().status;
 
   useEffect(() => {
     let cancelled = false;
     let failures = 0;
+    let last = 0;
     async function check() {
+      last = Date.now();
       /** @type {Reach} */
       let next = "ok";
       try {
@@ -35,12 +44,15 @@ export default function OfflineNotice() {
       setSince((previous) => (shown === "ok" ? null : previous ?? Date.now()));
     }
     void check();
-    const timer = setInterval(check, 5_000);
+    const timer = setInterval(() => {
+      if (failures > 0 || Date.now() - last >= CHECK_OK_MS) void check();
+    }, CHECK_FAILING_MS);
     return () => {
       cancelled = true;
       clearInterval(timer);
     };
-  }, []);
+    // A dropped live connection is the first sign of trouble: check at once instead of at the next turn.
+  }, [live === "offline"]);
 
   if (reach === "ok") return null;
   const database = reach === "database";

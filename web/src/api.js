@@ -44,10 +44,12 @@ export function useLive() {
 /**
  * Fetch a JSON endpoint, refetch on live updates, and poll as a fallback. While a refetch is
  * in flight the previous data stays, so views hold their frame instead of flashing.
- * `intervalMs` polls faster than usual, for progress that should feel live. `everyBlock` also
+ * `intervalMs` polls faster than usual, for progress that should feel live; as a function of the latest data, only while that data
+ * calls for it (a download under way, a cluster to watch), and at the usual pace otherwise. `everyBlock` also
  * refetches on every new block of the network, for what follows the chain tip (status, overview);
  * everything else waits for an event (our blocks, node changes) or the next poll.
- * @param {string | null} path @param {{ intervalMs?: number, everyBlock?: boolean }} [options]
+ * @param {string | null} path
+ * @param {{ intervalMs?: number | ((data: any) => number | undefined), everyBlock?: boolean }} [options]
  */
 export function usePolled(path, { intervalMs, everyBlock = false } = {}) {
   const [state, setState] = useState(/** @type {Polled} */ ({ data: null, error: null, loading: true }));
@@ -76,12 +78,13 @@ export function usePolled(path, { intervalMs, everyBlock = false } = {}) {
     };
   }, [path]);
 
-  // Only the polling rate follows the live state; changing it must not restart a fetch.
+  // Only the polling rate follows the live state and the data; changing it must not restart a fetch.
+  const every = (typeof intervalMs === "function" ? intervalMs(state.data) : intervalMs) ?? (live.status === "live" ? LIVE_POLL_MS : POLL_MS);
   useEffect(() => {
     if (!path) return undefined;
-    const timer = setInterval(() => loadRef.current(), intervalMs ?? (live.status === "live" ? LIVE_POLL_MS : POLL_MS));
+    const timer = setInterval(() => loadRef.current(), every);
     return () => clearInterval(timer);
-  }, [path, live.status, intervalMs]);
+  }, [path, every]);
 
   const tip = everyBlock ? live.tip : 0;
   useEffect(() => {
