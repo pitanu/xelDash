@@ -10,6 +10,7 @@ const EVENT_LABELS = /** @type {Record<string, string>} */ ({
   mining_paused: "Mining pauses or moves to another node",
   worker_offline: "A worker stops sending shares",
   node_update: "A node is updated",
+  node_peers: "A node loses its connection to other nodes (mainnet, testnet)",
   disk_low: "The disk is running low on space",
   cluster: "A server takes over the shared address (redundancy)",
 });

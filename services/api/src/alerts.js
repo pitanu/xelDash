@@ -5,7 +5,7 @@ const SEND_INTERVAL_MS = 1_000;
 const MAX_QUEUE = 20;
 const FINAL_BATCH_MS = 5_000;
 const XEL_DECIMALS = 8;
-const EVENT_TYPES = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "node_update", "disk_low", "cluster"];
+const EVENT_TYPES = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "node_update", "node_peers", "disk_low", "cluster"];
 const EXPLORERS = /** @type {Record<string, string>} */ ({
   mainnet: "https://explorer.xelis.io",
   testnet: "https://testnet-explorer.xelis.io",
@@ -335,6 +335,12 @@ export function startAlerts({ pool, config, logger = console }) {
           : `💾 Disk space is low: ${gb(p.freeBytes)} GB free of ${gb(p.totalBytes)} GB. The chain keeps growing, and the node stops when the disk is full.${link("/nodes")}` });
     } else if (type === "chain_copy_failed" && config.events.has("node_update")) {
       send({ event: "node_update", data: p, text: `❌ Copying chain data from ${p.from} to ${p.to} failed: ${p.error}${link("/nodes")}` });
+    } else if (type === "node_no_peers" && config.events.has("node_peers")) {
+      const minutes = Math.max(1, Math.round((Date.now() - Date.parse(p.peerlessSince)) / 60_000));
+      send({ event: "node_no_peers", data: p,
+        text: `📡 Node ${p.node} has had no peers for ${minutes} minutes. It cannot tell whether it is behind, and a block found on it would reach no one. Check this computer's internet connection, and that the P2P port (2125) is not blocked.${link("/health")}` });
+    } else if (type === "node_peers_back" && config.events.has("node_peers")) {
+      send({ event: "node_peers_back", data: p, text: `📡 Node ${p.node} is connected to other nodes again.` });
     } else if (type === "node_ready" && config.events.has("mining_paused")) {
       send({ event: "mining_resumed", data: p, text: "▶️ Mining resumed: the node is ready again." });
     }

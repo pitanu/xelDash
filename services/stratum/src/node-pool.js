@@ -41,12 +41,15 @@ export class NodePool {
   /**
    * @param {{ urls: string[], intervalMs?: number, tolerance?: number,
    *   onActiveChange?: (active: PoolNode | null, previous: PoolNode | null) => void,
+   *   onPeers?: (node: PoolNode, peerless: boolean, detail: { network: string, topoheight: number, peerlessSince: string }) => void,
    *   logger?: Pick<Console, "info" | "warn"> }} options
+   *   onPeers: one of our own nodes (not the fallback) has had no peers for a while on mainnet or testnet, or has them back.
    */
-  constructor({ urls, intervalMs = 5_000, tolerance = 16, onActiveChange = () => {}, logger = console }) {
+  constructor({ urls, intervalMs = 5_000, tolerance = 16, onActiveChange = () => {}, onPeers = () => {}, logger = console }) {
     if (urls.length === 0) throw new Error("At least one node RPC URL is required");
     this.tolerance = tolerance;
     this.onActiveChange = onActiveChange;
+    this.onPeers = onPeers;
     this.logger = logger;
     this.intervalMs = intervalMs;
     this.nextId = 0;
@@ -60,7 +63,8 @@ export class NodePool {
   createNode(url, fallback) {
     const client = new DaemonClient(url);
     const label = nodeLabel(url);
-    return {
+    /** @type {PoolNode} */
+    const node = {
       id: this.nextId++,
       url,
       label,
@@ -73,8 +77,10 @@ export class NodePool {
         tolerance: this.tolerance,
         logger: this.logger,
         onChange: () => this.select(),
+        onPeers: (peerless, detail) => { if (!fallback) this.onPeers(node, peerless, detail); },
       }),
     };
+    return node;
   }
 
   /** Add a fallback node at the end of the list and start checking it. @param {string} url */

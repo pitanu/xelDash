@@ -22,7 +22,11 @@ function ServiceTile({ label, children, detail }) {
 /** @param {any} node */
 function syncState(node) {
   if (!node || node.peers === null) return { level: /** @type {const} */ ("unknown"), label: "Unknown" };
-  if (node.peers === 0) return { level: /** @type {const} */ ("warning"), label: "No peers" };
+  if (node.peers === 0) {
+    // A private devnet has no other nodes to find; on mainnet and testnet no peers means found blocks reach no one.
+    const shared = node.network === "mainnet" || node.network === "testnet";
+    return shared ? { level: /** @type {const} */ ("warning"), label: "No peers" } : { level: /** @type {const} */ ("info"), label: "No peers (devnet)" };
+  }
   if (node.syncing) return { level: /** @type {const} */ ("warning"), label: "Syncing" };
   return { level: /** @type {const} */ ("good"), label: "In sync" };
 }
@@ -99,7 +103,8 @@ export default function Health() {
             : <HealthBadge level={s.services.daemon.ok ? "good" : "critical"} label={s.services.daemon.ok ? "Running" : "Not responding"} />)}
         </ServiceTile>
         <ServiceTile label="Network sync"
-          detail={sync.label === "No peers" ? "Found blocks cannot reach other nodes" : sync.label === "Syncing" ? `At ${formatInteger(node.topoheight)} of ${formatInteger(node.networkTopoheight)}` : undefined}>
+          detail={sync.label === "No peers" ? "Found blocks cannot reach other nodes" : sync.label === "No peers (devnet)" ? "Normal on a private devnet"
+            : sync.label === "Syncing" ? `At ${formatInteger(node.topoheight)} of ${formatInteger(node.networkTopoheight)}` : undefined}>
           {s && <HealthBadge level={sync.level} label={sync.label} />}
         </ServiceTile>
         <ServiceTile label="Stratum"

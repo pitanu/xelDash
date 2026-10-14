@@ -86,7 +86,7 @@ if (ingestUrl && clusterSecret.length < 16) throw new Error("STRATUM_INGEST_URL 
 const pool = ingestUrl ? null : createPool();
 // One or more XELIS nodes, in priority order (XELIS_RPC_URLS). Work comes from the first one
 // that is in sync; see node-pool.js.
-const nodes = new NodePool({ urls: rpcUrlsFromEnv(process.env), onActiveChange: handleActiveChange });
+const nodes = new NodePool({ urls: rpcUrlsFromEnv(process.env), onActiveChange: handleActiveChange, onPeers: handleNodePeers });
 // Everything recorded goes through the store, which keeps a journal file while the database cannot be
 // reached, so mining never waits for it (see store.js). The journal lives on its own volume.
 // A standby mines to the address the main server mines to when a rig sends none. The main server says which in its readiness
@@ -423,6 +423,14 @@ function handleConnection(socket) {
 // it. When no node is ready, every miner is disconnected so it retries (or fails over to a
 // backup pool) instead of hashing on an old chain, and logins are refused until one recovers.
 let nodesStarted = false;
+/**
+ * One of our nodes has had no peers for a while (mainnet or testnet), or has them again: recorded, for the alerts and the events.
+ * @param {import("./node-pool.js").PoolNode} node @param {boolean} peerless @param {Record<string, unknown>} detail
+ */
+function handleNodePeers(node, peerless, detail) {
+  store.recordServiceEvent(peerless ? "node_no_peers" : "node_peers_back", { node: node.label, ...detail })
+    .catch((error) => console.warn("Failed to record node peers:", error instanceof Error ? error.message : String(error)));
+}
 /**
  * @param {import("./node-pool.js").PoolNode | null} active
  * @param {import("./node-pool.js").PoolNode | null} previous

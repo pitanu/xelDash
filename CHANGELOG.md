@@ -9,6 +9,11 @@ breaking changes; they are marked **Breaking**.
 
 ### Operations
 
+- A new alert, `node_peers`: one of your nodes has had no peers for two minutes, and again when it has them back. Such a node
+  cannot tell whether it is behind, and a block found on it would reach no one (seen right after a restart, when both nodes
+  briefly had none). Mainnet and testnet only; on a private devnet the Health page now shows no peers as normal instead of a
+  warning. Mining is not paused for it. It is on by default; if you picked your alerts on the Settings page before, tick it there.
+
 - Updates no longer restart both nodes at once. With two nodes, `xeldash update` (and `xeldash start`) updates everything else
   first, then the nodes one at a time, the second only once the first has caught up, so mining does not pause; tested with a
   simulated release on both launchers, with a node always healthy. Before, every update restarted every service, both nodes

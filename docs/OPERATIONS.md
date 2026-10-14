@@ -24,6 +24,9 @@ Events:
 
 - `block_found`: a block candidate was accepted by the node.
 - `block_rejected`: the node refused a block candidate.
+- `node_peers`: one of your nodes has had no peers for two minutes (mainnet and testnet only; a private devnet has
+  none to find), and again when it has peers back. Such a node cannot tell whether it is behind, and a block found on it
+  would reach no one. Mining is not paused for it.
 - `disk_low`: the disk the nodes use has less free space than `XELDASH_DISK_WARN_GB` (default 20 GB), or
   less than 5 GB. Sizes are counted the way Windows Explorer, Finder and `df` count them. Under Docker Desktop
   the nodes' data sits in a virtual disk that reports its own size, so xelDash also reads the free space of your
