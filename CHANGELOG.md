@@ -7,6 +7,31 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-15
+
+Shares written in batches and counted instead of stored one by one, updates that keep mining with two nodes, a dashboard and
+health checks that use far less processor time, and an alert for a node without peers. Includes a database migration (009); see
+Mining below for what it changes and how to go back.
+
+### Mining
+
+- While the database cannot be reached, Stratum keeps answering shares quickly at a high share rate. Each share was written to the
+  journal file in turn, behind the share hashes, and its answer waited for that: on a 4-core computer the time to answer grew to 4 s at
+  800 shares a second, with late shares counted stale. Shares that arrive together are now written together; the same test answers in
+  12 ms. See docs/REQUIREMENTS.md.
+- Shares are written to the database in batches (every 200 ms or 500 shares, one statement each) instead of one transaction each,
+  and a miner's answer no longer waits for the database. At 2,000 shares a second the database used 0.12 of a core instead of 1.6,
+  and the slowest 5% of answers came in 2 ms instead of 22. See docs/REQUIREMENTS.md.
+- Shares are no longer stored one by one. They are counted in the per-minute stats as before, and rejected ones by reason in a new
+  per-minute table, which the worker page's "Rejected shares by reason" reads. The upgrade (migration 009) counts the rejected shares
+  still on record, so the last day stays visible. The old `shares` table is left in place, so going back to 0.2.x still works:
+  nothing writes to it, and retention empties it within `RETENTION_RAW_SHARE_DAYS` (7 days, 1 on a public server).
+- After a database outage, the shares kept meanwhile are recorded in batches as well: about 56,000 a second instead of 540. A
+  standby server's batches are recorded the same way. Before, a busy server (more than about 540 shares a second) could fall further behind while catching up,
+  since new shares wait in the journal until it is empty.
+- Duplicate shares are caught by their connection, from the work each accepted share proved. The same nonce sent under a job id
+  reissued at a new difficulty (the same work) was counted twice before; it is now a duplicate.
+
 ### Operations
 
 - A new alert, `node_peers`: one of your nodes has had no peers for two minutes, and again when it has them back. Such a node
@@ -29,24 +54,11 @@ breaking changes; they are marked **Breaking**.
   setup guide until setup is done, the cluster banner on a server in a cluster, and the offline notice once a check fails (every
   30 s otherwise, and at once when the live connection drops).
 
-### Mining
+### Development
 
-- While the database cannot be reached, Stratum keeps answering shares quickly at a high share rate. Each share was written to the
-  journal file in turn, behind the share hashes, and its answer waited for that: on a 4-core computer the time to answer grew to 4 s at
-  800 shares a second, with late shares counted stale. Shares that arrive together are now written together; the same test answers in
-  12 ms. See docs/REQUIREMENTS.md.
-- Shares are written to the database in batches (every 200 ms or 500 shares, one statement each) instead of one transaction each,
-  and a miner's answer no longer waits for the database. At 2,000 shares a second the database used 0.12 of a core instead of 1.6,
-  and the slowest 5% of answers came in 2 ms instead of 22. See docs/REQUIREMENTS.md.
-- Shares are no longer stored one by one. They are counted in the per-minute stats as before, and rejected ones by reason in a new
-  per-minute table, which the worker page's "Rejected shares by reason" reads. The upgrade (migration 009) counts the rejected shares
-  still on record, so the last day stays visible. The old `shares` table is left in place, so going back to 0.2.x still works:
-  nothing writes to it, and retention empties it within `RETENTION_RAW_SHARE_DAYS` (7 days, 1 on a public server).
-- After a database outage, the shares kept meanwhile are recorded in batches as well: about 56,000 a second instead of 540. A
-  standby server's batches are recorded the same way. Before, a busy server (more than about 540 shares a second) could fall further behind while catching up,
-  since new shares wait in the journal until it is empty.
-- Duplicate shares are caught by their connection, from the work each accepted share proved. The same nonce sent under a job id
-  reissued at a new difficulty (the same work) was counted twice before; it is now a duplicate.
+- Releases wait for the end-to-end check on a devnet and for the dashboard's typecheck, build and component tests before any
+  image is published.
+- The dashboard is typechecked in CI (`npm run typecheck` in `web/`), and its tests pass whatever the computer's language.
 
 ## [0.2.0] - 2026-10-13
 
