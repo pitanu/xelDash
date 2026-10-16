@@ -7,6 +7,10 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-16
+
+Prometheus metrics from Stratum, opt in and naming no miner.
+
 ### Operations
 
 - Prometheus metrics from Stratum, for Grafana or any other monitoring, off by default: add `metrics` to `COMPOSE_PROFILES`. Shares
