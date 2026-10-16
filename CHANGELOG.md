@@ -7,6 +7,10 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-16
+
+Updates no longer fail when the database is slow to start.
+
 ### Fixed
 
 - An update could fail with "xelDash could not start" because the database migration ran before PostgreSQL accepted connections

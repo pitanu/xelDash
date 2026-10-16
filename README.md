@@ -243,7 +243,7 @@ users. [Connecting miners](docs/MINERS.md) has the settings for each kind of min
 
 ## Status
 
-xelDash 0.4.0 is an early release: 0.1.0 was the first public one, 0.2.0 added public mode, a server anyone may solo mine on, 0.3.0
+xelDash 0.4.1 is an early release: 0.1.0 was the first public one, 0.2.0 added public mode, a server anyone may solo mine on, 0.3.0
 records shares in batches, updates without a pause in mining when two nodes run, and uses far less processor time, and 0.4.0 adds
 optional Prometheus metrics. It has been run on XELIS mainnet with two nodes, failover, rolling and scheduled
 upgrades, and a GPU mining through it, and it has an automated test suite (`npm test`, run in CI). Some of it has only been
