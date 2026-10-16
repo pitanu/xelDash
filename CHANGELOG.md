@@ -7,6 +7,12 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Fixed
+
+- An update could fail with "xelDash could not start" because the database migration ran before PostgreSQL accepted connections
+  (seen on a user's server; `xeldash start` afterwards worked). The migration now waits for the database, up to 90 seconds, and says
+  so in its log; a wrong password or another real error still fails at once.
+
 ## [0.4.0] - 2026-10-16
 
 Prometheus metrics from Stratum, opt in and naming no miner.

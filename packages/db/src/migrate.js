@@ -2,6 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+import { connectWhenReady } from "./wait-for-database.js";
 
 const { Client } = pg;
 const here = dirname(fileURLToPath(import.meta.url));
@@ -12,8 +13,8 @@ if (!databaseUrl && !process.env.PGHOST) {
   throw new Error("Set DATABASE_URL or PGHOST/PGDATABASE/PGUSER/PGPASSWORD to run migrations");
 }
 
-const client = new Client(databaseUrl ? { connectionString: databaseUrl } : {});
-await client.connect();
+// Waits out a database that is still starting (see wait-for-database.js); a real error still fails at once.
+const client = await connectWhenReady(() => new Client(databaseUrl ? { connectionString: databaseUrl } : {}));
 
 try {
   await client.query("SELECT pg_advisory_lock($1)", [74011233]);
