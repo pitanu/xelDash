@@ -37,9 +37,10 @@ Stratum and the API read it: the dashboard's switches (official node fallback, a
 scheduled upgrade), the mining address and the alert settings. Stratum can add the XELIS team's
 public node as a last-resort work source when the fallback is on.
 
-Containers sit on three Compose networks: `edge` (dashboard and proxy), `node` (the daemons) and
-`data`, which is internal (no route out). Only the API, Stratum, node-admin and the migration and
-backup jobs join `data`, so the database is unreachable from the web container and from outside.
+Containers sit on four Compose networks: `edge` (dashboard and proxy), `node` (the daemons),
+`data`, which is internal (no route out), and `metrics` (Stratum and the optional metrics forwarder only).
+Only the API, Stratum, node-admin and the migration and backup jobs join `data`, so the database is
+unreachable from the web container and from outside.
 node-admin also mounts `docker/hostdisk` read-only, only to read the free space of the computer's drive.
 
 | Service      | Responsibility | Exposed to host? |
@@ -55,6 +56,7 @@ node-admin also mounts `docker/hostdisk` read-only, only to read the free space 
 | `node-admin` | For each local node: settings, snapshots and copies, stop and start, version switches (now, at a height, or automatic); the fallback switch, the mining address and the alert settings (admin token) | No |
 | `postgres`, `migrate` | Storage and one-shot schema migrations | No |
 | `backup`     | Optional daily database dumps (profile `backup`) | No |
+| `metrics`    | Optional (profile `metrics`): forwards Stratum's Prometheus metrics port, so Stratum publishes nothing itself | Loopback by default |
 | `keepalived` | Cluster only (Linux): holds the shared address of a two-server cluster, on host networking | Host network |
 | `web` (standby) | Cluster only: the second server's page, which proxies to the main dashboard or shows an offline page | LAN |
 

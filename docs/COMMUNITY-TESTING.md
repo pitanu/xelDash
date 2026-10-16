@@ -144,6 +144,8 @@ Tested with a local stand-in for GitHub (`npm test`); not yet with real releases
       version; `.env`, backups and mining are kept. Then `xeldash update` again says you already have the newest.
 - [ ] A pre-release install (`-rc`) moves on to the next pre-release, and to the final release when it comes; a final release install ignores pre-releases.
 - [ ] On Windows too (the same flow; `xeldash.cmd` is not replaced while it runs).
+- [ ] With two nodes (`COMPOSE_PROFILES=redundant`): `xeldash update` updates daemon2, waits for it to catch up, then daemon, and the
+      rigs keep mining throughout (Stratum's own restart only makes them reconnect). Tested on Windows; not yet on Linux or macOS.
 
 ## 10. Front door (needs a Linux computer with Docker Engine, and the main server on the same network; Windows is the interesting case)
 
@@ -200,6 +202,18 @@ certificate that appears or is renewed without a restart. Not tested with a real
       still shows no IP addresses.
 - [ ] After a few days: the database's size (`docker compose exec postgres du -sh /var/lib/postgresql/data`) and the disk used by
       container logs stay level.
+
+## 14. Metrics (Prometheus, Grafana)
+
+Tested with a scrape through the published port during the capacity test; not yet with a real Prometheus or Grafana.
+
+- [ ] Add `metrics` to `COMPOSE_PROFILES`, restart, and scrape `http://127.0.0.1:9464/metrics` with Prometheus (the job in
+      [Operations](OPERATIONS.md#metrics)). Hashrate from `rate(xeldash_share_difficulty_total[5m])` matches the dashboard.
+- [ ] Stop the database for a minute: `xeldash_store_online` drops to 0 and `xeldash_store_journal_records` grows, then both recover.
+- [ ] With `XELDASH_METRICS_TOKEN` set, a scrape without it is refused (401) and one with it works.
+- [ ] A public server with the port on `0.0.0.0` and no token: every scrape is refused (503) and Stratum's log says why. With a
+      token it works, and the answer names no miner even with `XELDASH_METRICS_PER_WORKER=on`.
+- [ ] A Grafana dashboard you made for it: share it (an issue or a pull request), and it can ship with xelDash.
 
 ## Known limits (not bugs)
 

@@ -7,7 +7,7 @@
 | [System requirements](REQUIREMENTS.md) | Disk, memory, processor, network and operating systems: minimum and recommended, with what was measured |
 | [Getting started](GETTING-STARTED.md) | From nothing to mining, for complete beginners: Docker, the installer, your wallet address, the setup guide |
 | [Connecting miners](MINERS.md) | Pool URLs, difficulty, tested miners |
-| [Operations](OPERATIONS.md) | A public server anyone may mine on ([public mode](OPERATIONS.md#public-mode)), alerts, backups and restores, what happens when the database goes down, HTTPS and login, node settings, snapshots, two-server redundancy, the front door, redundant nodes, daemon upgrades, the official node fallback |
+| [Operations](OPERATIONS.md) | A public server anyone may mine on ([public mode](OPERATIONS.md#public-mode)), alerts, metrics for Prometheus and Grafana, backups and restores, what happens when the database goes down, HTTPS and login, node settings, snapshots, two-server redundancy, the front door, redundant nodes, daemon upgrades, the official node fallback |
 | [Security](SECURITY.md) | What is protected, what the admin token can do, remaining risks |
 | [Devnet](DEVNET.md) | Trying xelDash without real coins, and how the mining path is verified |
 
@@ -22,7 +22,7 @@
 
 | README | Covers |
 |--------|--------|
-| [Stratum](../services/stratum/README.md) | Mining protocol, shared work, shares, difficulty, node failover, limits, public mode, the journal, standby mode |
+| [Stratum](../services/stratum/README.md) | Mining protocol, shared work, shares, difficulty, node failover, limits, public mode, the journal, standby mode, metrics |
 | [API](../services/api/README.md) | Statistics, effort and luck, status, price, alerts, ingest, updates, the public view |
 | [Node admin](../services/node-admin/README.md) | Endpoints for node settings, snapshots, control and versions |
 | [Daemon image](../docker/daemon/README.md) | The node container and its supervisor |

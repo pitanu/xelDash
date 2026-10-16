@@ -80,9 +80,9 @@ Leave it unset if you do not need these features.
   with Docker Engine the real address is visible and the allowlist is enforced by xelDash itself.
   Per-address limits are switched off for Docker's gateway address, because every computer
   would share it.
-- **The database is unreachable from outside.** Containers sit on three networks: `edge`
-  (dashboard and proxy), `node` (daemons) and `data`, which is internal (no route to the
-  host or the internet). Only the API, Stratum, node-admin, and the migration and backup jobs join `data`;
+- **The database is unreachable from outside.** Containers sit on four networks: `edge`
+  (dashboard and proxy), `node` (daemons), `data`, which is internal (no route to the
+  host or the internet), and `metrics` (Stratum and the optional metrics forwarder only). Only the API, Stratum, node-admin, and the migration and backup jobs join `data`;
   the web container cannot reach PostgreSQL, and PostgreSQL publishes no port.
 - **Alerts** do not let worker names trigger Discord mentions such as `@everyone`.
 - **Public mode** (`XELDASH_PUBLIC_MODE`, for a server open to the internet): the API removes every IP-address field from what

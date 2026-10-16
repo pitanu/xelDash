@@ -131,7 +131,10 @@ holds no funds, ever.
 
 - **Alerts** to Discord, Telegram or any webhook, set up on the Settings page with a test
   message: blocks found, side blocks and final blocks, mining paused or resumed, workers
-  offline, and node updates started, finished or failed.
+  offline, node updates started, finished or failed, low disk space, a node that has lost its peers, and failovers between
+  two servers.
+- **Metrics** for Prometheus and Grafana, off unless you turn them on: shares, hashrate, answer times, blocks, the database
+  path and every node's state. Totals only, naming no miner. See [Operations](docs/OPERATIONS.md#metrics).
 - **Connection help:** when a miner cannot connect (wrong address, wrong network, not on your
   network), the dashboard says why and what to change.
 - **Events** for everything that happens to your nodes, on the dashboard.
