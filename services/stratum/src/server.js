@@ -23,6 +23,8 @@ import { LineFramer } from "./line-framer.js";
 import { StratumSession } from "./session.js";
 import { tlsConfigFromEnv, watchTlsCertificate } from "./tls-config.js";
 import { createShareSubmitter } from "./share-submitter.js";
+import { Metrics, collectProcessMetrics, metricsConfigFromEnv, noMetrics, startMetricsServer } from "./metrics.js";
+import { STRATUM_ERRORS } from "./protocol.js";
 import { vardiffConfigFromEnv } from "./vardiff.js";
 
 const host = process.env.STRATUM_HOST ?? "0.0.0.0";
@@ -120,11 +122,18 @@ function followMainAddress(body) {
 }
 const journalMegabytes = Number(process.env.STRATUM_JOURNAL_MAX_MB ?? 200);
 const instanceName = process.env.STRATUM_INSTANCE || process.env.XELDASH_SERVER_NAME || (await import("node:os")).hostname();
+// Prometheus metrics, off unless asked for (docs/OPERATIONS.md#metrics): then every recorder is a no-op and nothing listens.
+const metricsConfig = metricsConfigFromEnv(process.env);
+const metrics = metricsConfig.enabled ? new Metrics() : noMetrics;
+const LATENCY_BUCKETS = [0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5];
+const batchSeconds = metrics.histogram("xeldash_share_batch_seconds", "Time to write one batch of shares to the database.", LATENCY_BUCKETS);
+const batchShares = metrics.counter("xeldash_shares_written_total", "Shares written to the database (in batches).");
 const store = new DurableStore({
   pool,
   remote: ingestUrl ? { url: ingestUrl, secret: clusterSecret, instance: instanceName, onPing: followMainAddress } : null,
   dir: process.env.STRATUM_JOURNAL_DIR || null,
   ...(Number.isFinite(journalMegabytes) && journalMegabytes > 0 ? { maxBytes: journalMegabytes * 1048576 } : {}),
+  ...(metrics.enabled ? { onBatch: (/** @type {number} */ seconds, /** @type {number} */ count) => { batchSeconds.observe(seconds); batchShares.inc(undefined, count); } } : {}),
 });
 await store.init();
 // Limits for a public server (docs/OPERATIONS.md#public-mode). Each follows public mode (which a standby can learn while running)
@@ -174,7 +183,39 @@ const authorizeAddress = createWorkerAuthorizer({ daemon: nodes, store, budget: 
 const jobProvider = new MiningJobProvider({ nodes, beforeNodeCall: () => nodeBudget.take() });
 // A block one of our rigs found is the new tip as soon as the node accepts it: new work for every rig right away (the node's
 // new_block event for it follows, and is announced only once).
-const submitShare = createShareSubmitter({ daemon: nodes, store, onBlockAccepted: (block) => handleNewBlock(block) });
+const checkShare = createShareSubmitter({ daemon: nodes, store, onBlockAccepted: (block) => handleNewBlock(block) });
+const sharesTotal = metrics.counter("xeldash_shares_total", "Shares by result: accepted, low_difficulty, duplicate, stale, error.");
+const shareDifficulty = metrics.counter("xeldash_share_difficulty_total",
+  "Sum of the difficulty of accepted shares; its rate per second is the hashrate the shares prove.");
+const shareSeconds = metrics.histogram("xeldash_share_seconds", "Time to check a share (its hash) and record it, until the answer.", LATENCY_BUCKETS);
+const blocksTotal = metrics.counter("xeldash_blocks_total", "Blocks found and submitted to the node, by result: accepted or rejected.");
+const workerShares = metrics.counter("xeldash_worker_shares_total", "Shares by worker and result (XELDASH_METRICS_PER_WORKER).", { perWorker: true });
+const workerDifficulty = metrics.counter("xeldash_worker_difficulty_total", "Accepted share difficulty by worker (XELDASH_METRICS_PER_WORKER).", { perWorker: true });
+/**
+ * A share's outcome, for the metrics.
+ * @param {string} result @param {{ address: string }} worker @param {string} workerName @param {number} [difficulty]
+ */
+function countShare(result, worker, workerName, difficulty) {
+  sharesTotal.inc({ result });
+  if (metricsConfig.perWorker) workerShares.inc({ address: worker.address, worker: workerName, result });
+  if (result === "accepted" && difficulty) {
+    shareDifficulty.inc(undefined, difficulty);
+    if (metricsConfig.perWorker) workerDifficulty.inc({ address: worker.address, worker: workerName }, difficulty);
+  }
+}
+/** @type {typeof checkShare} */
+const submitShare = metrics.enabled
+  ? async (input) => {
+    const started = performance.now();
+    const result = await checkShare(input);
+    shareSeconds.observe((performance.now() - started) / 1000);
+    const code = result.error?.code;
+    countShare(result.accepted ? "accepted" : code === STRATUM_ERRORS.LOW_DIFFICULTY ? "low_difficulty"
+      : code === STRATUM_ERRORS.DUPLICATE_SHARE ? "duplicate" : "error", input.worker, input.workerName, Number(input.job.shareDifficulty));
+    if (result.block) blocksTotal.inc({ result: result.block.accepted ? "accepted" : "rejected" });
+    return result;
+  }
+  : checkShare;
 /** @type {Map<{ remoteAddress?: string, destroy: () => void }, StratumSession>} */
 const sessions = new Map();
 // Why a connection or login was turned away, recorded for the dashboard's connection help. The
@@ -335,6 +376,7 @@ function newSession(socket, ip, onAuthorized = () => {}) {
     onSubmission: (valid) => ipGuard.record(ip, valid),
     staleGraceMs,
     onStale: ({ worker, workerName, jobId, nonce, difficulty }) => {
+      countShare("stale", worker, workerName);
       store.recordShare({ workerId: worker.workerId, jobId, nonce, difficulty: String(difficulty), accepted: false, rejectReason: "stale" }, { address: worker.address, name: workerName })
         .catch((error) => console.warn("Failed to record a stale share:", error instanceof Error ? error.message : String(error)));
     },
@@ -565,6 +607,40 @@ const health = startHealthServer({
   },
 });
 
+// What the metrics read when they are asked for, so the hot paths keep nothing extra. Node labels are the node names
+// (daemon, daemon2, the fallback's host), never miners.
+/** @typedef {import("./metrics.js").Family} Family */
+if (metrics.enabled) {
+  collectProcessMetrics(/** @type {Metrics} */ (metrics));
+  metrics.collect(() => {
+    let workers = 0;
+    for (const session of sessions.values()) workers += session.authorizedWorkers.size;
+    const journal = store.status();
+    /** @param {string} name @param {string} help @param {number} value @param {"gauge" | "counter"} [type] @returns {Family} */
+    const one = (name, help, value, type = "gauge") => ({ name, help, type, samples: [{ value }] });
+    /** @param {string} name @param {string} help @param {(node: import("./node-pool.js").PoolNode) => number} value @returns {Family} */
+    const perNode = (name, help, value) => ({ name, help, type: "gauge", samples: nodes.nodes.map((node) => ({ labels: { node: node.label }, value: value(node) })) });
+    return [
+      one("xeldash_connections", "Miner connections open now (Stratum, Stratum over TLS and getwork).", sessions.size),
+      one("xeldash_workers", "Workers logged in on those connections.", workers),
+      one("xeldash_public_mode", "1 while public mode is on.", isPublic() ? 1 : 0),
+      one("xeldash_ip_bans", "IP addresses banned now.", ipGuard.bans.size),
+      one("xeldash_store_online", "1 while records go straight to the database; 0 while they are kept in the journal.", journal.online ? 1 : 0),
+      one("xeldash_store_queued_shares", "Shares waiting for the next batch write.", journal.queued),
+      one("xeldash_store_journal_records", "Records kept in the journal, waiting for the database (or the main server).", journal.pending),
+      one("xeldash_store_dropped_total", "Records dropped because the journal was full, or the database did not keep up.", journal.dropped, "counter"),
+      perNode("xeldash_node_ready", "1 while the node is in sync and can give work.", (node) => (node.monitor.ready ? 1 : 0)),
+      perNode("xeldash_node_active", "1 for the node mining runs through now.", (node) => (nodes.active === node ? 1 : 0)),
+      perNode("xeldash_node_fallback", "1 for the official public node used as a fallback.", (node) => (node.fallback ? 1 : 0)),
+      perNode("xeldash_node_topoheight", "The node's topoheight.", (node) => Number(node.monitor.detail.topoheight ?? NaN)),
+      perNode("xeldash_node_peers", "The node's peers.", (node) => Number(node.monitor.detail.peers ?? NaN)),
+    ];
+  });
+}
+const metricsServer = metrics.enabled
+  ? startMetricsServer({ metrics: /** @type {Metrics} */ (metrics), config: metricsConfig, isPublic })
+  : null;
+
 let shuttingDown = false;
 async function shutdown() {
   if (shuttingDown) return;
@@ -579,6 +655,7 @@ async function shutdown() {
     tlsServer ? new Promise((resolve) => /** @type {import("node:tls").Server} */ (tlsServer).close(resolve)) : null,
     getwork?.close(),
     health.close(),
+    metricsServer?.close(),
     store.stop(),
   ]);
   for (const [socket, session] of sessions) {

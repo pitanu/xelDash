@@ -7,6 +7,16 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Operations
+
+- Prometheus metrics from Stratum, for Grafana or any other monitoring, off by default: add `metrics` to `COMPOSE_PROFILES`. Shares
+  by result and the hashrate they prove, answer times, blocks, the share queue and journal, each node's state, height and peers,
+  bans, and Stratum's own processor time and memory. Totals only, naming no miner; per-worker metrics are their own choice
+  (`XELDASH_METRICS_PER_WORKER`) and never served in public mode. The port is on 127.0.0.1 unless you choose otherwise, can require
+  a token, and on a public server published beyond this computer without one, every scrape is refused. Off, nothing listens and
+  nothing is counted; on, the capacity test at up to 2,000 shares a second showed no difference in answer times or processor use.
+  See docs/OPERATIONS.md#metrics.
+
 ## [0.3.0] - 2026-10-15
 
 Shares written in batches and counted instead of stored one by one, updates that keep mining with two nodes, a dashboard and

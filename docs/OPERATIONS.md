@@ -59,6 +59,49 @@ and the next message says how many.
 The API log lists the enabled channels at startup ("Alerts enabled: ..."). Failed deliveries
 are logged and not retried.
 
+## Metrics
+
+Stratum can serve [Prometheus](https://prometheus.io/) metrics, for Grafana or whatever you already monitor with. They are
+**off by default**: then nothing listens and nothing is counted, so a server that does not use them pays nothing. To turn them on,
+add `metrics` to `COMPOSE_PROFILES` in `.env` (for example `COMPOSE_PROFILES=redundant,metrics`) and restart
+(`xeldash start`). The profile starts a small forwarder that publishes Stratum's metrics port on this computer:
+`http://127.0.0.1:9464/metrics`.
+
+| Setting | Default | |
+|---|---|---|
+| `XELDASH_METRICS_BIND_IP` | `127.0.0.1` | Where the port is published. `0.0.0.0` lets another machine scrape it |
+| `XELDASH_METRICS_PORT` | `9464` | The port on this computer |
+| `XELDASH_METRICS_TOKEN` | empty | If set (16 characters or more), a scrape must send it: `Authorization: Bearer <token>` |
+| `XELDASH_METRICS_PER_WORKER` | off | `on` adds shares and difficulty per worker, named by address and worker (not in public mode) |
+
+What they show: miner connections and logged-in workers; shares by result (accepted, low difficulty, duplicate, stale) and the sum
+of accepted difficulty, whose rate per second is the hashrate the shares prove; how long a share takes to check and record; blocks
+found; the share queue, batch writes and the journal (`xeldash_store_*`, so a database outage shows); each node's state, height
+and peers (`xeldash_node_*`); bans; and Stratum's own processor time, memory and event-loop delay.
+
+**Nobody is named by default.** The metrics are totals: no address, worker name or IP address is a label. Per-worker metrics are
+their own choice, for a home server, and are never served while public mode is on, whatever `.env` says.
+
+**Public mode.** Keep the port on `127.0.0.1` and scrape it from this computer, or through an SSH tunnel. If you publish it
+beyond this computer (`XELDASH_METRICS_BIND_IP`) on a public server, set `XELDASH_METRICS_TOKEN` as well: without it Stratum
+refuses every scrape (HTTP 503) and says why in its log.
+
+A Prometheus job for it:
+
+```yaml
+scrape_configs:
+  - job_name: xeldash
+    static_configs:
+      - targets: ["127.0.0.1:9464"]
+    # With XELDASH_METRICS_TOKEN:
+    # authorization:
+    #   credentials: <the token>
+```
+
+Useful queries: `rate(xeldash_share_difficulty_total[5m])` (hashrate), `rate(xeldash_shares_total[5m])` by `result`,
+`histogram_quantile(0.99, rate(xeldash_share_seconds_bucket[5m]))` (the slowest answers), `xeldash_store_online` and
+`xeldash_node_peers`.
+
 Backups, restores and upgrades for a running xelDash stack. Commands run from the repository
 directory. The PostgreSQL database holds everything xelDash knows about your miners, shares
 and blocks. The daemon's chain data is in the `xelis-data` volume and can always be synced

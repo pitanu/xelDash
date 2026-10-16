@@ -26,6 +26,10 @@ Leave it unset if you do not need these features.
 - **Nothing sensitive is published.** Daemon RPC, PostgreSQL and node-admin are only on the
   internal Compose network. The dashboard, API and Stratum bind to `127.0.0.1` unless you set
   a LAN address.
+- **Metrics name nobody, and stay off unless asked for.** Stratum's Prometheus metrics (the `metrics` profile) are totals: no
+  address, worker name or IP address is a label. Per-worker metrics are a separate choice and are never served in public mode.
+  Their port is on `127.0.0.1` by default, can require a token, and on a public server published beyond this computer without
+  one, every scrape is refused. They are served by Stratum on its own port, never through the dashboard or the API.
 - **Stratum and getwork abuse limits.** Per IP: 64 connections, 20 messages per second per
   connection, and a 15-minute ban after 50 or more invalid submissions or failed logins in 5 minutes, when over half of that
   client's submissions in that time were invalid.

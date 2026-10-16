@@ -73,13 +73,14 @@ export class DurableStore {
   /**
    * @param {{ pool: import("pg").Pool | null, dir?: string | null, db?: typeof defaultDb, maxBytes?: number,
    *   logger?: Pick<Console, "info" | "warn">, probeMs?: number, shareFlushMs?: number, shareBatch?: number,
+   *   onBatch?: (seconds: number, shares: number) => void,
    *   remote?: { url: string, secret: string, instance: string, batch?: number, flushMs?: number, fetch?: typeof fetch,
    *     onPing?: (body: any) => void, pingMs?: number } | null }} options
    *   `dir` null keeps no journal on disk (writes during an outage are dropped, as before).
    *   `remote` sends the journal to another server's ingest endpoint instead of writing to a database.
    */
   constructor({ pool, dir = null, db = defaultDb, maxBytes = DEFAULT_MAX_BYTES, logger = console, probeMs = PROBE_MS, remote = null,
-    shareFlushMs = SHARE_FLUSH_MS, shareBatch = SHARE_BATCH }) {
+    shareFlushMs = SHARE_FLUSH_MS, shareBatch = SHARE_BATCH, onBatch = () => {} }) {
     this.pool = /** @type {import("pg").Pool} */ (pool);
     this.remote = remote;
     this.lastSeq = 0;
@@ -121,6 +122,8 @@ export class DurableStore {
     this.wakeUp = null;
     this.shareFlushMs = shareFlushMs;
     this.shareBatch = shareBatch;
+    /** Told how long each batch of shares took to write to the database (for the metrics). */
+    this.onBatch = onBatch;
     /** Shares waiting to be written to the database together. @type {{ share: QueuedShare, key: WorkerKey }[]} */
     this.shareQueue = [];
     /** @type {ReturnType<typeof setTimeout> | null} */
@@ -293,7 +296,9 @@ export class DurableStore {
     if (batch.length === 0) return;
     if (this.online) {
       try {
+        const started = performance.now();
         await this.db.recordShares(this.pool, batch.map(({ share }) => share));
+        this.onBatch((performance.now() - started) / 1000, batch.length);
         return;
       } catch (error) {
         if (!isConnectionError(error)) {

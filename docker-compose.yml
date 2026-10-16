@@ -278,6 +278,13 @@ services:
       STRATUM_PROXY_FROM: ${STRATUM_PROXY_FROM:-}
       # Public mode: every miner must log in with its own address; the default address is not used.
       XELDASH_PUBLIC_MODE: ${XELDASH_PUBLIC_MODE:-false}
+      # Prometheus metrics (docs/OPERATIONS.md#metrics): on with the `metrics` profile (or XELDASH_METRICS=on), and published by the
+      # profile's forwarder. Stratum is told where it is published, so in public mode it can refuse a port open beyond this computer.
+      COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
+      XELDASH_METRICS: ${XELDASH_METRICS:-}
+      XELDASH_METRICS_BIND_IP: ${XELDASH_METRICS_BIND_IP:-127.0.0.1}
+      XELDASH_METRICS_TOKEN: ${XELDASH_METRICS_TOKEN:-}
+      XELDASH_METRICS_PER_WORKER: ${XELDASH_METRICS_PER_WORKER:-}
       STRATUM_HANDSHAKE_TIMEOUT_MS: ${STRATUM_HANDSHAKE_TIMEOUT_MS:-10000}
       STRATUM_MAX_QUEUED_REQUESTS: ${STRATUM_MAX_QUEUED_REQUESTS:-32}
       # Where Stratum keeps records while the database cannot be reached, and replays them when it is back.
@@ -356,6 +363,7 @@ services:
     networks:
       - node
       - data
+      - metrics
 
   web:
     logging: *logging
@@ -517,6 +525,23 @@ services:
     networks:
       - data
 
+  # Prometheus metrics (profile `metrics`, docs/OPERATIONS.md#metrics): publishes Stratum's metrics port on this computer, and only
+  # that. A forwarder, so Stratum publishes nothing and a server without the profile has no port open for it.
+  metrics:
+    logging: *logging
+    image: nginx:1.31-alpine
+    profiles: ["metrics"]
+    restart: unless-stopped
+    command: ["nginx", "-g", "daemon off;"]
+    volumes:
+      - ./docker/metrics/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "${XELDASH_METRICS_BIND_IP:-127.0.0.1}:${XELDASH_METRICS_PORT:-9464}:9464"
+    depends_on:
+      - stratum
+    networks:
+      - metrics
+
 volumes:
   xelis-data:
   xelis-data-2:
@@ -539,3 +564,5 @@ networks:
   node:
   data:
     internal: true
+  # Stratum and the metrics forwarder only. Not internal: Docker publishes no port from a container on internal networks only.
+  metrics:

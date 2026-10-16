@@ -103,6 +103,13 @@ and 503 with the reason otherwise (the cluster's address manager asks it, so the
 cannot mine); `/status` adds the instance, mode (`main` or `standby`), connected rigs and the journal's size, for the
 standby's offline page. It is published on this computer's loopback only, and only when the cluster is set up.
 
+**Metrics** (`src/metrics.js`). Prometheus metrics on port 9464, off unless the `metrics` Compose profile (or
+`XELDASH_METRICS=on`) turns them on; then a forwarder container publishes the port. Off, every recorder is a no-op and nothing
+listens. Totals only (shares by result, accepted difficulty, answer times, blocks, the store's queue and journal, node state,
+bans, the process), read when scraped where the numbers already exist; per-worker counters are a separate opt-in, never served
+in public mode. A token can be required, and is required in public mode for a port published beyond this computer. See
+docs/OPERATIONS.md#metrics.
+
 **Retention.** Per-minute stats and reject reasons are kept 90 days, and events and bans a year; hourly
 rollups and blocks are kept. Shares are not stored one by one (raw shares an older version left are cleared after
 `RETENTION_RAW_SHARE_DAYS`). Workers that never had a share accepted are deleted after a day unused (`RETENTION_*`).

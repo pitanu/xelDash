@@ -243,6 +243,9 @@ difficulty 1 sending a share a second. Per share, on that processor:
   shares go to the journal until it is empty, so a server receiving more than that could fall further behind instead of catching up.
   Shares in the journal are now recorded in batches too: 50,000 of them in 0.9 s (about 56,000 a second) instead of 92 s, with the
   same counts.
+- **Metrics** (docs/OPERATIONS.md#metrics) cost nothing measurable: the same test with them on, per-worker metrics included, answered
+  in 1.9 / 2.6 ms (typical / slowest 5%) at 2,000 shares a second against 1.9 / 2.7 ms with them off, and Stratum used 3.52 cores
+  against 3.51.
 
 ## Two servers (redundancy)
 
