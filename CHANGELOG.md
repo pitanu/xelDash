@@ -7,6 +7,10 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-18
+
+daemon2 follows each release, alerts in plain text, and a test of updating from the last release.
+
 ### Fixed
 
 - With two nodes, a release install never updated daemon2's container: it was built once, the first time, and kept through every
