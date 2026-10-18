@@ -97,9 +97,9 @@ export class StandbyAlerts {
     const name = typeof payload.server === "string" ? payload.server : this.serverName;
     const address = typeof payload.vip === "string" && !this.publicMode ? ` ${payload.vip}` : "";
     const text = type === "cluster_active"
-      ? `🔀 Failover: the main server is not answering, so the standby server (${name}) now holds the shared address${address}. Your rigs are mining here. The dashboard is offline until the main server returns; nothing is lost.`
+      ? `Failover: the main server is not answering, so the standby server (${name}) now holds the shared address${address}. Your rigs are mining here. The dashboard is offline until the main server returns; nothing is lost.`
       : type === "cluster_fault"
-        ? `🚨 The standby server (${name}) cannot mine, and the main server is not answering. Check both servers.`
+        ? `The standby server (${name}) cannot mine, and the main server is not answering. Check both servers.`
         : null;
     if (!text) return [];
     if (await this.mainReachable()) return [];

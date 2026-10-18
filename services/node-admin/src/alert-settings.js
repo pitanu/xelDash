@@ -146,7 +146,7 @@ export class AlertSettings {
    * @returns {Promise<{ channel: string, ok: boolean, error?: string }[]>}
    */
   async test() {
-    return this.#deliver("✅ xelDash test message. If you can read this, alerts reach you.", "test", null);
+    return this.#deliver("xelDash test message. If you can read this, alerts reach you.", "test", null);
   }
 
   /**

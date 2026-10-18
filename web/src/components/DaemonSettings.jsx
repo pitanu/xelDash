@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatAgo, formatTime } from "../format.js";
 import { nodeQuery } from "../nodes.js";
 import { GUIDE } from "./settings-guide.js";
-import { Card, HealthBadge } from "./ui.jsx";
+import { Card, HealthBadge, LevelIcon } from "./ui.jsx";
 
 const UNCHANGED_SECRET = "__unchanged__";
 const GROUP_ORDER = ["Core", "P2P", "RPC", "GetWork", "Storage", "Logging", "Metrics"];
@@ -281,7 +281,7 @@ export default function DaemonSettings({ token, onUnauthorized, node = "daemon" 
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-sm font-medium text-ink">{e.title}</span>
                           {e.flag in draft && <span className="rounded bg-wash px-1.5 py-0.5 text-xs text-ink-2">Changed</span>}
-                          {s.caution && <span className="text-xs text-serious" title="Changes how the node stores or checks the chain">⚠ Use with care</span>}
+                          {s.caution && <span className="inline-flex items-center gap-1 text-xs text-serious" title="Changes how the node stores or checks the chain"><LevelIcon level="warning" />Use with care</span>}
                         </div>
                         <p className="mt-0.5 text-sm text-ink-2">{e.explain}</p>
                         {e.tip && <p className="mt-1 text-xs text-muted">{e.tip}</p>}
@@ -331,7 +331,7 @@ export default function DaemonSettings({ token, onUnauthorized, node = "daemon" 
                           <div className="flex flex-wrap items-center gap-2">
                             <code className="break-all text-sm text-ink">--{s.flag}</code>
                             {changed && <span className="rounded bg-wash px-1.5 py-0.5 text-xs text-ink-2">Changed</span>}
-                            {s.caution && <span className="text-xs text-serious" title="Changes how the node stores or checks the chain">⚠ Use with care</span>}
+                            {s.caution && <span className="inline-flex items-center gap-1 text-xs text-serious" title="Changes how the node stores or checks the chain"><LevelIcon level="warning" />Use with care</span>}
                           </div>
                           <p className="mt-0.5 text-xs text-ink-2">{firstLine}</p>
                           {s.note && <p className="mt-0.5 text-xs text-serious">{s.note}</p>}

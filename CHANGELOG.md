@@ -7,6 +7,12 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Changed
+
+- Alerts are plain text: they no longer start with an emoji (they already say what happened in words). A webhook that matched on
+  the text should match on its `event` field instead. The dashboard uses its own warning icon where it showed a warning sign, and the block
+  banner no longer has one.
+
 ## [0.4.1] - 2026-10-16
 
 Updates no longer fail when the database is slow to start.

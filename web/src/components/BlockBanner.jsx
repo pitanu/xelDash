@@ -39,7 +39,6 @@ export default function BlockBanner() {
     <div role="status" className="block-banner border-b border-line bg-linear-to-r from-good/15 via-surface to-surface">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2 text-sm text-ink sm:px-6">
         <span>
-          <span aria-hidden="true">⛏️ </span>
           <strong>Block found</strong>
           {block.height && <> at height {url
             ? <a href={url} target="_blank" rel="noopener noreferrer" className="underline decoration-line underline-offset-2">{formatInteger(block.height)}</a>

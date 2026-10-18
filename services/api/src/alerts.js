@@ -252,10 +252,10 @@ export function startAlerts({ pool, config, logger = console }) {
     if (batch.length === 1) {
       const p = batch[0];
       const text = p.status === "main-chain"
-        ? `✅ Block ${p.height} is final on the main chain. Reward: ${formatXel(p.reward, config.coin)}.`
+        ? `Block ${p.height} is final on the main chain. Reward: ${formatXel(p.reward, config.coin)}.`
         : p.status === "side"
-          ? `🟡 Block ${p.height} is final as a side block. Reward: ${formatXel(p.reward, config.coin)}.`
-          : `❌ Block ${p.height} was orphaned; it earns no reward.`;
+          ? `Block ${p.height} is final as a side block. Reward: ${formatXel(p.reward, config.coin)}.`
+          : `Block ${p.height} was orphaned; it earns no reward.`;
       send({ event: "block_final", data: p, text: `${text}${link("/blocks")}` });
       return;
     }
@@ -270,7 +270,7 @@ export function startAlerts({ pool, config, logger = console }) {
     send({
       event: "block_final",
       data: { blocks: batch },
-      text: `✅ ${batch.length} blocks are final (heights ${heights[0]}–${heights.at(-1)}): ${parts.join(", ")}. `
+      text: `${batch.length} blocks are final (heights ${heights[0]}–${heights.at(-1)}): ${parts.join(", ")}. `
         + `Total reward: ${formatXel(reward.toString(), config.coin)}.${link("/blocks")}`,
     });
   }
@@ -286,63 +286,63 @@ export function startAlerts({ pool, config, logger = console }) {
       )).rows[0];
       const who = [p.workerName, block?.address ? shortAddress(block.address) : null].filter(Boolean).join(" · ");
       send({ event: "block_found", data: { ...p, address: block?.address ?? null },
-        text: `⛏️ Block found at height ${p.height}${who ? ` by ${who}` : ""}. Waiting for it to become final.${explorer(p.hash)}${link("/blocks")}` });
+        text: `Block found at height ${p.height}${who ? ` by ${who}` : ""}. Waiting for it to become final.${explorer(p.hash)}${link("/blocks")}` });
     } else if (type === "block_rejected" && config.events.has("block_rejected")) {
       send({ event: "block_rejected", data: p,
-        text: `⚠️ The node rejected a block candidate at height ${p.height}${p.workerName ? ` from ${p.workerName}` : ""}: ${p.error}` });
+        text: `The node rejected a block candidate at height ${p.height}${p.workerName ? ` from ${p.workerName}` : ""}: ${p.error}` });
     } else if (type === "block_side" && config.events.has("block_side")) {
       send({ event: "block_side", data: p,
-        text: `🟡 Your block at height ${p.height} is a side block for now: another block was found at the same height. Side blocks are still paid once they are final, in the amount the node credits.${link("/blocks")}` });
+        text: `Your block at height ${p.height} is a side block for now: another block was found at the same height. Side blocks are still paid once they are final, in the amount the node credits.${link("/blocks")}` });
     } else if (type === "block_final" && config.events.has("block_final")) {
       queueFinal(p);
     } else if ((type === "node_syncing" || type === "node_unreachable") && config.events.has("mining_paused")) {
       send({ event: "mining_paused", data: { ...p, reason: type.replace("node_", "") },
         text: type === "node_syncing"
-          ? `⏸️ Mining paused: the node is syncing (topoheight ${p.topoheight} of ${p.networkTopoheight}). Miners were disconnected and will reconnect when it catches up.`
-          : "⏸️ Mining paused: the node is not responding. Miners were disconnected and will reconnect when it is back." });
+          ? `Mining paused: the node is syncing (topoheight ${p.topoheight} of ${p.networkTopoheight}). Miners were disconnected and will reconnect when it catches up.`
+          : "Mining paused: the node is not responding. Miners were disconnected and will reconnect when it is back." });
     } else if (type === "node_switched" && config.events.has("mining_paused")) {
       // The node mining left is still ready when a higher-priority node recovered (failback).
       const state = p.nodes?.[p.from];
       send({ event: "node_switched", data: p,
         text: state === "ready"
-          ? `🔀 Mining moved back to node ${p.to}, the preferred node. Miners got fresh work.`
-          : `🔀 Mining switched from node ${p.from} to ${p.to}: ${p.from} ${state === "syncing" ? "is syncing" : "is not responding"}. Miners got fresh work and keep mining.` });
+          ? `Mining moved back to node ${p.to}, the preferred node. Miners got fresh work.`
+          : `Mining switched from node ${p.from} to ${p.to}: ${p.from} ${state === "syncing" ? "is syncing" : "is not responding"}. Miners got fresh work and keep mining.` });
     } else if (type.startsWith("node_update_") && config.events.has("node_update")) {
       const version = p.target === "image" ? "the image's version" : p.target;
       const why = TRIGGERS[p.trigger] ?? "";
       send({ event: "node_update", data: { ...p, outcome: type.slice("node_update_".length) },
         text: type === "node_update_started"
-          ? `⬆️ Switching ${p.nodes.join(", then ")} to ${version}${why}, one node at a time.`
+          ? `Switching ${p.nodes.join(", then ")} to ${version}${why}, one node at a time.`
           : type === "node_update_done"
-            ? `✅ ${p.switched?.length ? p.switched.join(" and ") : "The nodes"} now run${p.switched?.length === 1 ? "s" : ""} ${version}${why}.`
-            : `❌ Switching ${p.node} to ${version} failed${why}: ${p.error}. Later nodes were left as they were.${link("/nodes")}` });
+            ? `${p.switched?.length ? p.switched.join(" and ") : "The nodes"} now run${p.switched?.length === 1 ? "s" : ""} ${version}${why}.`
+            : `Switching ${p.node} to ${version} failed${why}: ${p.error}. Later nodes were left as they were.${link("/nodes")}` });
     } else if (type.startsWith("cluster_") && config.events.has("cluster")) {
       const who = p.server ? ` (${p.server})` : "";
       // On a public server the shared address (an address on the operator's network) is left out of the alert.
       const shared = config.publicMode ? "the shared address" : `the shared address ${p.vip}`;
       const { vip, ...withoutAddress } = p;
       const text = type === "cluster_active"
-        ? `🔀 Failover: this server${who} now holds ${shared}. Your rigs are connected here and keep mining.`
+        ? `Failover: this server${who} now holds ${shared}. Your rigs are connected here and keep mining.`
         : type === "cluster_fault"
-          ? `⚠️ This server${who} cannot mine, so it gave up ${shared} to the other server. Check its node.`
-          : `💤 This server${who} is standing by again. The other server holds the shared address.`;
+          ? `This server${who} cannot mine, so it gave up ${shared} to the other server. Check its node.`
+          : `This server${who} is standing by again. The other server holds the shared address.`;
       send({ event: type, data: config.publicMode ? withoutAddress : p, text: `${text}${link("/health")}` });
     } else if (type === "disk_low" && config.events.has("disk_low")) {
       const gb = (/** @type {number} */ bytes) => Math.round(bytes / 1e9);
       send({ event: "disk_low", data: p,
         text: p.level === "critical"
-          ? `🚨 Disk almost full: ${gb(p.freeBytes)} GB free of ${gb(p.totalBytes)} GB. The node stops when it is full. Free some space now (the Nodes page lists old copies you can delete).${link("/nodes")}`
-          : `💾 Disk space is low: ${gb(p.freeBytes)} GB free of ${gb(p.totalBytes)} GB. The chain keeps growing, and the node stops when the disk is full.${link("/nodes")}` });
+          ? `Disk almost full: ${gb(p.freeBytes)} GB free of ${gb(p.totalBytes)} GB. The node stops when it is full. Free some space now (the Nodes page lists old copies you can delete).${link("/nodes")}`
+          : `Disk space is low: ${gb(p.freeBytes)} GB free of ${gb(p.totalBytes)} GB. The chain keeps growing, and the node stops when the disk is full.${link("/nodes")}` });
     } else if (type === "chain_copy_failed" && config.events.has("node_update")) {
-      send({ event: "node_update", data: p, text: `❌ Copying chain data from ${p.from} to ${p.to} failed: ${p.error}${link("/nodes")}` });
+      send({ event: "node_update", data: p, text: `Copying chain data from ${p.from} to ${p.to} failed: ${p.error}${link("/nodes")}` });
     } else if (type === "node_no_peers" && config.events.has("node_peers")) {
       const minutes = Math.max(1, Math.round((Date.now() - Date.parse(p.peerlessSince)) / 60_000));
       send({ event: "node_no_peers", data: p,
-        text: `📡 Node ${p.node} has had no peers for ${minutes} minutes. It cannot tell whether it is behind, and a block found on it would reach no one. Check this computer's internet connection, and that the P2P port (2125) is not blocked.${link("/health")}` });
+        text: `Node ${p.node} has had no peers for ${minutes} minutes. It cannot tell whether it is behind, and a block found on it would reach no one. Check this computer's internet connection, and that the P2P port (2125) is not blocked.${link("/health")}` });
     } else if (type === "node_peers_back" && config.events.has("node_peers")) {
-      send({ event: "node_peers_back", data: p, text: `📡 Node ${p.node} is connected to other nodes again.` });
+      send({ event: "node_peers_back", data: p, text: `Node ${p.node} is connected to other nodes again.` });
     } else if (type === "node_ready" && config.events.has("mining_paused")) {
-      send({ event: "mining_resumed", data: p, text: "▶️ Mining resumed: the node is ready again." });
+      send({ event: "mining_resumed", data: p, text: "Mining resumed: the node is ready again." });
     }
   }
 
@@ -374,9 +374,9 @@ export function startAlerts({ pool, config, logger = console }) {
       const path = `/miner/${row.address}/worker/${encodeURIComponent(row.name)}`;
       send(isOnline
         ? { event: "worker_online", data: { address: row.address, worker: row.name },
-          text: `🟢 Worker ${row.name} (${shortAddress(row.address)}) is sending shares again.${link(path)}` }
+          text: `Worker ${row.name} (${shortAddress(row.address)}) is sending shares again.${link(path)}` }
         : { event: "worker_offline", data: { address: row.address, worker: row.name, lastShare: row.last_share.toISOString() },
-          text: `🔴 Worker ${row.name} (${shortAddress(row.address)}) has sent no accepted shares for ${config.workerOfflineMinutes} minute${config.workerOfflineMinutes === 1 ? "" : "s"}.${link(path)}` });
+          text: `Worker ${row.name} (${shortAddress(row.address)}) has sent no accepted shares for ${config.workerOfflineMinutes} minute${config.workerOfflineMinutes === 1 ? "" : "s"}.${link(path)}` });
     }
     firstPass = false;
   }

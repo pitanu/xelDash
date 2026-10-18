@@ -283,8 +283,8 @@ const EVENT_LEVELS = {
   node_restart_requested: "info",
 };
 
-/** @param {{ level: keyof typeof LEVELS, className?: string }} props */
-function LevelIcon({ level, className = "" }) {
+/** The level icon on its own, for a note in small text. @param {{ level: keyof typeof LEVELS, className?: string }} props */
+export function LevelIcon({ level, className = "" }) {
   const l = LEVELS[level];
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className={`shrink-0 ${className}`}>
