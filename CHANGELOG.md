@@ -7,6 +7,18 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Fixed
+
+- With two nodes, a release install never updated daemon2's container: it was built once, the first time, and kept through every
+  later update, so a fix to the node container reached daemon only. daemon2 is now built from each release's own files (never
+  pulled), and an unchanged build keeps its id, so the node is not restarted for nothing.
+
+### Development
+
+- A second end-to-end job updates the newest published release to the commit under test, with data in its database and two
+  nodes, and checks the migrations, the data and daemon2 afterwards (`npm run e2e:upgrade`). Releases wait for it too: the first
+  job only ever starts from nothing, and updates are the path every existing install takes.
+
 ### Changed
 
 - Alerts are plain text: they no longer start with an emoji (they already say what happened in words). A webhook that matched on

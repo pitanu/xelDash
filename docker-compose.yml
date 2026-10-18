@@ -116,6 +116,11 @@ services:
   daemon2:
     logging: *logging
     profiles: ["redundant"]
+    # Built here, never pulled: it can run another upstream XELIS image than daemon (XELIS_DAEMON2_IMAGE), so it has no published
+    # image, and a pullable name could be anyone's. Named by version and always built, so a release's changes to the node container
+    # reach it too (before, the first build was kept forever). An unchanged build keeps its id, so the node is not restarted for it.
+    image: xeldash-daemon2:${XELDASH_VERSION:-local}
+    pull_policy: build
     build:
       context: docker/daemon
       args:

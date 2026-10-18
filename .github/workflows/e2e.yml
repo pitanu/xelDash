@@ -3,6 +3,8 @@ name: End-to-end
 # Starts the real stack on a private devnet and mines real blocks through it (see test/e2e/stack.e2e.js). It takes about ten
 # minutes, so it does not run on every push: run it by hand from the Actions tab, or let the weekly run catch problems that
 # appear when a base image or the daemon changes. The release workflow runs it too, before any image is published.
+# A second job updates the newest published release to this commit with its data (test/e2e/upgrade.e2e.js): the path every
+# existing install takes, which the first job, starting from nothing, does not.
 on:
   workflow_dispatch:
   workflow_call:
@@ -23,3 +25,14 @@ jobs:
         with:
           node-version: 26
       - run: npm run e2e
+
+  upgrade:
+    name: Upgrade from the last release
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 26
+      - run: npm run e2e:upgrade

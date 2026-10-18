@@ -65,7 +65,9 @@ prints what it costs (see `docs/REQUIREMENTS.md`). It needs Docker and about 15 
 `npm run e2e` is the end-to-end check: it starts the real stack in Docker on a private devnet (its own project and ports, so a stack
 that is already running is left alone), mines real blocks through Stratum and through the official miner's getwork, stops the
 database and Stratum in the middle, and runs a front door (HAProxy) through a failover and back. It needs Docker, takes about five
-minutes once the images are built, and also runs weekly, on demand and for every release tag in GitHub Actions. It is not part of `npm test`.
+minutes once the images are built, and also runs weekly, on demand and for every release tag in GitHub Actions. `npm run e2e:upgrade`
+updates the newest published release, with data and two nodes, to your working copy, and checks the migrations and the data survive;
+it runs beside the end-to-end check in Actions. It is not part of `npm test`.
 
 The launcher tests need `bash`, the Compose tests need Docker Compose; each is skipped when missing. A test that fixes a bug
 should fail without the fix. They check logic and the pieces that are easy to get wrong; what only real hardware can show (two
