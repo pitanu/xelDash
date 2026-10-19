@@ -139,7 +139,7 @@ truth for columns, types and constraints; this section only summarizes them.
 | `workers` | Worker names per address, last IP, reported hashrate | Stratum | Forever |
 | `worker_rejects_1m` | Per-worker, per-minute count of rejected shares by reason | Stratum, with each batch of shares | 90 days |
 | `shares` | Raw shares from before migration 009; nothing writes to it any more, and retention empties it | Nobody | 7 days |
-| `worker_stats_1m` | Per-worker, per-minute accepted, rejected and stale counts, difficulty sum and effort sum | Stratum, with each batch of shares | 90 days |
+| `worker_stats_1m` | Per-worker, per-minute accepted, rejected and stale counts, difficulty sum, effort sum and best share (migration 010) | Stratum, with each batch of shares | 90 days |
 | `worker_stats_1h` | Hourly rollup of the minute stats | Stratum's hourly retention job | Forever |
 | `blocks` | Block candidates with status, topoheight and miner reward | Stratum (submit and block tracker) | Forever |
 | `bans` | Stratum IP bans with reason and expiry | Stratum | 1 year |

@@ -59,6 +59,23 @@ and the next message says how many.
 The API log lists the enabled channels at startup ("Alerts enabled: ..."). Failed deliveries
 are logged and not retried.
 
+## Best share
+
+The miner and worker pages show each address's **best share**: how close its best accepted share came to a block, as a percentage
+of one (100% is a block), with a chart of the best share in each time bucket. Hover the title for "Closest to a block". It is worked
+out from the hash Stratum checks anyway (the share's achieved difficulty, divided by the network difficulty when it was found), kept
+per worker and minute, and shown for this round (since the address's last block), the last 24 hours and ever.
+
+It is per address only: there is no figure across everyone's rigs, on the Overview or anywhere else. On a public server a visitor
+sees an address's best share as they already see its hashrate and blocks, and nothing about IP addresses. It cannot be made up: the
+value comes from the hash Stratum verified, and a share sent twice is caught as a duplicate.
+
+A share that came close does not make the next block more likely; each hash is a fresh draw. Round effort and luck are the measure
+of how mining is going.
+
+It costs nothing measurable (see [System requirements](REQUIREMENTS.md)). To turn it off anyway, set `XELDASH_BEST_SHARE=off` and
+restart: Stratum then neither works it out nor stores it, and the dashboard hides it.
+
 ## Metrics
 
 Stratum can serve [Prometheus](https://prometheus.io/) metrics, for Grafana or whatever you already monitor with. They are

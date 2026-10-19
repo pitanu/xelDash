@@ -6,6 +6,7 @@ import { ADDRESS_PATTERN, clampLimit, getHashrateHistory, getMiner, getWorker, g
 import { loadAlertConfig, watchAlerts } from "./alerts.js";
 import { startLiveUpdates } from "./live.js";
 import { getBlockEfforts, getLuck, getMedianBlockEffort, getRewardsHistory } from "./luck.js";
+import { bestShareEnabled, getBestShare } from "./best-share.js";
 import { callAnyNode, fallbackUrl, rpcUrlsFromEnv } from "./nodes.js";
 import { getConnectInfo } from "./connect.js";
 import { CURRENCIES, getPrice } from "./price.js";
@@ -31,6 +32,8 @@ const priceOff = (process.env.XELDASH_PRICE ?? "on").toLowerCase() === "off" ? "
 const pool = createPool();
 // Public mode: no IP addresses in anything a visitor receives (see public-mode.js).
 const publicMode = publicModeFromEnv(process.env);
+// Best share (how close an address's shares came to a block), on unless XELDASH_BEST_SHARE=off; then its figures are null.
+const bestShare = bestShareEnabled(process.env);
 const HASHRATE_WINDOWS = Object.freeze([
   { key: "5m", seconds: 300, difficultyColumn: "difficulty_5m" },
   { key: "1h", seconds: 3600, difficultyColumn: "difficulty_1h" },
@@ -306,7 +309,7 @@ async function route(request, response, publicView, sendJson) {
     }
 
     if (pathname === "/api/v1/hashrate") {
-      sendJson(response, 200, await getHashrateHistory(pool, { address, worker, range: searchParams.get("range") ?? "24h" }));
+      sendJson(response, 200, await getHashrateHistory(pool, { address, worker, range: searchParams.get("range") ?? "24h", bestShare }));
       return;
     }
 
@@ -325,7 +328,8 @@ async function route(request, response, publicView, sendJson) {
         return;
       }
       const found = await getWorker(pool, minerAddress, workerName);
-      sendJson(response, found ? 200 : 404, found ?? { error: "not_found" });
+      const best = found && bestShare ? await getBestShare(pool, { address: minerAddress, worker: workerName }) : null;
+      sendJson(response, found ? 200 : 404, found ? { ...found, bestShare: best } : { error: "not_found" });
       return;
     }
 
@@ -337,7 +341,12 @@ async function route(request, response, publicView, sendJson) {
         return;
       }
       const miner = await getMiner(pool, minerAddress);
-      sendJson(response, miner ? 200 : 404, miner ? { ...miner, luck: await getLuck(pool, { address: minerAddress }) } : { error: "not_found" });
+      if (!miner) {
+        sendJson(response, 404, { error: "not_found" });
+        return;
+      }
+      const [luck, best] = await Promise.all([getLuck(pool, { address: minerAddress }), bestShare ? getBestShare(pool, { address: minerAddress }) : null]);
+      sendJson(response, 200, { ...miner, luck, bestShare: best });
       return;
     }
 

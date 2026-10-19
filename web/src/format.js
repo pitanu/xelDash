@@ -95,6 +95,18 @@ export function formatEffort(effort) {
 }
 
 /**
+ * A best share as a percentage of a block, with the precision the size needs: 38%, 4.2%, 0.37%; below 0.01% it says so.
+ * @param {number | null | undefined} fraction 1 = a block
+ */
+export function formatBestShare(fraction) {
+  if (fraction === null || fraction === undefined || !Number.isFinite(fraction)) return "—";
+  const pct = fraction * 100;
+  if (pct < 0.01) return `<${(0.01).toLocaleString()}%`;
+  const digits = pct >= 10 ? 0 : pct >= 1 ? 1 : 2;
+  return `${pct.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })}%`;
+}
+
+/**
  * Disk space the way the operating system shows it (Windows Explorer, Finder and df count in 1024s and
  * call them GB), so the numbers can be compared with what the person sees there. @param {number | null | undefined} bytes
  */

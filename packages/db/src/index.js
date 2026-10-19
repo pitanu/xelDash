@@ -4,7 +4,10 @@ const { Pool } = pg;
 
 /** @typedef {import("pg").Pool} PgPool */
 /** @typedef {{ address: string, name?: string, ip?: string | null }} WorkerInput */
-/** @typedef {{ workerId: string | bigint, jobId: string, nonce: string, accepted: boolean, rejectReason?: string | null, difficulty: string | bigint, networkDifficulty?: string | bigint | null, createdAt?: Date | string | null }} ShareInput */
+/** @typedef {{ workerId: string | bigint, jobId: string, nonce: string, accepted: boolean, rejectReason?: string | null, difficulty: string | bigint, networkDifficulty?: string | bigint | null, createdAt?: Date | string | null, bestShare?: number | null }} ShareInput */
+
+/** The largest best share kept: a share a billion times a block's difficulty is not a measurement. */
+const MAX_BEST_SHARE = 1e9;
 
 /** @param {string | undefined} [connectionString] @returns {PgPool} */
 export function createPool(connectionString = process.env.DATABASE_URL) {
@@ -70,7 +73,7 @@ export async function ensureWorker(pool, { address, name = "default", ip = null 
 
 /**
  * Checks a share before it is written; returns the difficulties as decimal strings.
- * @param {ShareInput} share @returns {{ difficulty: string, networkDifficulty: string | null }}
+ * @param {ShareInput} share @returns {{ difficulty: string, networkDifficulty: string | null, bestShare: number | null }}
  */
 function checkShare(share) {
   if (typeof share.workerId !== "string" && typeof share.workerId !== "bigint") {
@@ -98,7 +101,12 @@ function checkShare(share) {
   if (networkDifficulty !== null && !/^[1-9]\d*$/.test(networkDifficulty)) {
     throw new TypeError("networkDifficulty must be a positive integer");
   }
-  return { difficulty, networkDifficulty };
+  // How close an accepted share came to a block (1 = a block); only accepted shares can be the best.
+  const bestShare = share.accepted && share.bestShare !== undefined && share.bestShare !== null ? share.bestShare : null;
+  if (bestShare !== null && !(typeof bestShare === "number" && Number.isFinite(bestShare) && bestShare >= 0 && bestShare <= MAX_BEST_SHARE)) {
+    throw new TypeError(`bestShare must be a number from 0 to ${MAX_BEST_SHARE}`);
+  }
+  return { difficulty, networkDifficulty, bestShare };
 }
 
 /**
@@ -118,10 +126,11 @@ export async function recordShare(pool, share) {
  */
 export async function recordShares(pool, shares) {
   if (shares.length === 0) return { recorded: 0 };
-  /** @type {{ worker: string[], difficulty: string[], network: (string | null)[], accepted: boolean[], reason: (string | null)[], at: (string | null)[] }} */
-  const columns = { worker: [], difficulty: [], network: [], accepted: [], reason: [], at: [] };
+  /** @type {{ worker: string[], difficulty: string[], network: (string | null)[], accepted: boolean[], reason: (string | null)[], at: (string | null)[], best: (number | null)[] }} */
+  const columns = { worker: [], difficulty: [], network: [], accepted: [], reason: [], at: [], best: [] };
   for (const share of shares) {
-    const { difficulty, networkDifficulty } = checkShare(share);
+    const { difficulty, networkDifficulty, bestShare } = checkShare(share);
+    columns.best.push(bestShare);
     columns.worker.push(String(share.workerId));
     columns.difficulty.push(difficulty);
     columns.network.push(networkDifficulty);
@@ -131,9 +140,9 @@ export async function recordShares(pool, shares) {
   }
   await pool.query(
     `WITH input AS (
-       SELECT worker_id, difficulty, network_difficulty, accepted, reject_reason, COALESCE(created_at, now()) AS created_at
-       FROM unnest($1::bigint[], $2::numeric[], $3::numeric[], $4::boolean[], $5::text[], $6::timestamptz[])
-         AS t(worker_id, difficulty, network_difficulty, accepted, reject_reason, created_at)
+       SELECT worker_id, difficulty, network_difficulty, accepted, reject_reason, COALESCE(created_at, now()) AS created_at, best_share
+       FROM unnest($1::bigint[], $2::numeric[], $3::numeric[], $4::boolean[], $5::text[], $6::timestamptz[], $7::float8[])
+         AS t(worker_id, difficulty, network_difficulty, accepted, reject_reason, created_at, best_share)
      ),
      rejects AS (
        INSERT INTO worker_rejects_1m (worker_id, bucket, reason, count)
@@ -144,13 +153,14 @@ export async function recordShares(pool, shares) {
        ON CONFLICT (worker_id, bucket, reason) DO UPDATE SET count = worker_rejects_1m.count + EXCLUDED.count
      ),
      stats AS (
-       INSERT INTO worker_stats_1m (bucket, worker_id, accepted, rejected, stale, sum_difficulty, sum_effort)
+       INSERT INTO worker_stats_1m (bucket, worker_id, accepted, rejected, stale, sum_difficulty, sum_effort, best_share)
        SELECT date_trunc('minute', created_at), worker_id,
               count(*) FILTER (WHERE accepted),
               count(*) FILTER (WHERE NOT accepted),
               count(*) FILTER (WHERE NOT accepted AND reject_reason = 'stale'),
               COALESCE(sum(difficulty) FILTER (WHERE accepted), 0),
-              COALESCE(sum(round(difficulty / network_difficulty, 20)) FILTER (WHERE accepted AND network_difficulty IS NOT NULL), 0)
+              COALESCE(sum(round(difficulty / network_difficulty, 20)) FILTER (WHERE accepted AND network_difficulty IS NOT NULL), 0),
+              max(best_share) FILTER (WHERE accepted)
        FROM input
        GROUP BY 1, 2
        ON CONFLICT (bucket, worker_id) DO UPDATE SET
@@ -158,7 +168,9 @@ export async function recordShares(pool, shares) {
          rejected = worker_stats_1m.rejected + EXCLUDED.rejected,
          stale = worker_stats_1m.stale + EXCLUDED.stale,
          sum_difficulty = worker_stats_1m.sum_difficulty + EXCLUDED.sum_difficulty,
-         sum_effort = worker_stats_1m.sum_effort + EXCLUDED.sum_effort
+         sum_effort = worker_stats_1m.sum_effort + EXCLUDED.sum_effort,
+         -- GREATEST skips a null, so a minute keeps its best share whichever batch brought it.
+         best_share = GREATEST(worker_stats_1m.best_share, EXCLUDED.best_share)
      ),
      -- Keep last_seen current while a rig stays connected; at most one write per 30 s.
      seen AS (
@@ -170,7 +182,7 @@ export async function recordShares(pool, shares) {
      UPDATE miners SET last_seen = m.at
      FROM (SELECT miner_id, max(at) AS at FROM seen GROUP BY miner_id) m
      WHERE miners.id = m.miner_id AND miners.last_seen < m.at`,
-    [columns.worker, columns.difficulty, columns.network, columns.accepted, columns.reason, columns.at],
+    [columns.worker, columns.difficulty, columns.network, columns.accepted, columns.reason, columns.at, columns.best],
   );
   return { recorded: shares.length };
 }
@@ -338,6 +350,7 @@ async function journalShare(pool, record, workers, api, remember) {
   return {
     workerId: ids.workerId, jobId: record.jobId, nonce: record.nonce, difficulty: record.difficulty,
     networkDifficulty: record.networkDifficulty, accepted: record.accepted, rejectReason: record.rejectReason, createdAt: record.at,
+    bestShare: record.bestShare ?? null,
   };
 }
 
@@ -429,6 +442,8 @@ export function journalRecordProblem(r, now = Date.now()) {
       if (typeof r.difficulty !== "string" || !DECIMAL.test(r.difficulty)) return "bad difficulty";
       if (r.networkDifficulty !== null && r.networkDifficulty !== undefined && !/^[1-9]\d{0,38}$/.test(String(r.networkDifficulty))) return "bad network difficulty";
       if (!r.accepted && !text(r.rejectReason, 64)) return "bad reject reason";
+      if (r.bestShare !== undefined && r.bestShare !== null
+        && !(typeof r.bestShare === "number" && Number.isFinite(r.bestShare) && r.bestShare >= 0 && r.bestShare <= MAX_BEST_SHARE)) return "bad best share";
       return null;
     case "block":
       if (!HEX64.test(String(r.hash)) || !text(r.status, 32) || Number.isNaN(Date.parse(r.foundAt))) return "bad block";

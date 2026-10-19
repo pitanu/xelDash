@@ -96,6 +96,8 @@ holds no funds, ever.
 
 - **Live overview:** hashrate, expected time to a block, network difficulty, workers, shares
   and node health, updating as it happens.
+- **Best share.** How close your best share came to a block (100% is one), this round, in the last day and ever, with a
+  chart per bucket on the miner and worker pages.
 - **Effort and luck.** See how far the current round is from an average block, and how the
   blocks you found compare. Recorded per share against the difficulty of the moment, so it
   stays true as the network changes.

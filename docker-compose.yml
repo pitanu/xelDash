@@ -215,6 +215,8 @@ services:
       ALERT_DASHBOARD_URL: ${ALERT_DASHBOARD_URL:-}
       # Public mode: visitors get no IP addresses, no connection problems and no node administration (docs/OPERATIONS.md#public-mode).
       XELDASH_PUBLIC_MODE: ${XELDASH_PUBLIC_MODE:-false}
+      # Best share (docs/OPERATIONS.md#best-share): on unless set to off.
+      XELDASH_BEST_SHARE: ${XELDASH_BEST_SHARE:-}
       # Read only to warn about risky public-mode settings at startup.
       XELDASH_PUBLIC_DOMAIN: ${XELDASH_PUBLIC_DOMAIN:-}
       XELDASH_ALLOWED_NETWORKS: ${XELDASH_ALLOWED_NETWORKS:-private}
@@ -283,6 +285,8 @@ services:
       STRATUM_PROXY_FROM: ${STRATUM_PROXY_FROM:-}
       # Public mode: every miner must log in with its own address; the default address is not used.
       XELDASH_PUBLIC_MODE: ${XELDASH_PUBLIC_MODE:-false}
+      # Best share (docs/OPERATIONS.md#best-share): on unless set to off.
+      XELDASH_BEST_SHARE: ${XELDASH_BEST_SHARE:-}
       # Prometheus metrics (docs/OPERATIONS.md#metrics): on with the `metrics` profile (or XELDASH_METRICS=on), and published by the
       # profile's forwarder. Stratum is told where it is published, so in public mode it can refuse a port open beyond this computer.
       COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}

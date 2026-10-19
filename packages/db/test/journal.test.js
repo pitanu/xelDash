@@ -145,3 +145,13 @@ test("a record that cannot be applied is skipped after the shares before it are 
   assert.deepEqual(api.calls.filter((c) => c[0] === "recordShares").map((c) => c.slice(1)), [["a"], ["b"]]);
   assert.deepEqual(order, ["settled:0", "refused:mystery", "settled:1", "settled:2"]);
 });
+
+test("a share's best share is checked in a journal record, and passed on", async () => {
+  assert.equal(journalRecordProblem(share({ bestShare: 0.38 }), NOW), null);
+  assert.equal(journalRecordProblem(share({ bestShare: null }), NOW), null);
+  for (const bad of [-0.1, "0.3", Number.POSITIVE_INFINITY, 2e9]) assert.equal(journalRecordProblem(share({ bestShare: bad }), NOW), "bad best share", String(bad));
+  const shares = [];
+  const api = { ...fakeApi(), recordShares: async (_pool, s) => { shares.push(...s); } };
+  await applyJournalRecords(null, [share({ bestShare: 0.38 }), share({ nonce: "old" })], new Map(), { api, isFatal: () => true });
+  assert.deepEqual(shares.map((s) => s.bestShare), [0.38, null], "a record from before best share has none");
+});

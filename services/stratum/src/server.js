@@ -183,7 +183,9 @@ const authorizeAddress = createWorkerAuthorizer({ daemon: nodes, store, budget: 
 const jobProvider = new MiningJobProvider({ nodes, beforeNodeCall: () => nodeBudget.take() });
 // A block one of our rigs found is the new tip as soon as the node accepts it: new work for every rig right away (the node's
 // new_block event for it follows, and is announced only once).
-const checkShare = createShareSubmitter({ daemon: nodes, store, onBlockAccepted: (block) => handleNewBlock(block) });
+// Best share: how close each accepted share came to a block, kept per worker and minute. On unless XELDASH_BEST_SHARE=off.
+const bestShare = !/^(off|false|0|no)$/i.test((process.env.XELDASH_BEST_SHARE ?? "").trim());
+const checkShare = createShareSubmitter({ daemon: nodes, store, onBlockAccepted: (block) => handleNewBlock(block), bestShare });
 const sharesTotal = metrics.counter("xeldash_shares_total", "Shares by result: accepted, low_difficulty, duplicate, stale, error.");
 const shareDifficulty = metrics.counter("xeldash_share_difficulty_total",
   "Sum of the difficulty of accepted shares; its rate per second is the hashrate the shares prove.");

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatAgo, formatBucket, formatBytes, formatCompact, formatDiskBytes, formatDuration, formatEffort, formatHashrate, formatInteger, formatXel, coinSymbol, shorten } from "../src/format.js";
+import { formatAgo, formatBucket, formatBytes, formatCompact, formatDiskBytes, formatDuration, formatEffort, formatBestShare, formatHashrate, formatInteger, formatXel, coinSymbol, shorten } from "../src/format.js";
 
 // Numbers are shown in the viewer's language (1,234 or 1 234), so expectations are built the same way.
 const n = (value, options) => value.toLocaleString(undefined, options);
@@ -91,4 +91,13 @@ test("disk sizes: the operating system's 1024s for space, decimal for downloads"
   assert.equal(formatDiskBytes(1.5 * 1024 ** 4), `${n(1.5)} TB`);
   assert.equal(formatBytes(1000), "1 KB");
   assert.equal(formatBytes(9_200_000_000), `${n(9.2, { maximumFractionDigits: 1 })} GB`);
+});
+
+test("a best share is a percentage of a block, as precise as its size needs", () => {
+  assert.equal(formatBestShare(0.38), `${n(38)}%`);
+  assert.equal(formatBestShare(0.042), `${n(4.2, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`);
+  assert.equal(formatBestShare(0.0037), `${n(0.37, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`);
+  assert.equal(formatBestShare(1.7), `${n(170)}%`);
+  assert.equal(formatBestShare(0.00001), `<${n(0.01)}%`);
+  assert.equal(formatBestShare(null), "—");
 });

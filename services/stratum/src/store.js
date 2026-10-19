@@ -66,7 +66,7 @@ const keyOf = (address, name) => `${address}\n${name}`;
  * @typedef {{ address: string, name: string }} WorkerKey
  * @typedef {{ minerId: string | bigint | null, workerId: string | bigint | null }} WorkerIds
  * @typedef {{ workerId: string | bigint, jobId: string, nonce: string, difficulty: string | bigint, networkDifficulty?: string | bigint | null,
- *   accepted: boolean, rejectReason?: string | null, createdAt: Date }} QueuedShare
+ *   accepted: boolean, rejectReason?: string | null, createdAt: Date, bestShare?: number | null }} QueuedShare
  */
 
 export class DurableStore {
@@ -213,7 +213,7 @@ export class DurableStore {
 
   /**
    * @param {{ workerId?: string | bigint | null, jobId: string, nonce: string, difficulty: string | bigint, networkDifficulty?: string | bigint | null,
-   *   accepted: boolean, rejectReason?: string | null }} share
+   *   accepted: boolean, rejectReason?: string | null, bestShare?: number | null }} share
    * @param {WorkerKey} key
    */
   async recordShare(share, key) {
@@ -235,7 +235,7 @@ export class DurableStore {
 
   /**
    * @param {{ jobId: string, nonce: string, difficulty: string | bigint, networkDifficulty?: string | bigint | null, accepted: boolean,
-   *   rejectReason?: string | null }} share
+   *   rejectReason?: string | null, bestShare?: number | null }} share
    * @param {WorkerKey} key @param {Date} at when the share arrived
    */
   async #journalShare(share, key, at) {
@@ -250,6 +250,7 @@ export class DurableStore {
       t: "share", key, jobId: share.jobId, nonce: share.nonce, difficulty: String(share.difficulty),
       networkDifficulty: share.networkDifficulty === undefined || share.networkDifficulty === null ? null : String(share.networkDifficulty),
       accepted: share.accepted, rejectReason: share.rejectReason ?? null, at: at.toISOString(),
+      ...(share.bestShare !== undefined && share.bestShare !== null ? { bestShare: share.bestShare } : {}),
     });
     return { recorded: false, queued: false, journaled: true, duplicate: false, accepted: share.accepted };
   }

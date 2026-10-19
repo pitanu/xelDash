@@ -165,6 +165,12 @@ test("a miner through Stratum finds blocks the daemon accepts, and the dashboard
   assert.ok(miner.workers.some((w) => w.name === "e2e-rig"), "its worker is listed");
   const worker = await api(`/api/v1/miners/${encodeURIComponent(ADDRESS)}/workers/e2e-rig`);
   assert.match(worker.lastIp, /^\d+\.\d+\.\d+\.\d+$/);
+  // A block is a share that met the network's difficulty, so the best share on record is at least a whole block.
+  const best = await waitFor("the best share to be recorded", async () => {
+    const found = (await api(`/api/v1/miners/${encodeURIComponent(ADDRESS)}`)).bestShare;
+    return found?.ever >= 1 ? found : null;
+  }, { timeoutMs: 30_000 });
+  assert.ok(best.ever >= 1, `best share ever: ${best.ever}`);
   const overview = await api("/api/v1/overview");
   assert.ok(overview.blocks.length > 0);
   const csv = await (await get(`${WEB}/api/v1/blocks.csv`)).text();

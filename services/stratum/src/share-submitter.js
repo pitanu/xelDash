@@ -20,6 +20,20 @@ export function blockHashFromMinerWork(minerWork) {
   return Buffer.from(blake3(minerWork)).toString("hex");
 }
 
+/** The largest best share kept, as the database keeps it (a hash of zero would otherwise be infinitely good). */
+const MAX_BEST_SHARE = 1e9;
+
+/**
+ * How close a share came to a block: its achieved difficulty (what its hash would have met) divided by the network difficulty it
+ * was mined against. 1 is exactly a block's difficulty; a share that is a block is 1 or more.
+ * @param {bigint} hash @param {bigint} networkDifficulty @returns {number}
+ */
+export function bestShareOf(hash, networkDifficulty) {
+  if (hash <= 0n) return MAX_BEST_SHARE;
+  const achieved = MAX_U256 / hash;
+  return Math.min(MAX_BEST_SHARE, Number(achieved) / Number(networkDifficulty));
+}
+
 /** @param {unknown} error */
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
@@ -27,10 +41,12 @@ function errorMessage(error) {
 
 /**
  * @param {{ daemon: import("./node-pool.js").NodePool, store: import("./store.js").DurableStore, logger?: Pick<Console, "warn" | "info">,
- *   onBlockAccepted?: (block: { hash: string, height: number }) => void, hashMinerWork?: (work: Buffer) => Promise<Buffer> }} dependencies
+ *   onBlockAccepted?: (block: { hash: string, height: number }) => void, hashMinerWork?: (work: Buffer) => Promise<Buffer>,
+ *   bestShare?: boolean }} dependencies
  *   onBlockAccepted: told the moment the node accepts one of our blocks, so every rig gets new work at once (see server.js)
+ *   bestShare: record how close each accepted share came to a block (XELDASH_BEST_SHARE, on unless set to off)
  */
-export function createShareSubmitter({ daemon, store, logger = console, onBlockAccepted = () => {}, hashMinerWork = hashMinerWorkAsync }) {
+export function createShareSubmitter({ daemon, store, logger = console, onBlockAccepted = () => {}, hashMinerWork = hashMinerWorkAsync, bestShare = true }) {
   /**
    * Submit first, then record: a database outage must never keep a solved block from the daemon.
    * The store keeps what it cannot record yet and records it when the database is back.
@@ -118,6 +134,7 @@ export function createShareSubmitter({ daemon, store, logger = console, onBlockA
       networkDifficulty: job.networkDifficulty,
       accepted: meetsShareTarget,
       rejectReason: meetsShareTarget ? null : "low_difficulty",
+      bestShare: bestShare && meetsShareTarget ? bestShareOf(hash, networkDifficulty) : null,
     }, { address: worker.address, name: workerName });
     if (persisted.duplicate) {
       return { error: { code: STRATUM_ERRORS.DUPLICATE_SHARE, message: "Duplicate share" } };

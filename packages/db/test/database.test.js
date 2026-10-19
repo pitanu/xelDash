@@ -299,3 +299,33 @@ test("upgrading counts the reject reasons of the raw shares on record", { skip }
     await pool.query(`DROP DATABASE ${name}`);
   }
 });
+
+test("best share: the best of each minute is kept, whichever batch brings it, and only accepted shares count", { skip }, async () => {
+  const { workerId } = await ensureWorker(pool, { address: address(), name: "best" });
+  const at = "2026-05-06T07:08:10.000Z";
+  const share = { workerId, jobId: "j", nonce: "n", difficulty: "10", accepted: true, createdAt: at };
+  await recordShares(pool, [{ ...share, bestShare: 0.02 }, { ...share, bestShare: 0.3 }, { ...share, bestShare: null }]);
+  await recordShares(pool, [{ ...share, bestShare: 0.1 }, { ...share, accepted: false, rejectReason: "low_difficulty", bestShare: 0.9 }]);
+  let { rows } = await pool.query("SELECT best_share FROM worker_stats_1m WHERE worker_id = $1", [workerId]);
+  assert.equal(rows[0].best_share, 0.3, "the best of both batches; a rejected share's value is not counted");
+  await recordShares(pool, [{ ...share, bestShare: 1.25 }]);
+  ({ rows } = await pool.query("SELECT best_share FROM worker_stats_1m WHERE worker_id = $1", [workerId]));
+  assert.equal(rows[0].best_share, 1.25, "a block beats it");
+  await assert.rejects(recordShares(pool, [{ ...share, bestShare: -1 }]), TypeError);
+  await assert.rejects(recordShares(pool, [{ ...share, bestShare: Number.NaN }]), TypeError);
+});
+
+test("best share: the hourly rollup keeps each hour's best", { skip }, async () => {
+  const { rollUpHourlyStats } = await import("../src/index.js");
+  const { workerId } = await ensureWorker(pool, { address: address(), name: "best-hourly" });
+  const hourAgo = new Date(Date.now() - 2 * 3_600_000);
+  hourAgo.setUTCMinutes(10, 0, 0);
+  const later = new Date(hourAgo.getTime() + 20 * 60_000);
+  await recordShares(pool, [
+    { workerId, jobId: "j", nonce: "a", difficulty: "1", accepted: true, createdAt: hourAgo.toISOString(), bestShare: 0.05 },
+    { workerId, jobId: "j", nonce: "b", difficulty: "1", accepted: true, createdAt: later.toISOString(), bestShare: 0.4 },
+  ]);
+  await rollUpHourlyStats(pool, { lookbackDays: 1 });
+  const { rows } = await pool.query("SELECT best_share FROM worker_stats_1h WHERE worker_id = $1", [workerId]);
+  assert.deepEqual(rows.map((r) => r.best_share), [0.4]);
+});

@@ -7,6 +7,13 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Dashboard
+
+- **Best share** on the miner and worker pages: how close each address's best share came to a block, as a percentage of one
+  (100% is a block), for this round, the last 24 hours and ever, with a chart of the best share per bucket. Per address only, in
+  LAN and public mode alike; nothing is shown across everyone's rigs. Worked out from the hash Stratum checks anyway and kept per
+  worker and minute (migration 010). `XELDASH_BEST_SHARE=off` turns it off. See docs/OPERATIONS.md#best-share.
+
 ## [0.4.2] - 2026-10-18
 
 daemon2 follows each release, alerts in plain text, and a test of updating from the last release.

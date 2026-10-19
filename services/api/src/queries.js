@@ -23,9 +23,9 @@ export function clampLimit(value, fallback, max) {
 /**
  * Hashrate per bucket for everyone, one miner address, or one worker of that address.
  * Buckets with no shares are returned as zero so gaps show as drops, not interpolation.
- * @param {PgPool} pool @param {{ address: string | null, worker?: string | null, range: string }} input
+ * @param {PgPool} pool @param {{ address: string | null, worker?: string | null, range: string, bestShare?: boolean }} input
  */
-export async function getHashrateHistory(pool, { address, worker = null, range }) {
+export async function getHashrateHistory(pool, { address, worker = null, range, bestShare = true }) {
   // Own keys only: "constructor" or "__proto__" must not pick something from Object.prototype.
   const settings = Object.hasOwn(HISTORY_RANGES, range) ? HISTORY_RANGES[/** @type {keyof typeof HISTORY_RANGES} */ (range)] : HISTORY_RANGES["24h"];
   const result = await pool.query(
@@ -41,7 +41,8 @@ export async function getHashrateHistory(pool, { address, worker = null, range }
               SUM(s.sum_difficulty) AS difficulty,
               SUM(s.accepted) AS accepted,
               SUM(s.rejected) AS rejected,
-              SUM(s.stale) AS stale
+              SUM(s.stale) AS stale,
+              MAX(s.best_share) AS best
        FROM ${settings.table} s
        JOIN workers w ON w.id = s.worker_id
        JOIN miners m ON m.id = w.miner_id
@@ -55,7 +56,8 @@ export async function getHashrateHistory(pool, { address, worker = null, range }
             ROUND(COALESCE(st.difficulty, 0) / EXTRACT(EPOCH FROM $2::interval), 3)::text AS hashrate,
             COALESCE(st.accepted, 0)::text AS accepted,
             COALESCE(st.rejected, 0)::text AS rejected,
-            COALESCE(st.stale, 0)::text AS stale
+            COALESCE(st.stale, 0)::text AS stale,
+            st.best
      FROM buckets b
      LEFT JOIN stats st ON st.bucket = b.bucket
      ORDER BY b.bucket`,
@@ -70,6 +72,8 @@ export async function getHashrateHistory(pool, { address, worker = null, range }
       accepted: row.accepted,
       rejected: row.rejected,
       stale: row.stale,
+      // The best share in the bucket, as a fraction of a block: per address only (not across everyone's rigs), and not when turned off.
+      best: bestShare && address && row.best !== null ? Number(row.best) : null,
     })),
   };
 }

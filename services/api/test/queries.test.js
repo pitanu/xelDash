@@ -136,3 +136,29 @@ test("uptime maths never counts more than the window", () => {
   const r = computePauses([], { paused: true, reason: "node_syncing" }, start, end);
   assert.equal(r.pausedMs, 10 * 3_600_000);
 });
+
+test("best share: this round starts after the minute of the last block; the history has it per address only", { skip }, async () => {
+  const { getBestShare } = await import("../src/best-share.js");
+  const a = address();
+  const rig = await ensureWorker(pool, { address: a, name: "rig" });
+  const other = await ensureWorker(pool, { address: a, name: "other" });
+  const minutesAgo = (/** @type {number} */ m) => new Date(Date.now() - m * 60_000).toISOString();
+  const share = (/** @type {any} */ w, /** @type {number} */ m, /** @type {number} */ best) =>
+    recordShare(pool, { workerId: w.workerId, jobId: "j", nonce: `b${m}-${best}`, difficulty: "10", accepted: true, createdAt: minutesAgo(m), bestShare: best });
+  await share(rig, 600, 0.74);  // the best ever, a round ago
+  await share(rig, 300, 1.4);   // the block itself
+  await recordBlock(pool, { hash: hex(32), height: 1, minerId: rig.minerId, workerId: rig.workerId, status: "main-chain", foundAt: new Date(minutesAgo(300)) });
+  await share(rig, 120, 0.12);
+  await share(other, 60, 0.3);
+  const best = await getBestShare(pool, { address: a });
+  assert.deepEqual(best, { round: 0.3, day: 1.4, ever: 1.4 }, "the block's own minute is not this round's best");
+  assert.deepEqual(await getBestShare(pool, { address: a, worker: "rig" }), { round: 0.12, day: 1.4, ever: 1.4 });
+  assert.deepEqual(await getBestShare(pool, { address: address() }), { round: null, day: null, ever: null });
+
+  const mine = await getHashrateHistory(pool, { address: a, range: "24h" });
+  assert.equal(Math.max(...mine.points.map((p) => p.best ?? 0)), 1.4);
+  const everyone = await getHashrateHistory(pool, { address: null, range: "24h" });
+  assert.ok(everyone.points.every((p) => p.best === null), "no best share across everyone's rigs");
+  const off = await getHashrateHistory(pool, { address: a, range: "24h", bestShare: false });
+  assert.ok(off.points.every((p) => p.best === null), "none while turned off");
+});

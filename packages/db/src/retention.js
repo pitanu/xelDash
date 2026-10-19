@@ -31,8 +31,8 @@ export function retentionConfigFromEnv(env) {
  */
 export async function rollUpHourlyStats(pool, { lookbackDays = 0 } = {}) {
   const result = await pool.query(
-    `INSERT INTO worker_stats_1h (bucket, worker_id, accepted, rejected, stale, sum_difficulty, sum_effort)
-     SELECT date_trunc('hour', bucket), worker_id, SUM(accepted), SUM(rejected), SUM(stale), SUM(sum_difficulty), SUM(sum_effort)
+    `INSERT INTO worker_stats_1h (bucket, worker_id, accepted, rejected, stale, sum_difficulty, sum_effort, best_share)
+     SELECT date_trunc('hour', bucket), worker_id, SUM(accepted), SUM(rejected), SUM(stale), SUM(sum_difficulty), SUM(sum_effort), MAX(best_share)
      FROM worker_stats_1m
      WHERE bucket >= LEAST(
          COALESCE((SELECT max(bucket) FROM worker_stats_1h) - interval '1 hour', '-infinity'),
@@ -44,7 +44,8 @@ export async function rollUpHourlyStats(pool, { lookbackDays = 0 } = {}) {
        rejected = EXCLUDED.rejected,
        stale = EXCLUDED.stale,
        sum_difficulty = EXCLUDED.sum_difficulty,
-       sum_effort = EXCLUDED.sum_effort`,
+       sum_effort = EXCLUDED.sum_effort,
+       best_share = EXCLUDED.best_share`,
     [`${lookbackDays} days`],
   );
   return result.rowCount ?? 0;

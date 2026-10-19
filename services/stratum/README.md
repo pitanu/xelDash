@@ -103,6 +103,10 @@ and 503 with the reason otherwise (the cluster's address manager asks it, so the
 cannot mine); `/status` adds the instance, mode (`main` or `standby`), connected rigs and the journal's size, for the
 standby's offline page. It is published on this computer's loopback only, and only when the cluster is set up.
 
+**Best share** (`src/share-submitter.js`). For each accepted share, its achieved difficulty (from the hash Stratum checks anyway)
+divided by the network difficulty when it was found: how close it came to a block, 1 being a block. The batch write keeps the best of
+each worker's minute. `XELDASH_BEST_SHARE=off` leaves it out. See docs/OPERATIONS.md#best-share.
+
 **Metrics** (`src/metrics.js`). Prometheus metrics on port 9464, off unless the `metrics` Compose profile (or
 `XELDASH_METRICS=on`) turns them on; then a forwarder container publishes the port. Off, every recorder is a no-op and nothing
 listens. Totals only (shares by result, accepted difficulty, answer times, blocks, the store's queue and journal, node state,

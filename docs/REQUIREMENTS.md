@@ -246,6 +246,8 @@ difficulty 1 sending a share a second. Per share, on that processor:
 - **Metrics** (docs/OPERATIONS.md#metrics) cost nothing measurable: the same test with them on, per-worker metrics included, answered
   in 1.9 / 2.6 ms (typical / slowest 5%) at 2,000 shares a second against 1.9 / 2.7 ms with them off, and Stratum used 3.52 cores
   against 3.51.
+- **Best share** (docs/OPERATIONS.md#best-share) costs nothing measurable either: at 2,000 shares a second, 1.6 / 2.3 ms with it on
+  against 1.6 / 2.2 ms off, Stratum 3.12 cores against 3.14, and the database the same 0.05 core. So it is on by default.
 
 ## Two servers (redundancy)
 

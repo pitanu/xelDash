@@ -8,6 +8,10 @@ LISTEN/NOTIFY relayed to browsers), and alerts (`src/alerts.js`).
 - **Hashrate** is accepted share difficulty over completed 5-minute, 1-hour and 24-hour
   windows. Expected time-to-block is network difficulty divided by that hashrate; it is an
   expectation, not a prediction. Estimates are `null` until a window has accepted shares.
+- **Best share** (`src/best-share.js`): `/api/v1/miners/:address` and the worker route have `bestShare: { round, day, ever }`
+  (this round, the last 24 hours, ever), each a fraction of a block; `/api/v1/hashrate` has `best` per bucket when it is asked for one address.
+  Per address only: nothing across everyone's rigs. The round starts after the minute of the address's last block, so that
+  block is not the next round's best. All null with `XELDASH_BEST_SHARE=off`.
 - **Effort and luck** (`src/luck.js`): each accepted share adds share difficulty ÷ network
   difficulty at the time, so the sum is the number of blocks the work was expected to find.
   Rounds run from one found block to the next, split on minute buckets.
