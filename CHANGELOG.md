@@ -7,6 +7,11 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-19
+
+Best share: how close each address came to a block. Includes a database migration (010), which only adds a column; going back
+to 0.4.x still works.
+
 ### Dashboard
 
 - **Best share** on the miner and worker pages: how close each address's best share came to a block, as a percentage of one
