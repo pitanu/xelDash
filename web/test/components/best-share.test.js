@@ -58,3 +58,15 @@ test("the scale is powers of ten that always include a block", () => {
   assert.deepEqual(bestShareScale([0.00002, 1.7]), { from: -5, to: 1, ticks: [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10] });
   assert.deepEqual(bestShareScale([]).ticks, [0.001, 0.01, 0.1, 1]);
 });
+
+test("a block is a gold dot, labelled, with a legend; without one, a single series needs no legend", async () => {
+  const view = await render(h(BestShareCard, { best: { round: 0.38, ever: 1.7 }, points }));
+  const fills = [...view.container.querySelectorAll("circle")].map((c) => c.getAttribute("fill"));
+  assert.deepEqual(fills, ["var(--series-1)", "var(--series-1)", "var(--series-block)"]);
+  const labels = [...view.container.querySelectorAll("svg text")].map((t) => t.textContent).filter((t) => t === "Block");
+  assert.equal(labels.length, 1, "the block is labelled beside its dot");
+  assert.match(view.container.querySelector("[aria-label='Legend']")?.textContent ?? "", /Best share.*A block/);
+  await cleanup();
+  const quiet = await render(h(BestShareCard, { best: { round: 0.38, ever: 0.38 }, points: points.slice(0, 3) }));
+  assert.equal(quiet.container.querySelector("[aria-label='Legend']"), null);
+});

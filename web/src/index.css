@@ -13,6 +13,9 @@
   --border: rgba(11, 11, 11, 0.1);
   --wash: rgba(11, 11, 11, 0.04);
   --series-1: #2a78d6;
+  /* A block in the best-share chart: categorical slot 4 (yellow) of the chart palette, validated beside series-1. Below 3:1 on the
+     light surface, so block dots always carry a label, a legend entry and the table view. */
+  --series-block: #eda100;
   --action: #2060b8;
   --good: #0b7a0b;
   --warning: #fab219;
@@ -33,6 +36,7 @@
     --border: rgba(255, 255, 255, 0.1);
     --wash: rgba(255, 255, 255, 0.05);
     --series-1: #3987e5;
+    --series-block: #c98500;
     --good: #0ca30c;
     --serious: #ec835a;
     --critical: #f07a7a;
@@ -51,6 +55,7 @@
   --border: rgba(255, 255, 255, 0.1);
   --wash: rgba(255, 255, 255, 0.05);
   --series-1: #3987e5;
+  --series-block: #c98500;
   --good: #0ca30c;
   --serious: #ec835a;
   --critical: #f07a7a;
@@ -67,6 +72,7 @@
   --color-line: var(--border);
   --color-wash: var(--wash);
   --color-series-1: var(--series-1);
+  --color-series-block: var(--series-block);
   --color-action: var(--action);
   --color-good: var(--good);
   --color-warning: var(--warning);

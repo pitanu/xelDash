@@ -3,6 +3,8 @@ import { formatBestShare, formatTime } from "../format.js";
 import { Card } from "./ui.jsx";
 
 const HEIGHT = 220;
+// Blocks are labelled beside their dot while there are this few in the range; with more, the legend and tooltip name them.
+const MAX_BLOCK_LABELS = 6;
 const PAD = { top: 16, right: 16, bottom: 28, left: 56 };
 
 /** @param {React.RefObject<HTMLDivElement | null>} ref */
@@ -54,6 +56,7 @@ export default function BestShareChart({ points: loaded, dimmed = false }) {
     : [];
   const shown = active === null ? null : dots[active] ?? null;
   const blockY = y(1);
+  const blocks = dots.filter((d) => d.best >= 1).length;
 
   /** The dot nearest the pointer, by time. @param {React.PointerEvent<SVGRectElement>} event */
   function onPointerMove(event) {
@@ -77,6 +80,12 @@ export default function BestShareChart({ points: loaded, dimmed = false }) {
 
   return (
     <div>
+      {blocks > 0 && (
+        <ul className="mb-2 flex flex-wrap gap-x-4 text-xs text-ink-2" aria-label="Legend">
+          <li className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-series-1" />Best share</li>
+          <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-series-block" />A block</li>
+        </ul>
+      )}
       <div ref={frame} className={`relative transition-opacity ${dimmed ? "opacity-60" : ""}`}>
         {width > 0 && (
           <svg
@@ -110,8 +119,12 @@ export default function BestShareChart({ points: loaded, dimmed = false }) {
               </text>
             ))}
             {dots.map((d, k) => (
-              <circle key={d.time} cx={x(d.i)} cy={y(d.best)} r={d.best >= 1 ? 5 : 4} fill="var(--series-1)"
+              <circle key={d.time} cx={x(d.i)} cy={y(d.best)} r={d.best >= 1 ? 5 : 4} fill={d.best >= 1 ? "var(--series-block)" : "var(--series-1)"}
                 stroke="var(--surface)" strokeWidth="2" opacity={shown && active !== k ? 0.55 : 1} />
+            ))}
+            {blocks <= MAX_BLOCK_LABELS && dots.filter((d) => d.best >= 1).map((d) => (
+              <text key={`label-${d.time}`} x={x(d.i)} y={y(d.best) - 10} textAnchor="middle" fontSize="11" fill="var(--ink-2)"
+                stroke="var(--surface)" strokeWidth="4" strokeLinejoin="round" paintOrder="stroke">Block</text>
             ))}
             {shown !== null && (
               <line x1={x(shown.i)} x2={x(shown.i)} y1={PAD.top} y2={PAD.top + plotH} stroke="var(--axis)" strokeWidth="1" />
@@ -129,7 +142,7 @@ export default function BestShareChart({ points: loaded, dimmed = false }) {
           <div className="pointer-events-none absolute top-0 w-44 rounded-md border border-line bg-surface px-3 py-2 text-xs shadow-sm"
             style={{ left: tooltipLeft }}>
             <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-series-1" />
+              <span className={`h-2 w-2 rounded-full ${shown.best >= 1 ? "bg-series-block" : "bg-series-1"}`} />
               <span className="text-sm font-semibold text-ink tabular">{formatBestShare(shown.best)}</span>
               <span className="text-muted">of a block</span>
             </div>
