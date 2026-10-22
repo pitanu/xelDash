@@ -1,7 +1,7 @@
 // Chart lines draw in again when a new range's data arrives, not on every refresh of the same range.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { nextReplay } from "../src/motion.js";
+import { nextReplay } from "../src/replay.js";
 
 const first = { points: 1 };
 const refreshed = { points: 2 };

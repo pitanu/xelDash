@@ -1,4 +1,5 @@
 import { useRef, useSyncExternalStore } from "react";
+import { nextReplay } from "./replay.js";
 
 // Chart animations: a line draws in, bars grow from the axis, dots appear. They are one-shot CSS animations (see index.css) that
 // play when a chart first shows its data, when its range changes and for each new bar or dot, never on a refresh of the same
@@ -33,20 +34,6 @@ function subscribe(listener) {
 
 export function useAnimations() {
   return useSyncExternalStore(subscribe, read);
-}
-
-/**
- * The next replay state: after the range changes, the key moves on once the new range's data arrives (the old data stays
- * on screen, dimmed, until then). Refreshes of the same range keep the key, so a line is not drawn again on every poll.
- * @template T
- * @param {{ range: string, data: T, key: number, waiting: boolean }} state
- * @param {string} range
- * @param {T} data
- */
-export function nextReplay(state, range, data) {
-  if (range !== state.range) return { range, data, key: state.key, waiting: true };
-  if (state.waiting && data !== state.data) return { range, data, key: state.key + 1, waiting: false };
-  return state.data === data ? state : { ...state, data };
 }
 
 /**

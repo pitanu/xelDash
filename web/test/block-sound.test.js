@@ -1,7 +1,7 @@
 // A block sound of the person's own: only a real, short audio file is taken, whatever its name or type claims.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MAX_SOUND_BYTES, checkSoundFile } from "../src/block-sound.js";
+import { MAX_SOUND_BYTES, checkSoundFile } from "../src/sound-file.js";
 
 /** A stand-in for a chosen file. @param {Partial<{ name: string, size: number, type: string }>} over */
 const file = (over = {}) => ({ name: "ding.mp3", size: 20_000, type: "audio/mpeg", arrayBuffer: async () => new ArrayBuffer(8), ...over });
