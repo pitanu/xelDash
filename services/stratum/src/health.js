@@ -37,6 +37,12 @@ export function startHealthServer({ port, host = "0.0.0.0", check, status = () =
     response.writeHead(reason ? 503 : 200, { "content-type": "application/json", "content-length": Buffer.byteLength(body), "cache-control": "no-store" });
     response.end(body);
   });
+  /** The port it listens on, once it does (port 0 picks a free one). @type {Promise<number>} */
+  const listening = new Promise((resolve, reject) => {
+    server.once("listening", () => resolve(/** @type {import("node:net").AddressInfo} */ (server.address()).port));
+    server.once("error", reject);
+  });
+  listening.catch(() => {});
   server.listen(port, host, () => logger.info?.(`xelDash health listening on ${host}:${port}`));
-  return { close: () => new Promise((resolve) => server.close(() => resolve(undefined))) };
+  return { listening, close: () => new Promise((resolve) => server.close(() => resolve(undefined))) };
 }

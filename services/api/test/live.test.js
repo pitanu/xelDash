@@ -46,13 +46,17 @@ test("a client that resets the connection while it is being refused cannot stop 
   process.on("uncaughtException", onUncaught);
   try {
     for (let i = 0; i < 40; i++) {
+      // Settles however the attempt ends (connected, refused, closed, or 2 s gone by), so one lost connection cannot hang the test.
       await new Promise((resolve) => {
         const socket = net.connect(s.port, "127.0.0.1");
-        socket.on("error", () => {});
+        const timer = setTimeout(() => { socket.destroy(); resolve(); }, 2_000);
+        const done = () => { clearTimeout(timer); resolve(); };
+        socket.on("error", done);
+        socket.on("close", done);
         socket.on("connect", () => {
           socket.write("GET /api/v1/live HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nOrigin: https://evil.example\r\n\r\n");
           socket.resetAndDestroy();
-          resolve();
+          done();
         });
       });
     }

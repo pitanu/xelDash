@@ -1,24 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createServer } from "node:net";
 import { createWorkerAuthorizer } from "../src/authorize-worker.js";
 import { startHealthServer } from "../src/health.js";
 import { nodeLabel, rpcUrlsFromEnv } from "../src/node-pool.js";
 
 const quiet = { info() {}, warn() {} };
 
-async function freePort() {
-  const probe = createServer();
-  await new Promise((r) => probe.listen(0, "127.0.0.1", r));
-  const { port } = probe.address();
-  await new Promise((r) => probe.close(r));
-  return port;
-}
-
+/** Port 0: the system picks a free port, and the server says which once it listens (no race with tests running alongside). */
 async function health(check, status) {
-  const port = await freePort();
-  const server = startHealthServer({ port, host: "127.0.0.1", check, status, logger: quiet });
-  await new Promise((r) => setTimeout(r, 80));
+  const server = startHealthServer({ port: 0, host: "127.0.0.1", check, status, logger: quiet });
+  const port = await server.listening;
   return { url: `http://127.0.0.1:${port}`, close: () => server.close() };
 }
 

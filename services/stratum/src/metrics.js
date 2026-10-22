@@ -207,6 +207,12 @@ export function startMetricsServer({ metrics, config, isPublic, host = "0.0.0.0"
     response.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8", "content-length": Buffer.byteLength(body), "cache-control": "no-store" });
     response.end(body);
   });
+  /** The port it listens on, once it does (port 0 picks a free one). @type {Promise<number>} */
+  const listening = new Promise((resolve, reject) => {
+    server.once("listening", () => resolve(/** @type {import("node:net").AddressInfo} */ (server.address()).port));
+    server.once("error", reject);
+  });
+  listening.catch(() => {});
   server.listen(config.port, host, () => logger.info?.(`xelDash metrics listening on ${host}:${config.port}${config.token ? " (token required)" : ""}`));
-  return { close: () => new Promise((resolve) => server.close(() => resolve(undefined))) };
+  return { listening, close: () => new Promise((resolve) => server.close(() => resolve(undefined))) };
 }

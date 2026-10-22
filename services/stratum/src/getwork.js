@@ -234,12 +234,22 @@ export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, c
   const front = proxyTrust
     ? createNetServer({ pauseOnConnect: true }, (socket) => acceptWithProxyHeader(socket, proxyTrust, (ready) => server.emit("connection", ready), { logger }))
     : null;
-  (front ?? server).listen(port, host, () => logger.info?.(`xelDash getwork listening on ${host}:${port}`));
+  const listener = front ?? server;
+  /** The port it listens on, once it does (port 0 picks a free one). @type {Promise<number>} */
+  const listening = new Promise((resolve, reject) => {
+    listener.once("listening", () => resolve(/** @type {import("node:net").AddressInfo} */ (listener.address()).port));
+    listener.once("error", reject);
+  });
+  listening.catch(() => {});
+  listener.listen(port, host, () => logger.info?.(`xelDash getwork listening on ${host}:${port}`));
   return {
+    listening,
     close() {
       for (const ws of wss.clients) ws.terminate();
       wss.close();
-      return new Promise((resolve) => (front ?? server).close(() => resolve(undefined)));
+      // Connections still open (one that never upgraded, a keep-alive) would otherwise hold the close back.
+      server.closeAllConnections?.();
+      return new Promise((resolve) => listener.close(() => resolve(undefined)));
     },
   };
 }

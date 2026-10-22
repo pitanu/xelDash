@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import net, { createServer as createNetServer } from "node:net";
+import net from "node:net";
 import { WebSocket } from "ws";
 import { parseGetworkPath, startGetworkServer } from "../src/getwork.js";
 import { DEFAULT_IP_GUARD, IpGuard } from "../src/ip-guard.js";
@@ -40,16 +40,12 @@ async function start({ allowed = "private", proxyTrust = null, shareResult = { a
       logger: quiet,
     });
   };
-  // Port 0 is not reported back by the helper, so pick a free one first.
-  const probe = createNetServer();
-  await new Promise((r) => probe.listen(0, "127.0.0.1", r));
-  const port = probe.address().port;
-  await new Promise((r) => probe.close(r));
+  // Port 0: the system picks a free port, and the server says which once it listens (no race with tests running alongside).
   const getwork = startGetworkServer({
-    host: "127.0.0.1", port, ipGuard, rateLimit: DEFAULT_IP_GUARD, sessions, createSession, proxyTrust,
+    host: "127.0.0.1", port: 0, ipGuard, rateLimit: DEFAULT_IP_GUARD, sessions, createSession, proxyTrust,
     onRefused: (ip, reason) => seen.refused.push([ip, reason]), logger: quiet,
   });
-  await new Promise((r) => setTimeout(r, 100));
+  const port = await getwork.listening;
   return { port, seen, close: () => getwork.close() };
 }
 

@@ -69,17 +69,12 @@ test("settings: off by default, on with the metrics profile or XELDASH_METRICS, 
 });
 
 test("the listener: /metrics only, the token when one is set, and public mode never names a miner", async () => {
-  const { createServer } = await import("node:http");
-  // Port 0 picks a free port; read it back from a probe server first so the test knows where to ask.
-  const probe = createServer();
-  await new Promise((resolve) => probe.listen(0, "127.0.0.1", () => resolve(undefined)));
-  const port = /** @type {import("node:net").AddressInfo} */ (probe.address()).port;
-  await new Promise((resolve) => probe.close(() => resolve(undefined)));
   const base = metricsConfigFromEnv({ XELDASH_METRICS: "on" });
   const state = { pub: false };
-  const config = { ...base, port, perWorker: true, token: "a-token-of-twenty-chars" };
+  // Port 0: the system picks a free port, and the server says which once it listens.
+  const config = { ...base, port: 0, perWorker: true, token: "a-token-of-twenty-chars" };
   const server = startMetricsServer({ metrics: sample(), config, isPublic: () => state.pub, host: "127.0.0.1", logger: quiet });
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  const port = await server.listening;
   const get = (/** @type {string} */ path, /** @type {Record<string, string>} */ headers = {}) => fetch(`http://127.0.0.1:${port}${path}`, { headers });
   try {
     assert.equal((await get("/other")).status, 404);
@@ -100,16 +95,11 @@ test("the listener: /metrics only, the token when one is set, and public mode ne
 });
 
 test("public mode refuses a metrics port opened beyond this computer without a token, and serves it with one", async () => {
-  const { createServer } = await import("node:http");
-  const probe = createServer();
-  await new Promise((resolve) => probe.listen(0, "127.0.0.1", () => resolve(undefined)));
-  const port = /** @type {import("node:net").AddressInfo} */ (probe.address()).port;
-  await new Promise((resolve) => probe.close(() => resolve(undefined)));
   const warnings = /** @type {string[]} */ ([]);
   const state = { pub: true };
-  const config = { ...metricsConfigFromEnv({ XELDASH_METRICS: "on", XELDASH_METRICS_BIND_IP: "0.0.0.0" }), port };
+  const config = { ...metricsConfigFromEnv({ XELDASH_METRICS: "on", XELDASH_METRICS_BIND_IP: "0.0.0.0" }), port: 0 };
   const server = startMetricsServer({ metrics: sample(), config, isPublic: () => state.pub, host: "127.0.0.1", logger: { info() {}, warn: (m) => warnings.push(m) } });
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  const port = await server.listening;
   try {
     const refused = await fetch(`http://127.0.0.1:${port}/metrics`);
     assert.equal(refused.status, 503);
