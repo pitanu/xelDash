@@ -13,6 +13,8 @@ breaking changes; they are marked **Breaking**.
   block is found. It stays in your browser and is never sent to the server, so it is safe on a public server too.
 - The "Block found" notice stays until you close it, or for an hour, instead of 12 seconds, so it is not missed.
 - The Overview's "Blocks found" says how many of them were found in the last 24 hours.
+- A block found while the dashboard is on another tab shows in the tab title, "(1) Block found · xelDash", until you look
+  at it again.
 
 ## [0.5.0] - 2026-10-19
 

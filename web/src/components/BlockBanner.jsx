@@ -3,6 +3,7 @@ import { subscribeBlockFound } from "../live.js";
 import { blockSoundEnabled, playBlockSound } from "../block-sound.js";
 import { useBlockUrl } from "../explorer.js";
 import { formatInteger } from "../format.js";
+import { watchUnseenBlocks } from "../tab-title.js";
 
 // Long enough to be seen by someone who looks back at the page later; it goes when closed, or when a newer block replaces it.
 const SHOW_MS = 60 * 60_000;
@@ -16,17 +17,25 @@ export default function BlockBanner() {
   const [block, setBlock] = useState(/** @type {{ hash: string, height: string, worker: string | null } | null} */ (null));
   const blockUrl = useBlockUrl();
 
-  useEffect(() => subscribeBlockFound(() => {
-    fetch("/api/v1/blocks?limit=1")
-      .then((response) => (response.ok ? response.json() : null))
-      .then((body) => {
-        const latest = body?.blocks?.[0];
-        if (!latest) return;
-        setBlock({ hash: latest.hash, height: latest.height, worker: latest.worker });
-        if (blockSoundEnabled()) void playBlockSound();
-      })
-      .catch(() => {});
-  }), []);
+  useEffect(() => {
+    const title = watchUnseenBlocks();
+    const unsubscribe = subscribeBlockFound(() => {
+      fetch("/api/v1/blocks?limit=1")
+        .then((response) => (response.ok ? response.json() : null))
+        .then((body) => {
+          const latest = body?.blocks?.[0];
+          if (!latest) return;
+          setBlock({ hash: latest.hash, height: latest.height, worker: latest.worker });
+          title.blockFound();
+          if (blockSoundEnabled()) void playBlockSound();
+        })
+        .catch(() => {});
+    });
+    return () => {
+      unsubscribe();
+      title.stop();
+    };
+  }, []);
 
   useEffect(() => {
     if (!block) return undefined;
