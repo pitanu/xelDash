@@ -9,6 +9,7 @@ import { pipeline } from "node:stream/promises";
 // Official XELIS daemon releases, from the project's GitHub releases only.
 const REPO = "xelis-project/xelis-blockchain";
 const RELEASES_URL = `https://api.github.com/repos/${REPO}/releases?per_page=15`;
+const LATEST_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const CACHE_MS = 60 * 60_000;
 const VERSION = /^v(\d+)\.(\d+)\.(\d+)$/;
 // Downloads must come from the repository's own release files.
@@ -66,12 +67,18 @@ export class Releases {
   async list() {
     if (!this.platform) return [];
     if (this.cache && Date.now() - this.cache.at < CACHE_MS) return this.cache.releases;
-    const response = await fetch(RELEASES_URL, {
+    const ask = (/** @type {string} */ url) => fetch(url, {
       headers: { accept: "application/vnd.github+json", "user-agent": "xelDash" },
       signal: AbortSignal.timeout(15_000),
     });
+    const response = await ask(RELEASES_URL);
     if (!response.ok) throw new Error(`GitHub returned HTTP ${response.status}`);
-    const body = /** @type {any[]} */ (await response.json());
+    let body = /** @type {any[]} */ (await response.json());
+    // GitHub's list can come back empty while GitHub has trouble (it did on 2026-10-22); its newest release alone still answers then.
+    if (!Array.isArray(body) || body.length === 0) {
+      const latest = await ask(LATEST_URL);
+      body = latest.ok ? [await latest.json()] : [];
+    }
     /** @type {Release[]} */
     const releases = [];
     for (const r of body) {
@@ -93,7 +100,8 @@ export class Releases {
       });
     }
     releases.sort((a, b) => compareVersions(b.version, a.version));
-    this.cache = { at: Date.now(), releases };
+    // An empty answer is not kept, so the next look asks GitHub again instead of showing no releases for an hour.
+    if (releases.length > 0) this.cache = { at: Date.now(), releases };
     return releases;
   }
 

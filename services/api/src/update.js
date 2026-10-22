@@ -55,6 +55,15 @@ export function newestStable(releases) {
   return best?.version ?? null;
 }
 
+/** GitHub's newest published release (never a pre-release or draft), or null. */
+async function latestRelease() {
+  const response = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+    headers: { accept: "application/vnd.github+json", "user-agent": "xelDash" },
+    signal: AbortSignal.timeout(10_000),
+  });
+  return response.ok ? response.json() : null;
+}
+
 async function refresh() {
   const response = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, {
     headers: { accept: "application/vnd.github+json", "user-agent": "xelDash" },
@@ -66,7 +75,9 @@ async function refresh() {
     return;
   }
   if (!response.ok) throw new Error(`GitHub returned HTTP ${response.status}`);
-  const version = newestStable(await response.json());
+  let version = newestStable(await response.json());
+  // GitHub's list can come back empty while GitHub has trouble (it did on 2026-10-22); its newest release alone still answers then.
+  if (!version) version = newestStable([await latestRelease()]);
   cached = version ? { version, url: `https://github.com/${REPO}/releases/tag/v${version}` } : null;
 }
 

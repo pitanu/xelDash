@@ -11,6 +11,17 @@ const SYNC_TOLERANCE = 16;
 const START_TIMEOUT_MS = 5 * 60_000;
 const SYNC_TIMEOUT_MS = 30 * 60_000;
 const POLL_MS = 5_000;
+const NETWORK = (process.env.XELIS_NETWORK ?? "devnet").toLowerCase();
+
+/**
+ * Whether a node has caught up with its peers. A node on a private devnet with no peers has nothing to catch up with: its own
+ * chain is the network (without this, a switch there would wait for peers that never come, and fail after 30 minutes).
+ * @param {{ peer_count: number, median_topoheight: number }} p2p @param {{ topoheight: number }} info @param {string} network
+ */
+export function caughtUp(p2p, info, network) {
+  if (p2p.peer_count === 0) return network === "devnet";
+  return p2p.median_topoheight <= info.topoheight + SYNC_TOLERANCE;
+}
 
 /** @param {string} nodeId @param {string} method */
 async function rpc(nodeId, method) {
@@ -29,7 +40,7 @@ async function rpc(nodeId, method) {
 export async function nodeView(nodeId) {
   try {
     const [version, info, p2p] = await Promise.all([rpc(nodeId, "get_version"), rpc(nodeId, "get_info"), rpc(nodeId, "p2p_status")]);
-    const synced = p2p.peer_count > 0 && p2p.median_topoheight <= info.topoheight + SYNC_TOLERANCE;
+    const synced = caughtUp(p2p, info, NETWORK);
     return {
       version: String(version),
       height: info.height,

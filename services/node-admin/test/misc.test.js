@@ -5,9 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { diskLevel } from "../src/disk-watch.js";
 import { AddressProblem, MiningAddress } from "../src/mining-address.js";
-import { compareVersions } from "../src/releases.js";
+import { Releases, compareVersions } from "../src/releases.js";
 import { parseHelp, parsePeers } from "../src/settings.js";
 import { tokensMatch } from "../src/snapshot.js";
+import { caughtUp } from "../src/upgrade.js";
 
 const GB = 1024 ** 3;
 
@@ -113,4 +114,41 @@ test("a snapshot's database folder is refused when unzip would read it as an opt
   const { unsafeArchivePrefix } = await import("../src/snapshot.js");
   for (const ok of ["", "mainnet/", "xelis snapshot (1)/", "data/mainnet/", "a.b-c_d/"]) assert.equal(unsafeArchivePrefix(ok), false, ok);
   for (const bad of ["-d/", "-x/", "*/", "mainnet/*", "a?/", "[ab]/", "x]/", `a${String.fromCharCode(92)}b/`]) assert.equal(unsafeArchivePrefix(bad), true, bad);
+});
+
+test("releases: an empty list from GitHub falls back to its latest release, and an empty answer is not kept", async (t) => {
+  const releases = new Releases();
+  if (!releases.platform) return t.skip("no XELIS build for this machine");
+  const asset = (/** @type {string} */ name) => ({ name, browser_download_url: `https://github.com/xelis-project/xelis-blockchain/releases/download/v1.25.0/${name}` });
+  const release = { tag_name: "v1.25.0", html_url: "https://github.com/xelis-project/xelis-blockchain/releases/tag/v1.25.0",
+    assets: [asset(`${releases.platform}.tar.gz`), asset("checksums.txt")] };
+  const asked = /** @type {string[]} */ ([]);
+  let latest = /** @type {unknown} */ (release);
+  const original = globalThis.fetch;
+  globalThis.fetch = /** @type {any} */ (async (/** @type {string} */ url) => {
+    asked.push(url.endsWith("/latest") ? "latest" : "list");
+    const body = url.endsWith("/latest") ? latest : [];
+    return { ok: body !== null, status: body === null ? 404 : 200, json: async () => body };
+  });
+  try {
+    assert.deepEqual((await releases.list()).map((r) => r.version), ["1.25.0"], "the latest release stands in for the empty list");
+    assert.deepEqual(asked, ["list", "latest"]);
+    latest = null;
+    releases.cache = null;
+    assert.deepEqual(await releases.list(), []);
+    assert.deepEqual(await releases.list(), [], "asked again");
+    assert.deepEqual(asked.slice(2), ["list", "latest", "list", "latest"], "an empty answer is not kept for an hour");
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("a node has caught up when it is level with its peers; on a private devnet with no peers, its own chain counts", () => {
+  const info = { topoheight: 1000 };
+  assert.equal(caughtUp({ peer_count: 8, median_topoheight: 1010 }, info, "mainnet"), true);
+  assert.equal(caughtUp({ peer_count: 8, median_topoheight: 1100 }, info, "mainnet"), false, "still behind");
+  assert.equal(caughtUp({ peer_count: 0, median_topoheight: 0 }, info, "mainnet"), false, "no peers on mainnet: it cannot know");
+  assert.equal(caughtUp({ peer_count: 0, median_topoheight: 0 }, info, "testnet"), false);
+  assert.equal(caughtUp({ peer_count: 0, median_topoheight: 0 }, info, "devnet"), true, "a private devnet has no peers");
+  assert.equal(caughtUp({ peer_count: 1, median_topoheight: 1100 }, info, "devnet"), false, "a devnet node with a peer still catches up with it");
 });

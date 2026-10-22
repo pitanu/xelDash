@@ -130,3 +130,18 @@ test("help lists the commands, and an unknown command is refused", { skip }, () 
   for (const word of ["install", "update", "backup", "restore", "cluster", "frontdoor", "lan"]) assert.match(help.text, new RegExp(word));
   assert.notEqual(launcher(["frobnicate"]).status, 0);
 });
+
+test("a new setup stops when xelDash already has a database on this computer, and says where", { skip }, () => {
+  // A stand-in for docker: project "xeldash" has a database, run from /home/me/xelDash; "empty" has a database but no containers left.
+  const r = bash(`
+    eval "$(sed -n "/^existing_install() {/,/^}/p" "$L")"
+    docker() {
+      case "$1 $2" in
+        "volume inspect") [ "$3" = xeldash_postgres-data ] || [ "$3" = empty_postgres-data ] ;;
+        "ps -a") case "$*" in *project=xeldash*) printf '/home/me/xelDash\n' ;; esac ;;
+      esac
+    }
+    for p in xeldash empty xeldash2; do if where="$(existing_install "$p")"; then echo "$p: [$where]"; else echo "$p: none"; fi; done
+  `);
+  assert.deepEqual(r.out.split("\n"), ["xeldash: [/home/me/xelDash]", "empty: []", "xeldash2: none"], r.err);
+});

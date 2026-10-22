@@ -383,6 +383,19 @@ function Test-DiskSpace([bool]$Yes) {
     Die "That is not enough: xelDash needs about $slow GB free even with the slower start (the blockchain is about 11 GB and grows). Free some space and run xeldash again. (Set XELDASH_SKIP_DISK_CHECK=1 to skip this check.)"
 }
 
+# A new setup makes a new database password, and a database made before keeps the password it was made with. So a new .env next to an
+# existing database (another copy of xelDash on this computer, or this one after .env was removed) could never start. Returns $null when
+# there is none, else an object whose Dir is the folder the existing install runs from ("" when none of its containers is left).
+function Get-ExistingInstall([string]$Project) {
+    if ($Project -notmatch '^[a-z0-9][a-z0-9_-]*$') { return $null }
+    if (-not (Test-Native "docker volume inspect ${Project}_postgres-data")) { return $null }
+    # Through cmd, like Test-Native: Windows PowerShell stops on a program's error output, and drops the quotes a single label would need.
+    $labels = cmd /c "docker ps -a --filter label=com.docker.compose.project=$Project --format {{.Labels}} 2>nul" | Select-Object -First 1
+    $dir = ""
+    if ("$labels" -match '(?:^|,)com\.docker\.compose\.project\.working_dir=([^,]*)') { $dir = $Matches[1] }
+    return [pscustomobject]@{ Dir = $dir }
+}
+
 function Invoke-Install([string[]]$Rest) {
     $network = ""; $address = ""; $lan = ""; $yes = $false; $noStart = $false; $wantFirewall = $false
     $sets = New-Object System.Collections.Generic.List[string]
@@ -410,6 +423,20 @@ function Invoke-Install([string[]]$Rest) {
         return
     }
     if (-not (Test-Path ".env.example")) { Die "Run this from the xelDash folder (.env.example is missing)." }
+    $project = $env:COMPOSE_PROJECT_NAME; if (-not $project) { $project = "xeldash" }
+    foreach ($kv in $sets) { if ($kv -like "COMPOSE_PROJECT_NAME=*") { $project = $kv.Substring(21) } }
+    $existing = Get-ExistingInstall $project
+    if ($null -ne $existing) {
+        $where = $existing.Dir
+        $at = ""; if ($where) { $at = ", set up in $where" }
+        $folder = $where; if (-not $folder) { $folder = "the folder it was set up in" }
+        Warn "xelDash already has a database on this computer (Docker project '$project'$at)."
+        Say "A new setup would give it a new password that this database does not accept, so nothing was changed."
+        Say "  To use it: run xeldash in $folder (xeldash update updates it)."
+        Say "  To run a second, separate xelDash: xeldash install --set COMPOSE_PROJECT_NAME=xeldash2, with other ports (see .env.example)."
+        Say "  To start over: docker compose -p $project down -v   (this deletes its statistics and its copy of the blockchain)"
+        Die "Not set up again."
+    }
     Copy-Item ".env.example" $envPath
     Use-ReleaseVersion
 
@@ -532,6 +559,12 @@ function Update-Release([string]$Current) {
     try { $tags = Invoke-RestMethod -Uri "$api/releases?per_page=100" -TimeoutSec 20 -Headers @{ accept = "application/vnd.github+json"; "user-agent" = "xelDash" } } catch { }
     $tag = ""
     if ($tags) { $tag = Get-NewestTag @($tags) $Current }
+    # GitHub's list can come back empty while GitHub has trouble (it did on 2026-10-22); its newest release alone still answers then.
+    if (-not $tag) {
+        $latest = $null
+        try { $latest = Invoke-RestMethod -Uri "$api/releases/latest" -TimeoutSec 20 -Headers @{ accept = "application/vnd.github+json"; "user-agent" = "xelDash" } } catch { }
+        if ($latest) { $tag = Get-NewestTag @($latest) $Current }
+    }
     if (-not $tag) { Die "Could not find a release to update to. Check your internet connection, or look at https://github.com/$repo/releases" }
     $version = $tag.Substring(1)
     if (-not (Test-VersionNewer $version $Current)) { Ok "You already have the newest release ($Current)."; return }

@@ -61,7 +61,7 @@ test("a copy of a release installs with that release's images; the development b
 });
 
 /** Serves a stand-in for GitHub's tag list and a release archive. */
-async function fakeGithub({ archiveVersion }) {
+async function fakeGithub({ archiveVersion, emptyList = false }) {
   const root = mkdtempSync(join(tmpdir(), "fakerelease-"));
   const pack = join(root, "xelDash-9.9.9");
   mkdirSync(pack, { recursive: true });
@@ -73,7 +73,9 @@ async function fakeGithub({ archiveVersion }) {
   assert.equal(spawnSync("tar", ["-czf", toPosix(tgz), "-C", toPosix(root), "xelDash-9.9.9"]).status, 0);
   const archive = readFileSync(tgz);
   const server = createServer((request, response) => {
-    if (request.url.startsWith("/releases")) response.end(JSON.stringify([{ tag_name: "v9.9.9" }, { tag_name: "v0.1.0" }, { tag_name: "v10.0.0-rc.1", prerelease: true }]));
+    // With emptyList, the list answers [] as GitHub's did during its trouble on 2026-10-22, and only /releases/latest knows the release.
+    if (request.url === "/releases/latest") response.end(JSON.stringify({ tag_name: "v9.9.9" }));
+    else if (request.url.startsWith("/releases")) response.end(JSON.stringify(emptyList ? [] : [{ tag_name: "v9.9.9" }, { tag_name: "v0.1.0" }, { tag_name: "v10.0.0-rc.1", prerelease: true }]));
     else if (request.url === "/release.tar.gz") response.end(archive);
     else response.writeHead(404).end();
   });
@@ -127,6 +129,17 @@ test("update: a release install is moved to the newest release, keeping .env and
   assert.match(r.text, /updated to 9\.9\.9/i);
   const again = await runUpdate(dir, github);
   assert.match(again.text, /already have the newest/i, "a second update has nothing to do");
+  github.close();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("update: when GitHub's release list comes back empty, its latest release is found", { skip: why }, async () => {
+  const github = await fakeGithub({ archiveVersion: "9.9.9", emptyList: true });
+  const dir = installFolder("0.1.0");
+  const r = await runUpdate(dir, github);
+  assert.equal(r.status, 0, r.text);
+  assert.match(readFileSync(join(dir, ".env"), "utf8"), /^XELDASH_VERSION=9.9.9$/m);
+  assert.match((await runUpdate(dir, github)).text, /already have the newest/i, "and an install on it is told it has the newest");
   github.close();
   rmSync(dir, { recursive: true, force: true });
 });

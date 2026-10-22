@@ -7,6 +7,18 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Fixed
+
+- Updates keep working when GitHub's list of releases comes back empty, as it did during a GitHub incident on 2026-10-22: the
+  launchers (`xeldash update`), the dashboard's update notice and the Nodes page's XELIS releases then use GitHub's newest release.
+  Before, `xeldash update` blamed the internet connection, and the Nodes page showed no releases.
+- The Nodes page no longer keeps an empty list of XELIS releases for an hour: it asks GitHub again the next time.
+- Setting up xelDash where it already has a database (a second copy unzipped into another folder, or the same one after `.env` was
+  removed) stops before anything is changed and says where the existing one is, how to use it, run a second copy, or start over.
+  Before, the new setup took over the existing containers and failed with a database password error.
+- On a private devnet, a node switch (from the Nodes page or at a block height) finishes once the node runs the new version: it no
+  longer waits for peers that a private devnet does not have, which made it fail after 30 minutes.
+
 ## [0.6.0] - 2026-10-22
 
 The dashboard: your own block sound, a block notice that stays and shows in the tab title, blocks found in the last 24 hours,

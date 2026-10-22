@@ -194,6 +194,16 @@ check_disk_space() {
   die "That is not enough: xelDash needs about $slow GB free even with the slower start (the blockchain is about 11 GB and grows). Free some space and run ./xeldash.sh again. (XELDASH_SKIP_DISK_CHECK=1 skips this check.)"
 }
 
+# A new setup makes a new database password, and a database made before keeps the password it was made with. So a new .env next to an
+# existing database (another copy of xelDash on this computer, or this one after .env was removed) could never start. Prints the folder
+# the existing install runs from (or nothing when none of its containers is left) and succeeds when there is one.
+existing_install() {
+  local project="$1"
+  docker volume inspect "${project}_postgres-data" >/dev/null 2>&1 || return 1
+  docker ps -a --filter "label=com.docker.compose.project=$project" --format '{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null | head -n 1
+  return 0
+}
+
 cmd_install() {
   local network="" address="" lan="" yes=0 nostart=0 sets=()
   while [ $# -gt 0 ]; do
@@ -220,6 +230,16 @@ cmd_install() {
   fi
 
   [ -f .env.example ] || die "Run this from the xelDash folder (.env.example is missing)."
+  local project="${COMPOSE_PROJECT_NAME:-xeldash}" kv where
+  for kv in ${sets[@]+"${sets[@]}"}; do case "$kv" in COMPOSE_PROJECT_NAME=*) project="${kv#*=}" ;; esac; done
+  if where="$(existing_install "$project")"; then
+    warn "xelDash already has a database on this computer (Docker project '$project'${where:+, set up in $where})."
+    say "A new setup would give it a new password that this database does not accept, so nothing was changed."
+    say "  To use it: run ./xeldash.sh in ${where:-the folder it was set up in} (./xeldash.sh update updates it)."
+    say "  To run a second, separate xelDash: ./xeldash.sh install --set COMPOSE_PROJECT_NAME=xeldash2, with other ports (see .env.example)."
+    say "  To start over: docker compose -p $project down -v   (this deletes its statistics and its copy of the blockchain)"
+    die "Not set up again."
+  fi
   cp .env.example .env
   chmod 600 .env 2>/dev/null || true  # it holds passwords and the admin token: readable by this user only
   use_release_version
@@ -435,6 +455,8 @@ update_release() {
   api="${XELDASH_RELEASE_API:-https://api.github.com/repos/$repo}"
   say "Looking for a newer release..."
   tag="$(curl -fsSL -m 20 -H 'accept: application/vnd.github+json' "$api/releases?per_page=100" 2>/dev/null | newest_tag "$current")" || tag=""
+  # GitHub's list can come back empty while GitHub has trouble (it did on 2026-10-22); its newest release alone still answers then.
+  [ -n "$tag" ] || tag="$(curl -fsSL -m 20 -H 'accept: application/vnd.github+json' "$api/releases/latest" 2>/dev/null | newest_tag "$current")" || tag=""
   [ -n "$tag" ] || die "Could not find a release to update to. Check your internet connection, or look at https://github.com/$repo/releases"
   version="${tag#v}"
   if ! version_newer "$version" "$current"; then ok "You already have the newest release ($current)."; return 0; fi

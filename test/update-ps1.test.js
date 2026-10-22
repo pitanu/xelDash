@@ -14,7 +14,7 @@ const hasPowerShell = process.platform === "win32" && ps(["-Command", "exit 0"])
 const hasDocker = hasPowerShell && spawnSync("docker", ["info"], { timeout: 20_000 }).status === 0;
 const skip = hasDocker ? false : "needs Windows PowerShell and Docker";
 
-async function fakeGithub(archiveVersion) {
+async function fakeGithub(archiveVersion, { emptyList = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), "fakerelease-"));
   const pack = join(root, "xelDash-9.9.9");
   mkdirSync(pack, { recursive: true });
@@ -26,7 +26,9 @@ async function fakeGithub(archiveVersion) {
   assert.equal(ps(["-Command", `Compress-Archive -LiteralPath '${pack}' -DestinationPath '${zip}'`]).status, 0);
   const archive = readFileSync(zip);
   const server = createServer((request, response) => {
-    if (request.url.startsWith("/releases")) response.end(JSON.stringify([{ tag_name: "v9.9.9" }, { tag_name: "v0.1.0" }, { tag_name: "v10.0.0-rc.1", prerelease: true }]));
+    // With emptyList, the list answers [] as GitHub's did during its trouble on 2026-10-22, and only /releases/latest knows the release.
+    if (request.url === "/releases/latest") response.end(JSON.stringify({ tag_name: "v9.9.9" }));
+    else if (request.url.startsWith("/releases")) response.end(JSON.stringify(emptyList ? [] : [{ tag_name: "v9.9.9" }, { tag_name: "v0.1.0" }, { tag_name: "v10.0.0-rc.1", prerelease: true }]));
     else if (request.url === "/release.zip") response.end(archive);
     else response.writeHead(404).end();
   });
@@ -78,6 +80,17 @@ test("Windows: a release install is moved to the newest release, keeping .env an
   rmSync(dir, { recursive: true, force: true });
 });
 
+test("Windows: when GitHub's release list comes back empty, its latest release is found", { skip }, async () => {
+  const github = await fakeGithub("9.9.9", { emptyList: true });
+  const dir = installFolder("0.1.0");
+  const r = await runUpdate(dir, github);
+  assert.equal(r.status, 0, r.text);
+  assert.match(readFileSync(join(dir, ".env"), "utf8"), /^XELDASH_VERSION=9.9.9s*$/m);
+  assert.match((await runUpdate(dir, github)).text, /already have the newest/i, "and an install on it is told it has the newest");
+  github.close();
+  rmSync(dir, { recursive: true, force: true });
+});
+
 test("Windows: an archive that is not the release it claims to be changes nothing", { skip }, async () => {
   const github = await fakeGithub("1.2.3");
   const dir = installFolder("0.1.0");
@@ -103,4 +116,19 @@ test("Windows: which version is newer", { skip: hasPowerShell ? false : "needs W
   writeFileSync(file, lines.join("\n"));
   const r = ps(["-File", file]);
   assert.equal(r.stdout.trim(), "done", r.stdout + r.stderr);
+});
+
+test("Windows: a new setup stops when xelDash already has a database on this computer, and says where", { skip: hasPowerShell ? false : "needs Windows PowerShell" }, () => {
+  const source = readFileSync(LAUNCHER, "utf8");
+  const fn = /^function Get-ExistingInstall[\s\S]*?^}/m.exec(source)?.[0];
+  assert.ok(fn, "Get-ExistingInstall is in the launcher");
+  // Stand-ins for docker (run through cmd by the launcher): project "xeldash" has a database, run from C:/xelDash; "empty" has a database but no containers left.
+  const script = `
+    function Test-Native([string]$CommandLine) { return $CommandLine -match "volume inspect (xeldash|empty)_postgres-data$" }
+    function cmd { if (($args -join " ") -match "project=xeldash ") { "com.docker.compose.project=xeldash,com.docker.compose.project.working_dir=C:/xelDash,com.docker.compose.service=api" } }
+    ${fn}
+    foreach ($p in "xeldash", "empty", "xeldash2") { $w = Get-ExistingInstall $p; if ($null -eq $w) { "$($p): none" } else { "$($p): [$($w.Dir)]" } }
+  `;
+  const r = ps(["-Command", script]);
+  assert.deepEqual(r.stdout.trim().split(/\r?\n/), ["xeldash: [C:/xelDash]", "empty: []", "xeldash2: none"], r.stderr);
 });
