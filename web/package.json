@@ -11,6 +11,9 @@
     "preview": "vite preview",
     "test": "node --disable-warning=ExperimentalWarning --import ./test/dom/setup.js --test --test-timeout=60000 \"test/components/*.test.js\""
   },
+  "engines": {
+    "node": ">=22.15"
+  },
   "dependencies": {
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

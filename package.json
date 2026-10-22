@@ -15,6 +15,9 @@
     "load": "node test/load/run.js",
     "test": "node --test --test-timeout=60000 \"services/*/test/*.test.js\" \"packages/*/test/*.test.js\" \"web/test/*.test.js\" \"test/*.test.js\""
   },
+  "engines": {
+    "node": ">=22.15"
+  },
   "devDependencies": {
     "@types/node": "^26.6.5",
     "@types/pg": "^8.15.4",

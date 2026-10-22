@@ -12,11 +12,19 @@ breaking changes; they are marked **Breaking**.
 - A block sound of your own: in Settings, choose an audio file (at most 1 MB and 10 seconds) to play instead of the chime when a
   block is found. It stays in your browser and is never sent to the server, so it is safe on a public server too.
 - The "Block found" notice stays until you close it, or for an hour, instead of 12 seconds, so it is not missed.
-- The Overview's "Blocks found" says how many of them were found in the last 24 hours.
+- The Overview's "Blocks found" says how many of them were found in the last 24 hours ("1 in 24 h"), and the number pending
+  only while there is one, so it fits on one line.
 - A block found while the dashboard is on another tab shows in the tab title, "(1) Block found · xelDash", until you look
   at it again.
 - Charts animate: lines draw in, bars grow and dots appear when a chart loads or changes range, and each new bar or dot as
   it arrives. They run once, never loop, and are skipped when your system asks for less motion; Settings can turn them off.
+- New README screenshots, and one of the best share chart.
+
+### Development
+
+- The tests no longer fail or hang now and then when they run in parallel (on Windows especially): test servers listen on a
+  port the system picks, every test connection ends, and a test that hangs fails after a minute.
+- Node.js 22.15 or newer is needed for the tests (`engines` in package.json); CI uses 26.
 
 ## [0.5.0] - 2026-10-19
 

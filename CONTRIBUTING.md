@@ -12,7 +12,8 @@ are all welcome.
 
 ## Development setup
 
-You need Docker (with Compose) and Node.js 26.
+You need Docker (with Compose) and Node.js 26, as CI uses (22.15 or newer runs the tests; older versions cannot load
+the dashboard tests, and npm warns about them).
 
 ```sh
 cp .env.example .env        # then set POSTGRES_PASSWORD, XELIS_NETWORK=devnet and XELIS_SNAPSHOT_AUTO=false
