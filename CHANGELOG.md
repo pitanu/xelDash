@@ -7,6 +7,11 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-22
+
+The dashboard: your own block sound, a block notice that stays and shows in the tab title, blocks found in the last 24 hours,
+and chart animations. No database migration.
+
 ### Dashboard
 
 - A block sound of your own: in Settings, choose an audio file (at most 1 MB and 10 seconds) to play instead of the chime when a
