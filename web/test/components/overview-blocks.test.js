@@ -34,5 +34,5 @@ test("Blocks found shows the total and the last 24 hours, rejected blocks left o
   const view = await render(h(Overview));
   const text = view.text();
   assert.ok(text.includes("Blocks found23"), text.slice(0, 400));
-  assert.match(text, /4 in the last 24 hours · 20 main chain · 1 pending/);
+  assert.match(text, /4 in 24 h · 20 main chain · 1 pending/);
 });
