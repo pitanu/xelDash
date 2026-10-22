@@ -7,6 +7,10 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-22
+
+Fixes found while testing the real release update from 0.5.0 to 0.6.0, and during a GitHub incident. No database migration.
+
 ### Fixed
 
 - Updates keep working when GitHub's list of releases comes back empty, as it did during a GitHub incident on 2026-10-22: the
