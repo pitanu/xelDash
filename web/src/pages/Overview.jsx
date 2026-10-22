@@ -29,6 +29,8 @@ export default function Overview() {
   const o = overview.data;
   const blockRows = o?.blocks ?? [];
   const found = blockRows.reduce((/** @type {number} */ sum, /** @type {{ status: string, count: string }} */ r) => sum + (r.status === "rejected" ? 0 : Number(r.count)), 0);
+  const foundToday = blockRows.reduce((/** @type {number} */ sum, /** @type {{ status: string, last_24h?: string }} */ r) =>
+    sum + (r.status === "rejected" ? 0 : Number(r.last_24h ?? 0)), 0);
   const stratum = status.data?.services.stratum;
   // Whether miners get work right now, from the Health page's source.
   const miningBadge = !stratum ? null
@@ -55,7 +57,7 @@ export default function Overview() {
           detail={<>At last hour's hashrate{o?.node?.miner_reward ? <EarningsText prefix=" · " hashrate={Number(o.miningEstimates["1h"].estimatedHashesPerSecond)}
             difficulty={o.network.difficulty} minerReward={o.node.miner_reward} /> : null}</>} />
         <StatTile icon="block" label="Blocks found" value={formatInteger(found)}
-          detail={o ? `${countOf(blockRows, "main-chain")} main chain · ${countOf(blockRows, "submitted")} pending` : undefined} />
+          detail={o ? `${formatInteger(foundToday)} in the last 24 hours · ${countOf(blockRows, "main-chain")} main chain · ${countOf(blockRows, "submitted")} pending` : undefined} />
         <StatTile icon="difficulty" label="Network difficulty" value={formatCompact(o?.network?.difficulty)}
           detail={o?.network?.hashrate ? `Network ${formatHashrate(o.network.hashrate)}` : undefined} />
         <StatTile icon="workers" label="Active workers" value={formatInteger(o?.miners?.active_workers)}

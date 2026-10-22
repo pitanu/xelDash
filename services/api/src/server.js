@@ -151,7 +151,7 @@ async function getOverviewStats() {
       WHERE bucket >= date_trunc('minute', now()) - interval '24 hours'
     `),
     pool.query(`
-      SELECT status, COUNT(*)::text AS count
+      SELECT status, COUNT(*)::text AS count, COUNT(*) FILTER (WHERE found_at >= now() - interval '24 hours')::text AS last_24h
       FROM blocks
       GROUP BY status
       ORDER BY status

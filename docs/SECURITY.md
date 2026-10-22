@@ -26,6 +26,10 @@ Leave it unset if you do not need these features.
 - **Nothing sensitive is published.** Daemon RPC, PostgreSQL and node-admin are only on the
   internal Compose network. The dashboard, API and Stratum bind to `127.0.0.1` unless you set
   a LAN address.
+- **A block sound of your own stays in your browser.** The audio file chosen in Settings is kept in that browser (IndexedDB)
+  and never sent to the server, so a public server stores and serves nothing for it: each visitor's choice reaches only their
+  own browser. It is played from its bytes with the Web Audio API, so the dashboard's content security policy is unchanged, and
+  only a file that decodes as audio, of at most 1 MB and 10 seconds, is taken.
 - **Metrics name nobody, and stay off unless asked for.** Stratum's Prometheus metrics (the `metrics` profile) are totals: no
   address, worker name or IP address is a label. Per-worker metrics are a separate choice and are never served in public mode.
   Their port is on `127.0.0.1` by default, can require a token, and on a public server published beyond this computer without

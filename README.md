@@ -107,7 +107,8 @@ holds no funds, ever.
   data kept behind the line, and a shares chart that shows accepted, stale and invalid shares.
 - **Miners and workers** with per-rig hashrate, the hashrate each miner reports about
   itself, rejected shares by reason, and a clean list that hides rigs that went away.
-- **A notice, and an optional chime,** when one of your miners finds a block.
+- **A notice, and an optional sound,** when one of your miners finds a block: the built-in chime or your own audio file, kept
+  in your browser. The notice stays until you close it.
 - **Blocks** with their final status, reward and the effort of the round that found them, a link
   to each in the official block explorer, the total rewards found so far, and a CSV download.
 - **Light, dark or system theme**, and a layout that works on a phone.

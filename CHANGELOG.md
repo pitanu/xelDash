@@ -7,6 +7,13 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Dashboard
+
+- A block sound of your own: in Settings, choose an audio file (at most 1 MB and 10 seconds) to play instead of the chime when a
+  block is found. It stays in your browser and is never sent to the server, so it is safe on a public server too.
+- The "Block found" notice stays until you close it, or for an hour, instead of 12 seconds, so it is not missed.
+- The Overview's "Blocks found" says how many of them were found in the last 24 hours.
+
 ## [0.5.0] - 2026-10-19
 
 Best share: how close each address came to a block. Includes a database migration (010), which only adds a column; going back

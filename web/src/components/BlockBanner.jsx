@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { subscribeBlockFound } from "../live.js";
-import { blockSoundEnabled, playChime } from "../block-sound.js";
+import { blockSoundEnabled, playBlockSound } from "../block-sound.js";
 import { useBlockUrl } from "../explorer.js";
 import { formatInteger } from "../format.js";
 
-const SHOW_MS = 12_000;
+// Long enough to be seen by someone who looks back at the page later; it goes when closed, or when a newer block replaces it.
+const SHOW_MS = 60 * 60_000;
 
 /**
  * "Block found" notice at the top of every page, shown when one of your miners finds a block
- * while the dashboard is open, with the chime if it is on. The block comes from the API, since
+ * while the dashboard is open, with the block sound if it is on. The block comes from the API, since
  * the live message only says that something happened.
  */
 export default function BlockBanner() {
@@ -22,7 +23,7 @@ export default function BlockBanner() {
         const latest = body?.blocks?.[0];
         if (!latest) return;
         setBlock({ hash: latest.hash, height: latest.height, worker: latest.worker });
-        if (blockSoundEnabled()) void playChime();
+        if (blockSoundEnabled()) void playBlockSound();
       })
       .catch(() => {});
   }), []);
