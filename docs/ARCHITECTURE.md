@@ -204,8 +204,8 @@ calls to the node in all (`node-budget.js`). The limits and their defaults are i
 
 - Pages: Overview (with a setup banner until a miner has connected), Get started (`#/setup`), Miners (with Miner and Worker pages), Blocks, Health (with connection problems), Nodes (stop and start,
   versions and upgrades, copies and snapshots) and Settings (display, the official node fallback,
-  alerts, backups, each node's daemon settings). Light, dark or system theme and an optional XEL price, both
-  per browser; phone-sized layouts; live updates over `/api/v1/live` with polling as the
+  alerts, backups, each node's daemon settings). Light, dark or system theme, an optional XEL price, the block sound (the
+  built-in chime or the visitor's own file, kept in IndexedDB and never uploaded) and chart animations, all per browser; phone-sized layouts; live updates over `/api/v1/live` with polling as the
   fallback.
 - REST endpoints (all `GET`; `address` must be a valid `xel:`/`xet:` address; `worker` needs
   `address`): `/api/v1/overview`, `/api/v1/status`, `/api/v1/hashrate`, `/api/v1/miners`,

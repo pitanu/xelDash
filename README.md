@@ -94,8 +94,8 @@ holds no funds, ever.
 
 ### Dashboard
 
-- **Live overview:** hashrate, expected time to a block, network difficulty, workers, shares
-  and node health, updating as it happens.
+- **Live overview:** hashrate, expected time to a block, blocks found (and how many in the last 24 hours), network difficulty,
+  workers, shares and node health, updating as it happens.
 - **Best share.** How close your best share came to a block (100% is one), this round, in the last day and ever, with a
   chart per bucket on the miner and worker pages.
 - **Effort and luck.** See how far the current round is from an average block, and how the
@@ -104,14 +104,23 @@ holds no funds, ever.
 - **Expected earnings** in XEL, and optionally in money with the XEL price in one of eleven
   currencies. Prices are fetched by your server, never by your browser.
 - **Smooth, honest charts** from six hours to a year, with adjustable smoothing and the raw
-  data kept behind the line, and a shares chart that shows accepted, stale and invalid shares.
+  data kept behind the line, and a shares chart that shows accepted, stale and invalid shares. They draw in when they load,
+  in your browser only; off in Settings, or when your system asks for less motion.
 - **Miners and workers** with per-rig hashrate, the hashrate each miner reports about
   itself, rejected shares by reason, and a clean list that hides rigs that went away.
 - **A notice, and an optional sound,** when one of your miners finds a block: the built-in chime or your own audio file, kept
-  in your browser. The notice stays until you close it.
+  in your browser. The notice stays until you close it, and on another tab the page title says "Block found".
 - **Blocks** with their final status, reward and the effort of the round that found them, a link
   to each in the official block explorer, the total rewards found so far, and a CSV download.
 - **Light, dark or system theme**, and a layout that works on a phone.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/best-share-dark.png">
+    <img alt="The best share chart: the best share of each 15 minutes on a log scale, with the line where a share is a block and a gold dot for the block found" src="docs/images/best-share-light.png" width="760">
+  </picture><br>
+  <sub>Best share: how close each 15 minutes came to a block. The gold dot is a block.</sub>
+</p>
 
 ### Nodes that look after themselves
 
