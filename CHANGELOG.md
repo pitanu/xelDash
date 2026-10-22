@@ -15,6 +15,8 @@ breaking changes; they are marked **Breaking**.
 - The Overview's "Blocks found" says how many of them were found in the last 24 hours.
 - A block found while the dashboard is on another tab shows in the tab title, "(1) Block found · xelDash", until you look
   at it again.
+- Charts animate: lines draw in, bars grow and dots appear when a chart loads or changes range, and each new bar or dot as
+  it arrives. They run once, never loop, and are skipped when your system asks for less motion; Settings can turn them off.
 
 ## [0.5.0] - 2026-10-19
 

@@ -115,7 +115,8 @@ export default function SharesChart({ points: loaded, dimmed = false }) {
               const staleH = (stale[i] / top) * plotH;
               const rejectedH = (rejected[i] / top) * plotH;
               return (
-                <g key={p.time} opacity={active === null || active === i ? 1 : 0.55}>
+                <g key={p.time} opacity={active === null || active === i ? 1 : 0.55} className="chart-grow"
+                  style={/** @type {React.CSSProperties} */ ({ "--i": i })}>
                   {accepted[i] > 0 && <rect x={x} y={y(accepted[i])} width={barW} height={acceptedH} fill="var(--series-1)" />}
                   {stale[i] > 0 && <rect x={x} y={y(accepted[i]) - staleH} width={barW} height={Math.max(1, staleH)} fill="var(--warning)" />}
                   {rejected[i] > 0 && <rect x={x} y={y(accepted[i] + stale[i]) - rejectedH} width={barW} height={Math.max(1, rejectedH)} fill="var(--critical)" />}

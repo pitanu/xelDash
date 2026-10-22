@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { RANGES, formatHashrate, formatInteger, formatTime } from "../format.js";
 import { SMOOTHING, monotonePath, smooth } from "./chart-math.js";
 import { Segmented } from "./ui.jsx";
+import { useReplayKey } from "../motion.js";
 
 const HEIGHT = 240;
 const SMOOTHING_KEY = "xeldash.chartSmoothing";
@@ -57,6 +58,7 @@ export default function HashrateChart({ points: loaded, dimmed = false, range, o
   const [showTable, setShowTable] = useState(false);
   const [smoothing, setSmoothing] = useState(readSmoothing);
   const gradientId = useId();
+  const replay = useReplayKey(range, loaded);
 
   const raw = useMemo(() => points.map((p) => Number(p.hashrate)), [points]);
   const values = useMemo(() => smooth(raw, smoothing), [raw, smoothing]);
@@ -152,11 +154,11 @@ export default function HashrateChart({ points: loaded, dimmed = false, range, o
               </linearGradient>
             </defs>
             {!empty && (
-              <>
-                <path d={area} fill={`url(#${gradientId})`} />
-                {smoothed && <path d={rawLine} fill="none" stroke="var(--series-1)" strokeOpacity="0.3" strokeWidth="1" strokeLinejoin="round" />}
-                <path d={line} fill="none" stroke="var(--series-1)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-              </>
+              <g key={replay}>
+                <path d={area} fill={`url(#${gradientId})`} className="chart-fade" />
+                {smoothed && <path d={rawLine} fill="none" stroke="var(--series-1)" strokeOpacity="0.3" strokeWidth="1" strokeLinejoin="round" className="chart-fade" />}
+                <path d={line} pathLength="1" fill="none" stroke="var(--series-1)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" className="chart-draw" />
+              </g>
             )}
             {!empty && shown === null && last >= 0 && (
               <>

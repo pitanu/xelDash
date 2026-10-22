@@ -120,7 +120,8 @@ export default function BestShareChart({ points: loaded, dimmed = false }) {
             ))}
             {dots.map((d, k) => (
               <circle key={d.time} cx={x(d.i)} cy={y(d.best)} r={d.best >= 1 ? 5 : 4} fill={d.best >= 1 ? "var(--series-block)" : "var(--series-1)"}
-                stroke="var(--surface)" strokeWidth="2" opacity={shown && active !== k ? 0.55 : 1} />
+                stroke="var(--surface)" strokeWidth="2" opacity={shown && active !== k ? 0.55 : 1} className="chart-pop"
+                style={/** @type {React.CSSProperties} */ ({ "--i": k })} />
             ))}
             {blocks <= MAX_BLOCK_LABELS && dots.filter((d) => d.best >= 1).map((d) => (
               <text key={`label-${d.time}`} x={x(d.i)} y={y(d.best) - 10} textAnchor="middle" fontSize="11" fill="var(--ink-2)"

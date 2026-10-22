@@ -4,6 +4,7 @@ import AlertSettings from "../components/AlertSettings.jsx";
 import BackupCard from "../components/BackupCard.jsx";
 import BlockSoundSetting from "../components/BlockSoundSetting.jsx";
 import DaemonSettings from "../components/DaemonSettings.jsx";
+import MotionSetting from "../components/MotionSetting.jsx";
 import MiningFallback from "../components/MiningFallback.jsx";
 import PriceSetting from "../components/PriceSetting.jsx";
 import SupportCard from "../components/SupportCard.jsx";
@@ -41,6 +42,7 @@ export default function Settings() {
 
       <h2 className="text-base font-semibold text-ink">Display</h2>
       <ThemeSetting />
+      <MotionSetting />
       <PriceSetting />
       <BlockSoundSetting />
 

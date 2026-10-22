@@ -3,6 +3,7 @@ import { usePolled } from "../api.js";
 import { useCoin } from "../coin.js";
 import { formatXel } from "../format.js";
 import { Segmented } from "./ui.jsx";
+import { useReplayKey } from "../motion.js";
 
 const RANGES = ["30d", "90d", "1y"];
 const HEIGHT = 220;
@@ -46,6 +47,7 @@ export default function RewardsChart({ address = null, rewardPerBlock }) {
   const frame = useRef(/** @type {HTMLDivElement | null} */ (null));
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState(/** @type {number | null} */ (null));
+  const replay = useReplayKey(range, history.data);
 
   useEffect(() => {
     if (!frame.current) return undefined;
@@ -134,10 +136,16 @@ export default function RewardsChart({ address = null, rewardPerBlock }) {
                 {formatDay(series[i].day)}
               </text>
             ))}
-            {!empty && hasExpected && (
-              <path d={path((p) => p.expected ?? 0)} fill="none" stroke="var(--ink-2)" strokeWidth="1.5" strokeDasharray="5 4" strokeLinejoin="round" />
+            {!empty && (
+              <g key={replay}>
+                {hasExpected && (
+                  <path d={path((p) => p.expected ?? 0)} fill="none" stroke="var(--ink-2)" strokeWidth="1.5" strokeDasharray="5 4" strokeLinejoin="round"
+                    className="chart-fade" />
+                )}
+                <path d={path((p) => p.found)} pathLength="1" fill="none" stroke="var(--series-1)" strokeWidth="2" strokeLinejoin="round"
+                  strokeLinecap="round" className="chart-draw" />
+              </g>
             )}
-            {!empty && <path d={path((p) => p.found)} fill="none" stroke="var(--series-1)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
             {!empty && active === null && last >= 0 && (
               <circle cx={x(last)} cy={y(series[last].found)} r="4" fill="var(--series-1)" stroke="var(--surface)" strokeWidth="2" />
             )}
