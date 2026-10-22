@@ -1,4 +1,7 @@
+import { useEffect, useRef, useState } from "react";
 import { useCoin } from "../coin.js";
+import { easeOut, numberIn, writeLike } from "../count-up.js";
+import { motionAllowed } from "../motion.js";
 import { XEL_DECIMALS, formatAgo, formatEffort, formatHashrate, formatInteger, formatTime, formatXel, shorten } from "../format.js";
 import { useBlockUrl } from "../explorer.js";
 import { formatMoney, usePrice } from "../price.js";
@@ -31,6 +34,57 @@ export const ICONS = {
   height: "M3 12.5h10M4.5 10h7M6 7.5h4M7.25 5h1.5",
 };
 
+const COUNT_UP_MS = 1000;
+const COUNT_CHANGE_MS = 600;
+
+/**
+ * A tile's number, counted up from zero when it first shows and moved to its new value when a refresh changes it (only the
+ * number moves; the unit and the rest of the text stay). Screen readers get the final value. Without animation (turned off in
+ * Settings, or the system asks for less motion) it is the plain text.
+ * @param {{ text: string }} props
+ */
+function CountUp({ text }) {
+  // The first frame already shows zero, so the final number does not flash before the count starts.
+  const [shown, setShown] = useState(() => {
+    const target = numberIn(text);
+    return target && motionAllowed() ? writeLike(0, target) : text;
+  });
+  const from = useRef(/** @type {ReturnType<typeof numberIn>} */ (null));
+  useEffect(() => {
+    const target = numberIn(text);
+    const previous = from.current;
+    from.current = target;
+    if (!target || !motionAllowed()) {
+      setShown(text);
+      return undefined;
+    }
+    // A unit that changed (KH/s to MH/s) is not counted through; the first value counts up from zero.
+    const same = previous && previous.before === target.before && previous.after === target.after;
+    if (previous && (!same || previous.value === target.value)) {
+      setShown(text);
+      return undefined;
+    }
+    const start = previous ? previous.value : 0;
+    const duration = previous ? COUNT_CHANGE_MS : COUNT_UP_MS;
+    const began = performance.now();
+    let frame = 0;
+    const step = (/** @type {number} */ now) => {
+      const t = Math.min(1, (now - began) / duration);
+      setShown(t < 1 ? writeLike(start + (target.value - start) * easeOut(t), target) : text);
+      if (t < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [text]);
+  if (shown === text) return <>{text}</>;
+  return (
+    <>
+      <span className="sr-only">{text}</span>
+      <span aria-hidden="true" className="tabular">{shown}</span>
+    </>
+  );
+}
+
 /**
  * A labelled figure. The hero tile (one per view) is larger and lightly tinted with the
  * accent; `aside` sits top-right, for a status badge.
@@ -51,7 +105,9 @@ export function StatTile({ label, value, detail, hero = false, icon, aside }) {
         </div>
         {aside}
       </div>
-      <div className={`mt-1 font-semibold tracking-tight text-ink ${hero ? "text-5xl leading-tight" : "text-2xl"}`}>{value}</div>
+      <div className={`mt-1 font-semibold tracking-tight text-ink ${hero ? "text-5xl leading-tight" : "text-2xl"}`}>
+        {typeof value === "string" ? <CountUp text={value} /> : value}
+      </div>
       {detail && <div className="mt-1 text-xs text-muted">{detail}</div>}
     </div>
   );

@@ -19,6 +19,8 @@ registerHooks({
   },
 });
 GlobalRegistrator.register({ url: "http://xeldash.test/" });
+// Animations off, as with Settings turned off, so pages show their final numbers at once (count-up.test.js turns them on).
+document.documentElement.dataset.motion = "off";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 class QuietWebSocket extends EventTarget {

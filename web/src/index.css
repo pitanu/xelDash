@@ -99,20 +99,20 @@ body {
 @keyframes block-banner-in { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: none; } }
 @keyframes block-new-flash { from { background-color: color-mix(in srgb, var(--good) 28%, transparent); } to { background-color: transparent; } }
 
-/* Chart animations (see src/motion.js): one-shot, under a second, and only transform, opacity and stroke offset, so they stay
+/* Chart animations (see src/motion.js): one-shot, about a second, and only transform, opacity and stroke offset, so they stay
    cheap on slow devices. Skipped for less motion, or when turned off in Settings. Only the start of each animation is held
    (fill-mode backwards), so afterwards the marks' own opacity (dimmed while another is hovered) applies as before. A line
-   draws over pathLength="1"; bars and dots are staggered by --i, at most 0.3 s. */
+   draws over pathLength="1"; bars and dots are staggered by --i, at most 0.4 s. */
 @media (prefers-reduced-motion: no-preference) {
-  :root:not([data-motion="off"]) .chart-draw { stroke-dasharray: 1; animation: chart-draw 0.9s ease-out backwards; }
-  :root:not([data-motion="off"]) .chart-fade { animation: chart-fade 0.9s ease-out backwards; }
+  :root:not([data-motion="off"]) .chart-draw { stroke-dasharray: 1; animation: chart-draw 1.2s ease-in-out backwards; }
+  :root:not([data-motion="off"]) .chart-fade { animation: chart-fade 1.2s ease-out backwards; }
   :root:not([data-motion="off"]) .chart-grow {
     transform-box: fill-box; transform-origin: 50% 100%;
-    animation: chart-grow 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) backwards; animation-delay: min(calc(var(--i, 0) * 8ms), 0.3s);
+    animation: chart-grow 0.8s cubic-bezier(0.2, 0.7, 0.3, 1) backwards; animation-delay: min(calc(var(--i, 0) * 12ms), 0.4s);
   }
   :root:not([data-motion="off"]) .chart-pop {
     transform-box: fill-box; transform-origin: center;
-    animation: chart-pop 0.4s cubic-bezier(0.2, 0.7, 0.3, 1.3) backwards; animation-delay: min(calc(var(--i, 0) * 6ms), 0.3s);
+    animation: chart-pop 0.6s cubic-bezier(0.2, 0.7, 0.3, 1.3) backwards; animation-delay: min(calc(var(--i, 0) * 8ms), 0.4s);
   }
 }
 @keyframes chart-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }

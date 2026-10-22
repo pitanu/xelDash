@@ -1,7 +1,8 @@
 import { useRef, useSyncExternalStore } from "react";
 import { nextReplay } from "./replay.js";
 
-// Chart animations: a line draws in, bars grow from the axis, dots appear. They are one-shot CSS animations (see index.css) that
+// Chart animations: a line draws in, bars grow from the axis, dots appear (and tile numbers count up: CountUp in components/ui.jsx).
+// The chart ones are one-shot CSS animations (see index.css) that
 // play when a chart first shows its data, when its range changes and for each new bar or dot, never on a refresh of the same
 // data and never in a loop, so between them they cost nothing. They are skipped for people whose system asks for less motion,
 // and can be turned off per browser; the choice is applied before first paint by public/theme-init.js.
@@ -34,6 +35,16 @@ function subscribe(listener) {
 
 export function useAnimations() {
   return useSyncExternalStore(subscribe, read);
+}
+
+/** Whether to animate now: on in Settings, and the system does not ask for less motion. For animations made in script, not CSS. */
+export function motionAllowed() {
+  if (!read()) return false;
+  try {
+    return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return true;
+  }
 }
 
 /**

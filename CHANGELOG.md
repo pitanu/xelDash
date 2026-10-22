@@ -7,6 +7,12 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Dashboard
+
+- The numbers on the tiles count up when they first show, and move to their new value when a refresh changes it, in your
+  browser's number format; screen readers get the final value. The charts' animations take about a second instead of half that.
+  Both are skipped when your system asks for less motion, and Settings ("Animate charts and numbers") turns them off.
+
 ## [0.6.1] - 2026-10-22
 
 Fixes found while testing the real release update from 0.5.0 to 0.6.0, and during a GitHub incident. No database migration.
