@@ -15,7 +15,7 @@ The `.env` way, which gives the starting values (restart the API with `docker co
 |---------|-----|
 | `ALERT_DISCORD_WEBHOOK_URL` | A Discord channel webhook URL |
 | `ALERT_TELEGRAM_BOT_TOKEN` and `ALERT_TELEGRAM_CHAT_ID` | A bot token from @BotFather and the chat to post in |
-| `ALERT_WEBHOOK_URL` | Receives `{ event, text, ...details, sentAt }` as a JSON POST |
+| `ALERT_WEBHOOK_URL` | Receives `{ event, text, ...details, sentAt }` as a JSON POST (see [Webhook alerts](#webhook-alerts)) |
 | `ALERT_EVENTS` | Which alerts to send (default: all, see below) |
 | `ALERT_WORKER_OFFLINE_MINUTES` | Minutes without an accepted share before a worker counts as offline (10) |
 | `ALERT_DASHBOARD_URL` | Adds dashboard links, for example `http://192.168.1.10:8088` |
@@ -58,6 +58,32 @@ and the next message says how many.
 
 The API log lists the enabled channels at startup ("Alerts enabled: ..."). Failed deliveries
 are logged and not retried.
+
+### Webhook alerts
+
+A webhook receives each alert as a JSON POST: `event` (below), `text` (the same message Discord and Telegram get), the alert's
+fields, and `sentAt` (when it was sent, as an ISO time). From 1.0.0 these field names stay: new fields may be added, and none listed
+here is renamed or removed within 1.x (`services/api/test/alerts-webhook.test.js` checks them). Block heights and rewards are
+numbers or strings of digits; rewards are in atomic units (100,000,000 to a XEL).
+
+| `event` | Fields |
+|---------|--------|
+| `block_found` | `hash`, `height`, `jobId`, `workerName`, `address` (the miner's) |
+| `block_rejected` | `hash`, `height`, `jobId`, `workerName`, `error` (the node's reason) |
+| `block_side` | `hash`, `height` |
+| `block_final` | `hash`, `height`, `topoheight`, `status` (`main-chain`, `side` or `orphaned`), `reward`; several within 5 seconds: `blocks`, a list of those |
+| `mining_paused` | `reason` (`syncing` or `unreachable`), `nodes` (each node's state); while syncing also `topoheight`, `networkTopoheight`, `peers` |
+| `mining_resumed` | `node` (the one mining now), `nodes` |
+| `node_switched` | `from`, `to`, `nodes` |
+| `node_update` | `outcome`: `started` (`target`, `trigger`, `nodes`), `done` (also `switched`), `failed` (also `node`, `error`), or `copy_failed` (`from`, `to`, `error`) |
+| `disk_low` | `level` (`low` or `critical`), `freeBytes`, `totalBytes`, `nodes`, `source` |
+| `node_no_peers`, `node_peers_back` | `node`, `network`, `topoheight`, `peerlessSince` |
+| `cluster_active`, `cluster_standby`, `cluster_fault` | `server`, `vip` (the shared address; left out on a public server) |
+| `worker_offline` | `address`, `worker`, `lastShare` |
+| `worker_online` | `address`, `worker` |
+
+`ALERT_EVENTS` selects by kind: `node_peers` sends `node_no_peers` and `node_peers_back`, `cluster` the three `cluster_` events,
+`mining_paused` also `mining_resumed` and `node_switched`, and `worker_offline` also `worker_online`.
 
 ## Best share
 

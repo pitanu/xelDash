@@ -16,6 +16,9 @@ breaking changes; they are marked **Breaking**.
 - `XELDASH_PUBLIC_HOST` is now `XELDASH_CONNECT_HOST`: the address miners are told to connect to (your home-network address, or a
   public server's domain), which had nothing to do with public mode. The old name keeps working through 1.x, and the launcher renames
   it in `.env` the next time it runs, keeping its value.
+- The webhook alert's fields are written down for each kind of alert (Operations, "Webhook alerts") and checked by a test, so they
+  cannot change by accident; from 1.0.0 none of them is renamed or removed within 1.x. A failed chain copy now says so in the
+  webhook too (`node_update` with `outcome: "copy_failed"`).
 
 ### Dashboard
 

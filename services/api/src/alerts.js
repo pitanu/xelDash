@@ -334,7 +334,7 @@ export function startAlerts({ pool, config, logger = console }) {
           ? `Disk almost full: ${gb(p.freeBytes)} GB free of ${gb(p.totalBytes)} GB. The node stops when it is full. Free some space now (the Nodes page lists old copies you can delete).${link("/nodes")}`
           : `Disk space is low: ${gb(p.freeBytes)} GB free of ${gb(p.totalBytes)} GB. The chain keeps growing, and the node stops when the disk is full.${link("/nodes")}` });
     } else if (type === "chain_copy_failed" && config.events.has("node_update")) {
-      send({ event: "node_update", data: p, text: `Copying chain data from ${p.from} to ${p.to} failed: ${p.error}${link("/nodes")}` });
+      send({ event: "node_update", data: { ...p, outcome: "copy_failed" }, text: `Copying chain data from ${p.from} to ${p.to} failed: ${p.error}${link("/nodes")}` });
     } else if (type === "node_no_peers" && config.events.has("node_peers")) {
       const minutes = Math.max(1, Math.round((Date.now() - Date.parse(p.peerlessSince)) / 60_000));
       send({ event: "node_no_peers", data: p,
