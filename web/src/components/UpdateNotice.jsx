@@ -16,7 +16,8 @@ function dismissed() {
 export function VersionFooter() {
   const version = usePolled("/api/v1/version", { intervalMs: 30 * 60_000 });
   if (!version.data?.current) return null;
-  return <footer className="mx-auto max-w-6xl px-4 pb-8 text-xs text-muted sm:px-6">xelDash {version.data.current}</footer>;
+  // The page width; on phones, above the bottom tab bar.
+  return <footer className="mono mx-auto -mt-8 max-w-[1280px] px-8 pb-10 text-xs text-muted max-[720px]:-mt-20 max-[720px]:px-4 max-[720px]:pb-28">xelDash {version.data.current}</footer>;
 }
 
 /**
