@@ -224,7 +224,7 @@ services:
       XELDASH_PRICE: ${XELDASH_PRICE:-on}
       # What the dashboard's "Connect a miner" page shows: the published ports and this machine's
       # address on your network (set by the installer).
-      CONNECT_HOST: ${XELDASH_PUBLIC_HOST:-}
+      CONNECT_HOST: ${XELDASH_CONNECT_HOST:-${XELDASH_PUBLIC_HOST:-}}
       CONNECT_BIND_IP: ${XELDASH_STRATUM_BIND_IP:-127.0.0.1}
       # Where this API's own port is published (below): a public server warns unless it is this computer only.
       API_BIND_IP: ${XELDASH_API_BIND_IP:-127.0.0.1}

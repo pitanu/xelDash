@@ -185,13 +185,13 @@ docker compose up -d --build
 ```
 
 Open **http://localhost:8088**. To use it from other machines, set the bind addresses in `.env`
-to this machine's LAN address (or 0.0.0.0 on a home network), set `XELDASH_PUBLIC_HOST` to it too,
+to this machine's LAN address (or 0.0.0.0 on a home network), set `XELDASH_CONNECT_HOST` to it too,
 and run `docker compose up -d` again:
 
 ```
 XELDASH_WEB_BIND_IP=192.168.1.10
 XELDASH_STRATUM_BIND_IP=192.168.1.10
-XELDASH_PUBLIC_HOST=192.168.1.10
+XELDASH_CONNECT_HOST=192.168.1.10
 ```
 
 ### Ports

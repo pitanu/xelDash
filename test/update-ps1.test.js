@@ -149,3 +149,23 @@ test("Windows: a new setup stops when xelDash already has a database on this com
   const r = ps(["-Command", script]);
   assert.deepEqual(r.stdout.trim().split(/\r?\n/), ["xeldash: [C:/xelDash]", "empty: []", "xeldash2: none"], r.stderr);
 });
+
+test("Windows: the old XELDASH_PUBLIC_HOST is renamed XELDASH_CONNECT_HOST in .env, keeping its value; nothing else changes", { skip: hasPowerShell ? false : "needs Windows PowerShell" }, () => {
+  const source = readFileSync(LAUNCHER, "utf8");
+  const fn = /^function Rename-OldSettings[\s\S]*?^}/m.exec(source)?.[0];
+  assert.ok(fn, "Rename-OldSettings is in the launcher");
+  const rename = (/** @type {string} */ before) => {
+    const dir = mkdtempSync(join(tmpdir(), "rename-"));
+    const file = join(dir, ".env");
+    writeFileSync(file, before);
+    const r = ps(["-Command", `$envPath = '${file}'\n${fn}\nRename-OldSettings`]);
+    assert.equal(r.status, 0, r.stderr);
+    const after = readFileSync(file, "utf8");
+    rmSync(dir, { recursive: true, force: true });
+    return after;
+  };
+  assert.equal(rename("A=1\nXELDASH_PUBLIC_HOST=192.168.1.10\nB=2\n"), "A=1\nXELDASH_CONNECT_HOST=192.168.1.10\nB=2\n");
+  assert.equal(rename("XELDASH_PUBLIC_HOST=\n"), "XELDASH_CONNECT_HOST=\n", "an empty one too");
+  assert.equal(rename("XELDASH_PUBLIC_HOST=a\nXELDASH_CONNECT_HOST=b\n"), "XELDASH_PUBLIC_HOST=a\nXELDASH_CONNECT_HOST=b\n", "both there: left alone");
+  assert.equal(rename("# XELDASH_PUBLIC_HOST=a\nC=3\n"), "# XELDASH_PUBLIC_HOST=a\nC=3\n", "a comment is not a setting");
+});

@@ -145,3 +145,11 @@ test("a new setup stops when xelDash already has a database on this computer, an
   `);
   assert.deepEqual(r.out.split("\n"), ["xeldash: [/home/me/xelDash]", "empty: []", "xeldash2: none"], r.err);
 });
+
+test("the old XELDASH_PUBLIC_HOST is renamed XELDASH_CONNECT_HOST in .env, keeping its value; nothing else changes", { skip }, () => {
+  const rename = (/** @type {string} */ env) => bash(`eval "$(sed -n "/^rename_old_settings() {/,/^}/p" "$L")"; rename_old_settings`, { env }).dotenv;
+  assert.equal(rename("A=1\nXELDASH_PUBLIC_HOST=192.168.1.10\nB=2\n"), "A=1\nXELDASH_CONNECT_HOST=192.168.1.10\nB=2\n");
+  assert.equal(rename("XELDASH_PUBLIC_HOST=\n"), "XELDASH_CONNECT_HOST=\n", "an empty one too");
+  assert.equal(rename("XELDASH_PUBLIC_HOST=a\nXELDASH_CONNECT_HOST=b\n"), "XELDASH_PUBLIC_HOST=a\nXELDASH_CONNECT_HOST=b\n", "both there: left alone");
+  assert.equal(rename("# XELDASH_PUBLIC_HOST=a\nC=3\n"), "# XELDASH_PUBLIC_HOST=a\nC=3\n", "a comment is not a setting");
+});

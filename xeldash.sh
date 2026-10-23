@@ -44,6 +44,18 @@ set_env() {
 
 random_hex() { od -An -N"$1" -tx1 /dev/urandom | tr -d ' \n'; }
 
+# Settings renamed since: the old line keeps its value under the new name. Runs on every command, so .env never holds both.
+# (Docker Compose also reads the old names through 1.x, for a .env the launcher has not seen.)
+rename_old_settings() {
+  [ -f .env ] || return 0
+  grep -q '^XELDASH_PUBLIC_HOST=' .env || return 0
+  grep -q '^XELDASH_CONNECT_HOST=' .env && return 0
+  local tmp; tmp="$(mktemp)"
+  awk '{ if (index($0, "XELDASH_PUBLIC_HOST=") == 1) print "XELDASH_CONNECT_HOST=" substr($0, 21); else print }' .env > "$tmp"
+  cat "$tmp" > .env
+  rm -f "$tmp"
+}
+
 # ---------------------------------------------------------------- checks
 
 check_docker() {
@@ -111,12 +123,12 @@ lan_on() {
     return 1
   fi
   if ! is_private_ip "$ip"; then
-    warn "This computer's address ($ip) is not a home-network address, so opening xelDash to the network could expose it to the internet. If you are sure, set XELDASH_WEB_BIND_IP, XELDASH_STRATUM_BIND_IP and XELDASH_PUBLIC_HOST in .env yourself."
+    warn "This computer's address ($ip) is not a home-network address, so opening xelDash to the network could expose it to the internet. If you are sure, set XELDASH_WEB_BIND_IP, XELDASH_STRATUM_BIND_IP and XELDASH_CONNECT_HOST in .env yourself."
     return 1
   fi
   set_env XELDASH_WEB_BIND_IP 0.0.0.0
   set_env XELDASH_STRATUM_BIND_IP 0.0.0.0
-  set_env XELDASH_PUBLIC_HOST "$ip"
+  set_env XELDASH_CONNECT_HOST "$ip"
   ok "Other computers on your network can now use xelDash at http://$ip:$(web_port)"
   case "$(uname -s)" in
     Darwin)
@@ -130,7 +142,7 @@ lan_on() {
 lan_off() {
   set_env XELDASH_WEB_BIND_IP 127.0.0.1
   set_env XELDASH_STRATUM_BIND_IP 127.0.0.1
-  set_env XELDASH_PUBLIC_HOST ""
+  set_env XELDASH_CONNECT_HOST ""
   ok "xelDash now only answers on this computer."
 }
 
@@ -140,7 +152,7 @@ cmd_lan() {
     on)  check_docker; lan_on "${2:-}" || exit 1; docker compose up -d >/dev/null; ok "Restarted with the new setting." ;;
     off) check_docker; lan_off; docker compose up -d >/dev/null; ok "Restarted with the new setting." ;;
     status)
-      local host; host="$(get_env XELDASH_PUBLIC_HOST)"
+      local host; host="$(get_env XELDASH_CONNECT_HOST)"
       if [ "$(get_env XELDASH_STRATUM_BIND_IP)" = "127.0.0.1" ] || [ -z "$(get_env XELDASH_STRATUM_BIND_IP)" ]; then
         say "Only this computer can use xelDash. Allow your network with: ./xeldash.sh lan on"
       else
@@ -373,7 +385,7 @@ cmd_start() {
   local i; for i in $(seq 1 60); do http_ok "http://127.0.0.1:$port/" && break; sleep 2; done
   http_ok "http://127.0.0.1:$port/" || die "xelDash started, but the dashboard is not answering yet. Check: ./xeldash.sh logs"
   ok "xelDash is running."
-  local host; host="$(get_env XELDASH_PUBLIC_HOST)"
+  local host; host="$(get_env XELDASH_CONNECT_HOST)"
   say ""
   say "  Dashboard:  ${B}http://localhost:$port${N}"
   [ -n "$host" ] && say "  On your network:  ${B}http://$host:$port${N}"
@@ -625,7 +637,7 @@ cluster_setup() {
   set_env XELDASH_CLUSTER_ID "$id"
   set_env XELDASH_VIP "$vip/$prefix"
   set_env XELDASH_SERVER_NAME "$name"
-  set_env XELDASH_PUBLIC_HOST "$vip"
+  set_env XELDASH_CONNECT_HOST "$vip"
   set_env COMPOSE_FILE "docker-compose.yml:docker-compose.cluster.yml"
   say "Starting the address manager..."
   compose_up
@@ -875,6 +887,7 @@ cmd_frontdoor() {
 
 usage() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; }
 
+rename_old_settings
 case "${1:-}" in
   "")       if [ -f .env ]; then check_docker; docker compose ps; say ""; say "Dashboard: http://localhost:$(web_port)   (more: ./xeldash.sh help)"; else cmd_install; fi ;;
   install)  shift; cmd_install "$@" ;;

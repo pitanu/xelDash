@@ -13,6 +13,9 @@ breaking changes; they are marked **Breaking**.
   newest three are kept), so an update that goes wrong can be undone with `xeldash restore`. If the backup cannot be taken, the
   update stops with nothing changed; `XELDASH_UPDATE_SKIP_BACKUP=1` updates without one.
 - On Windows, a finished update no longer reports a failure left behind by an earlier command.
+- `XELDASH_PUBLIC_HOST` is now `XELDASH_CONNECT_HOST`: the address miners are told to connect to (your home-network address, or a
+  public server's domain), which had nothing to do with public mode. The old name keeps working through 1.x, and the launcher renames
+  it in `.env` the next time it runs, keeping its value.
 
 ### Dashboard
 

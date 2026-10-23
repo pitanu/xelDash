@@ -310,7 +310,7 @@ per-address connection limits and bans cannot work there (see [SECURITY.md](SECU
    XELDASH_PUBLIC_MODE=true
    COMPOSE_PROFILES=public,public-https
    XELDASH_PUBLIC_DOMAIN=solo.example.org   # HTTPS with a Let's Encrypt certificate (ports 80 and 443)
-   XELDASH_PUBLIC_HOST=solo.example.org     # what the Mine here page tells miners to connect to
+   XELDASH_CONNECT_HOST=solo.example.org    # what the Mine here page tells miners to connect to
    XELDASH_ALLOWED_NETWORKS=any
    XELDASH_STRATUM_BIND_IP=0.0.0.0
    ```

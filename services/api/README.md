@@ -48,6 +48,6 @@ LISTEN/NOTIFY relayed to browsers), and alerts (`src/alerts.js`).
   The public view has every IP address removed, no connection problems or recent events (`{ hidden: true }`) and no bans, and
   its answers are shared between visitors for 2 seconds (`src/public-cache.js`). Calls to the nodes are shared the same way, the
   official fallback node is never used, `/api/v1/connect` leaves out the server's mining address and says which view the
-  request has (the "Mine here" page shows `XELDASH_PUBLIC_HOST`, passed as `CONNECT_HOST`), the live socket takes
+  request has (the "Mine here" page shows `XELDASH_CONNECT_HOST`, passed as `CONNECT_HOST`), the live socket takes
   up to 1,000 viewers, and alerts leave out worker alerts and the cluster's shared address. The readiness reply to a standby
   says the main server is public. A node that is not answering yet is a `503` with `{ "error": "node_unavailable" }`, in any mode.

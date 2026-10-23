@@ -39,3 +39,16 @@ test("every Compose file in the project is covered above", () => {
   const files = readdirSync(root).filter((f) => /^docker-compose.*\.yml$/.test(f) && f !== "docker-compose.dev.yml");
   assert.deepEqual(files.filter((f) => !covered.has(f)), [], "add new Compose files to SETS");
 });
+
+test("the Connect page's address: XELDASH_CONNECT_HOST, or the old XELDASH_PUBLIC_HOST from an older .env", { skip }, () => {
+  const connectHost = (/** @type {Record<string, string>} */ vars) => {
+    const r = spawnSync("docker", ["compose", "config", "--format", "json"], {
+      cwd: root, encoding: "utf8", env: { ...process.env, ...BASE, COMPOSE_FILE: "docker-compose.yml", XELDASH_CONNECT_HOST: "", XELDASH_PUBLIC_HOST: "", ...vars },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    return JSON.parse(r.stdout).services.api.environment.CONNECT_HOST;
+  };
+  assert.equal(connectHost({ XELDASH_CONNECT_HOST: "192.168.1.10" }), "192.168.1.10");
+  assert.equal(connectHost({ XELDASH_PUBLIC_HOST: "192.168.1.11" }), "192.168.1.11", "the old name still works");
+  assert.equal(connectHost({ XELDASH_CONNECT_HOST: "solo.example.org", XELDASH_PUBLIC_HOST: "192.168.1.11" }), "solo.example.org", "the new name wins");
+});

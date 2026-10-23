@@ -192,12 +192,12 @@ function Enable-Lan([string]$Ip) {
         return $false
     }
     if (-not (Test-PrivateIp $Ip)) {
-        Warn "This computer's address ($Ip) is not a home-network address, so opening xelDash to the network could expose it to the internet. If you are sure, set XELDASH_WEB_BIND_IP, XELDASH_STRATUM_BIND_IP and XELDASH_PUBLIC_HOST in .env yourself."
+        Warn "This computer's address ($Ip) is not a home-network address, so opening xelDash to the network could expose it to the internet. If you are sure, set XELDASH_WEB_BIND_IP, XELDASH_STRATUM_BIND_IP and XELDASH_CONNECT_HOST in .env yourself."
         return $false
     }
     Set-EnvValue "XELDASH_WEB_BIND_IP" "0.0.0.0"
     Set-EnvValue "XELDASH_STRATUM_BIND_IP" "0.0.0.0"
-    Set-EnvValue "XELDASH_PUBLIC_HOST" $Ip
+    Set-EnvValue "XELDASH_CONNECT_HOST" $Ip
     Ok "Other computers on your network can now use xelDash at http://${Ip}:$(Get-WebPort)"
     Say "    Windows may ask to allow Docker through the firewall for private networks: say yes."
     return $true
@@ -205,7 +205,7 @@ function Enable-Lan([string]$Ip) {
 function Disable-Lan {
     Set-EnvValue "XELDASH_WEB_BIND_IP" "127.0.0.1"
     Set-EnvValue "XELDASH_STRATUM_BIND_IP" "127.0.0.1"
-    Set-EnvValue "XELDASH_PUBLIC_HOST" ""
+    Set-EnvValue "XELDASH_CONNECT_HOST" ""
     Ok "xelDash now only answers on this computer."
 }
 
@@ -225,7 +225,7 @@ function Invoke-Lan([string[]]$Rest) {
         "status" {
             $bind = Get-EnvValue "XELDASH_STRATUM_BIND_IP"
             if (-not $bind -or $bind -eq "127.0.0.1") { Say "Only this computer can use xelDash. Allow your network with: xeldash lan on" }
-            else { Say "Other computers on your network can use xelDash at http://$(Get-EnvValue 'XELDASH_PUBLIC_HOST'):$(Get-WebPort)" }
+            else { Say "Other computers on your network can use xelDash at http://$(Get-EnvValue 'XELDASH_CONNECT_HOST'):$(Get-WebPort)" }
         }
         default { Die "Use: xeldash lan on | off | status" }
     }
@@ -324,7 +324,7 @@ function Invoke-Start([bool]$First = $false) {
     for ($i = 0; $i -lt 60 -and -not $up; $i++) { if (Test-Http "http://127.0.0.1:$port/") { $up = $true } else { Start-Sleep -Seconds 2 } }
     if (-not $up) { Die "xelDash started, but the dashboard is not answering yet. Check: xeldash logs" }
     Ok "xelDash is running."
-    $hostName = Get-EnvValue "XELDASH_PUBLIC_HOST"
+    $hostName = Get-EnvValue "XELDASH_CONNECT_HOST"
     Say ""
     Say "  Dashboard:  http://localhost:$port"
     if ($hostName) { Say "  On your network:  http://${hostName}:$port" }
@@ -762,6 +762,17 @@ function Show-Usage {
 }
 
 # ---------------------------------------------------------------- dispatch
+
+# Settings renamed since: the old line keeps its value under the new name. Runs on every command, so .env never holds both.
+# (Docker Compose also reads the old names through 1.x, for a .env the launcher has not seen.)
+function Rename-OldSettings {
+    if (-not (Test-Path -LiteralPath $envPath)) { return }
+    $lines = [System.IO.File]::ReadAllLines($envPath)
+    if (-not ($lines -match '^XELDASH_PUBLIC_HOST=') -or ($lines -match '^XELDASH_CONNECT_HOST=')) { return }
+    $out = foreach ($line in $lines) { if ($line.StartsWith("XELDASH_PUBLIC_HOST=")) { "XELDASH_CONNECT_HOST=" + $line.Substring(20) } else { $line } }
+    [System.IO.File]::WriteAllText($envPath, (($out -join "`n") + "`n"), (New-Object System.Text.UTF8Encoding($false)))
+}
+Rename-OldSettings
 
 $cmd = ""; $rest = @()
 if ($CliArgs -and $CliArgs.Count -gt 0) {
