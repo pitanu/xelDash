@@ -461,6 +461,7 @@ update_release() {
   version="${tag#v}"
   if ! version_newer "$version" "$current"; then ok "You already have the newest release ($current)."; return 0; fi
   say "Updating $current to $version..."
+  backup_before_update
   tmp="$(mktemp -d)"
   url="${XELDASH_ARCHIVE_URL:-https://github.com/$repo/archive/refs/tags/$tag.tar.gz}"
   # Tried three times: a virus scanner can briefly hold a file that was just written, and a connection can drop.
@@ -510,6 +511,7 @@ cmd_update() {
     warn "This folder was not downloaded with git, so it cannot update itself. Download the newest release and copy your .env into it."
     exit 1
   fi
+  backup_before_update
   migrate_env
   compose_up
   ok "xelDash is updated and running. Your settings and data were kept."
@@ -521,17 +523,36 @@ backup_dir() { local d; d="$(get_env XELDASH_BACKUP_DIR)"; printf '%s' "${d:-./b
 db_user() { local u; u="$(get_env POSTGRES_USER)"; printf '%s' "${u:-xeldash}"; }
 db_name() { local d; d="$(get_env POSTGRES_DB)"; printf '%s' "${d:-xeldash}"; }
 
+# Dumped inside the database container and copied out, so no tool is needed on this computer. Fails (without exiting) when it cannot.
+save_backup() {
+  local file="$1"
+  mkdir -p "$(dirname "$file")"
+  MSYS_NO_PATHCONV=1 docker compose exec -T postgres pg_dump -U "$(db_user)" --format=custom --file=/tmp/xeldash-backup.dump "$(db_name)" || return 1
+  MSYS_NO_PATHCONV=1 docker compose cp postgres:/tmp/xeldash-backup.dump "$file" || return 1
+  MSYS_NO_PATHCONV=1 docker compose exec -T postgres rm -f /tmp/xeldash-backup.dump || true
+  chmod 600 "$file" 2>/dev/null || true
+}
+
+# Before an update changes anything, the statistics are saved, so a migration that goes wrong can be undone with ./xeldash.sh restore.
+# The database is started for it if xelDash is stopped. Only the newest three of these backups are kept; backups made by hand are left
+# alone. A server without a database of its own (a standby, a front door) has nothing to save.
+backup_before_update() {
+  if [ -n "${XELDASH_UPDATE_SKIP_BACKUP:-}" ]; then warn "No backup before this update (XELDASH_UPDATE_SKIP_BACKUP is set)."; return 0; fi
+  docker compose config --services 2>/dev/null | grep -qx postgres || return 0
+  local skip="To update without a backup: XELDASH_UPDATE_SKIP_BACKUP=1 ./xeldash.sh update" dir old
+  say "Saving a backup of your statistics first..."
+  MSYS_NO_PATHCONV=1 docker compose up -d --wait postgres >/dev/null 2>&1 || die "The database could not be started for the backup, so nothing was changed. $skip"
+  dir="$(backup_dir)"
+  save_backup "$dir/xeldash-before-update-$(date -u +%Y%m%dT%H%M%SZ).dump" || die "The backup failed, so nothing was changed. $skip"
+  ok "Backup saved in $dir (the newest three from updates are kept)."
+  ls -1 "$dir"/xeldash-before-update-*.dump 2>/dev/null | sort -r | tail -n +4 | while IFS= read -r old; do rm -f -- "$old"; done
+}
+
 cmd_backup() {
   [ -f .env ] || die "xelDash is not set up yet. Run ./xeldash.sh first."
   check_docker
-  local dir file; dir="$(backup_dir)"; mkdir -p "$dir"
-  file="$dir/xeldash-$(date -u +%Y%m%dT%H%M%SZ).dump"
-  # Dumped inside the database container and copied out, so no tool is needed on this computer.
-  MSYS_NO_PATHCONV=1 docker compose exec -T postgres pg_dump -U "$(db_user)" --format=custom --file=/tmp/xeldash-backup.dump "$(db_name)" \
-    || die "The backup failed. Is xelDash running? Start it with: ./xeldash.sh start"
-  MSYS_NO_PATHCONV=1 docker compose cp postgres:/tmp/xeldash-backup.dump "$file" || die "Could not copy the backup out of the database container."
-  MSYS_NO_PATHCONV=1 docker compose exec -T postgres rm -f /tmp/xeldash-backup.dump || true
-  chmod 600 "$file" 2>/dev/null || true
+  local file; file="$(backup_dir)/xeldash-$(date -u +%Y%m%dT%H%M%SZ).dump"
+  save_backup "$file" || die "The backup failed. Is xelDash running? Start it with: ./xeldash.sh start"
   ok "Backup saved: $file"
   say "It holds miner addresses and IP addresses: keep it private, and copy it off this computer too."
 }

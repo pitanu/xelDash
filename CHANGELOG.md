@@ -7,6 +7,13 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Operations
+
+- `xeldash update` saves a backup of the statistics before it changes anything (`backups/xeldash-before-update-<time>.dump`; the
+  newest three are kept), so an update that goes wrong can be undone with `xeldash restore`. If the backup cannot be taken, the
+  update stops with nothing changed; `XELDASH_UPDATE_SKIP_BACKUP=1` updates without one.
+- On Windows, a finished update no longer reports a failure left behind by an earlier command.
+
 ### Dashboard
 
 - The numbers on the tiles count up when they first show, and move to their new value when a refresh changes it, in your

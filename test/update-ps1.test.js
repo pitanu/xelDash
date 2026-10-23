@@ -38,21 +38,21 @@ async function fakeGithub(archiveVersion, { emptyList = false } = {}) {
   return { base, close: () => { server.close(); rmSync(root, { recursive: true, force: true }); } };
 }
 
-function installFolder(version) {
+function installFolder(version, compose = "services: {old: true}\n") {
   const dir = mkdtempSync(join(tmpdir(), "install-"));
   copyFileSync(LAUNCHER, join(dir, "xeldash.ps1"));
   writeFileSync(join(dir, ".env"), `XELDASH_VERSION=${version}\nPOSTGRES_PASSWORD=keepme\nSTRATUM_TARGET_SHARE_SECONDS=10\n`);
-  writeFileSync(join(dir, "docker-compose.yml"), "services: {old: true}\n");
+  writeFileSync(join(dir, "docker-compose.yml"), compose);
   writeFileSync(join(dir, "VERSION"), `${version}\n`);
   mkdirSync(join(dir, "backups"));
   writeFileSync(join(dir, "backups", "mine.dump"), "my data");
   return dir;
 }
 
-function runUpdate(dir, github) {
+function runUpdate(dir, github, env = {}) {
   return new Promise((resolve) => {
     const child = spawn("powershell", ["-NoProfile", "-File", join(dir, "xeldash.ps1"), "update"], {
-      cwd: dir, env: { ...process.env, XELDASH_RELEASE_API: github.base, XELDASH_ARCHIVE_URL: `${github.base}/release.zip`, XELDASH_UPDATE_NO_START: "1" },
+      cwd: dir, env: { ...process.env, XELDASH_RELEASE_API: github.base, XELDASH_ARCHIVE_URL: `${github.base}/release.zip`, XELDASH_UPDATE_NO_START: "1", ...env },
     });
     let text = "";
     child.stdout.on("data", (d) => { text += d; });
@@ -87,6 +87,23 @@ test("Windows: when GitHub's release list comes back empty, its latest release i
   assert.equal(r.status, 0, r.text);
   assert.match(readFileSync(join(dir, ".env"), "utf8"), /^XELDASH_VERSION=9.9.9s*$/m);
   assert.match((await runUpdate(dir, github)).text, /already have the newest/i, "and an install on it is told it has the newest");
+  github.close();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("Windows: when the backup before it cannot be taken, the update changes nothing; it can be skipped on purpose", { skip }, async () => {
+  const github = await fakeGithub("9.9.9");
+  const dir = installFolder("0.1.0", "services:\n  postgres:\n    image: xeldash-test/no-such-image:0\n    pull_policy: never\n");
+  const r = await runUpdate(dir, github);
+  assert.notEqual(r.status, 0);
+  assert.match(r.text, /nothing was changed/);
+  assert.match(readFileSync(join(dir, ".env"), "utf8"), /^XELDASH_VERSION=0\.1\.0\s*$/m);
+  assert.ok(!existsSync(join(dir, "NEW.txt")));
+  const skipped = await runUpdate(dir, github, { XELDASH_UPDATE_SKIP_BACKUP: "1" });
+  assert.equal(skipped.status, 0, skipped.text);
+  assert.match(skipped.text, /No backup before this update/);
+  assert.match(readFileSync(join(dir, ".env"), "utf8"), /^XELDASH_VERSION=9\.9\.9\s*$/m);
+  spawnSync("docker", ["compose", "down"], { cwd: dir });
   github.close();
   rmSync(dir, { recursive: true, force: true });
 });

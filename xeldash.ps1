@@ -569,6 +569,7 @@ function Update-Release([string]$Current) {
     $version = $tag.Substring(1)
     if (-not (Test-VersionNewer $version $Current)) { Ok "You already have the newest release ($Current)."; return }
     Say "Updating $Current to $version..."
+    Backup-BeforeUpdate
     $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("xeldash-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $tmp | Out-Null
     try {
@@ -590,6 +591,8 @@ function Update-Release([string]$Current) {
     }
     Set-EnvValue "XELDASH_VERSION" $version
     # The launcher was just replaced: carry on with the new one.
+    # It runs in this process: its failures exit with 1, and a finish that only returns must not pass on an earlier program's code.
+    $global:LASTEXITCODE = 0
     & $PSCommandPath "finish-update" $version
     exit $LASTEXITCODE
 }
@@ -625,6 +628,7 @@ function Invoke-Update {
         Warn "This folder was not downloaded with git, so it cannot update itself. Download the newest release and copy your .env into it."
         exit 1
     }
+    Backup-BeforeUpdate
     Update-EnvDefaults
     Invoke-ComposeUp
     Ok "xelDash is updated and running. Your settings and data were kept."
@@ -635,18 +639,38 @@ function Get-BackupDir { $d = Get-EnvValue "XELDASH_BACKUP_DIR"; if ($d) { $d } 
 function Get-DbUser { $u = Get-EnvValue "POSTGRES_USER"; if ($u) { $u } else { "xeldash" } }
 function Get-DbName { $n = Get-EnvValue "POSTGRES_DB"; if ($n) { $n } else { "xeldash" } }
 
+# Dumped inside the database container and copied out: a PowerShell redirect would damage the binary file. Through cmd (Test-Native),
+# since Windows PowerShell stops on a program's error output. Returns whether it worked.
+function Save-Backup([string]$File) {
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $File) | Out-Null
+    if (-not (Test-Native "docker compose exec -T postgres pg_dump -U $(Get-DbUser) --format=custom --file=/tmp/xeldash-backup.dump $(Get-DbName)")) { return $false }
+    if (-not (Test-Native "docker compose cp postgres:/tmp/xeldash-backup.dump `"$File`"")) { return $false }
+    $null = Test-Native "docker compose exec -T postgres rm -f /tmp/xeldash-backup.dump"
+    return $true
+}
+
+# Before an update changes anything, the statistics are saved, so a migration that goes wrong can be undone with xeldash restore.
+# The database is started for it if xelDash is stopped. Only the newest three of these backups are kept; backups made by hand are left
+# alone. A computer without a database of its own has nothing to save.
+function Backup-BeforeUpdate {
+    if ($env:XELDASH_UPDATE_SKIP_BACKUP) { Warn "No backup before this update (XELDASH_UPDATE_SKIP_BACKUP is set)."; return }
+    $services = @(cmd /c "docker compose config --services 2>nul")
+    if ($services -notcontains "postgres") { return }
+    $skip = "To update without a backup, run it with XELDASH_UPDATE_SKIP_BACKUP=1 set."
+    Say "Saving a backup of your statistics first..."
+    if (-not (Test-Native "docker compose up -d --wait postgres")) { Die "The database could not be started for the backup, so nothing was changed. $skip" }
+    $dir = Get-BackupDir
+    $file = Join-Path $dir ("xeldash-before-update-" + (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ") + ".dump")
+    if (-not (Save-Backup $file)) { Die "The backup failed, so nothing was changed. $skip" }
+    Ok "Backup saved in $dir (the newest three from updates are kept)."
+    Get-ChildItem -LiteralPath $dir -Filter "xeldash-before-update-*.dump" | Sort-Object Name -Descending | Select-Object -Skip 3 | Remove-Item -Force
+}
+
 function Invoke-Backup {
     if (-not (Test-Path -LiteralPath $envPath)) { Die "xelDash is not set up yet. Double-click xeldash.cmd first." }
     Assert-Docker
-    $dir = Get-BackupDir
-    New-Item -ItemType Directory -Force -Path $dir | Out-Null
-    $file = Join-Path $dir ("xeldash-" + (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ") + ".dump")
-    # Dumped inside the database container and copied out: a PowerShell redirect would damage the binary file.
-    docker compose exec -T postgres pg_dump -U (Get-DbUser) --format=custom --file=/tmp/xeldash-backup.dump (Get-DbName)
-    if ($LASTEXITCODE -ne 0) { Die "The backup failed. Is xelDash running? Start it with: xeldash start" }
-    docker compose cp postgres:/tmp/xeldash-backup.dump $file
-    if ($LASTEXITCODE -ne 0) { Die "Could not copy the backup out of the database container." }
-    docker compose exec -T postgres rm -f /tmp/xeldash-backup.dump | Out-Null
+    $file = Join-Path (Get-BackupDir) ("xeldash-" + (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ") + ".dump")
+    if (-not (Save-Backup $file)) { Die "The backup failed. Is xelDash running? Start it with: xeldash start" }
     Ok "Backup saved: $file"
     Say "It holds miner addresses and IP addresses: keep it private, and copy it off this computer too."
 }

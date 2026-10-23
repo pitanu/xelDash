@@ -229,7 +229,13 @@ The dashboard shows a notice under the header when a newer xelDash has been rele
 project's published releases every six hours; `XELDASH_VERSION_CHECK=off` stops that). To update, run `xeldash update`
 (`./xeldash.sh update`) in the xelDash folder. On a release install it finds the newest release on GitHub (a pre-release install follows pre-releases
 too, a final release only final ones), downloads it, puts its files over the folder, and restarts on its images; on a development copy it runs
-`git pull` and rebuilds. Your `.env`, backups and data are kept either way, and a failed download or a wrong archive changes nothing. Pre-releases do not trigger the notice. If you run a fork, set `XELDASH_UPDATE_REPO`
+`git pull` and rebuilds. Your `.env`, backups and data are kept either way, and a failed download or a wrong archive changes nothing. Pre-releases do not trigger the notice.
+
+Before it changes anything, `xeldash update` saves a backup of the statistics in the backups folder
+(`xeldash-before-update-<time>.dump`, starting the database for it if xelDash is stopped), so an update that goes wrong can be undone
+with `xeldash restore`. The newest three of these are kept; backups you make with `xeldash backup` are never removed. If the backup
+cannot be taken, the update stops and nothing is changed; to update without one on purpose, run it with `XELDASH_UPDATE_SKIP_BACKUP=1`
+set. A standby server or a front door has no database of its own, so there is nothing to save there. If you run a fork, set `XELDASH_UPDATE_REPO`
 to `owner/name`. The running version is shown at the foot of every page.
 
 ## Which networks may connect
