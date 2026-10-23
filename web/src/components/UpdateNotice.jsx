@@ -30,8 +30,8 @@ export default function UpdateNotice() {
   const v = version.data;
   if (!v?.available || hidden === v.latest) return null;
   return (
-    <div role="status" className="border-b border-line bg-wash">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2 text-sm text-ink sm:px-6">
+    <div role="status" className="card">
+      <div className="flex items-center justify-between gap-3 px-6 py-4 text-sm text-ink max-[720px]:px-[18px]">
         <span>
           <strong>xelDash {v.latest} is available</strong> (you have {v.current}). To update, run{" "}
           <code className="rounded bg-surface px-1">xeldash update</code> in the xelDash folder.{" "}

@@ -265,10 +265,10 @@ export default function Setup() {
   const info = setup.connect;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold text-ink">{setup.complete ? "Setup" : "Get started"}</h1>
-        <p className="text-sm text-ink-2">
+    <div className="space-y-5">
+      <div className="page-head block!">
+        <h1>{setup.complete ? "Setup" : "Get started"}</h1>
+        <p>
           {setup.complete
             ? "xelDash is set up and a miner is connected. This page stays here if you need the connection settings again."
             : "Four short steps to start mining. You can leave this page open, or come back at any time."}

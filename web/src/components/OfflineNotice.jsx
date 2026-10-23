@@ -57,8 +57,8 @@ export default function OfflineNotice() {
   if (reach === "ok") return null;
   const database = reach === "database";
   return (
-    <div role="alert" className="border-b border-warning/60 bg-warning/10">
-      <div className="mx-auto max-w-6xl px-4 py-3 text-sm text-ink sm:px-6">
+    <div role="alert" className="rounded-2xl border border-gold/60 bg-gold-soft">
+      <div className="px-6 py-4 text-sm text-ink max-[720px]:px-[18px]">
         <strong>{database ? "Dashboard offline: the database is not reachable." : "Dashboard offline: cannot reach the xelDash server."}</strong>{" "}
         {database ? (
           <span className="text-ink-2">

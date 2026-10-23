@@ -50,8 +50,8 @@ export function ClusterBanner() {
   const c = cluster.data;
   if (!c?.configured || c.state === "MASTER") return null;
   return (
-    <div role="status" className="border-b border-line bg-wash">
-      <div className="mx-auto max-w-6xl px-4 py-2 text-sm text-ink sm:px-6">
+    <div role="status" className="card">
+      <div className="px-6 py-4 text-sm text-ink max-[720px]:px-[18px]">
         {c.state === "FAULT"
           ? <><strong>This server cannot mine right now.</strong> Your rigs are on the other server.</>
           : <><strong>This server is standing by.</strong> Your rigs are mining on the other server; this one takes over automatically if it stops.</>}
