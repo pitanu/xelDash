@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLive, usePolled } from "./api.js";
-import { BlocksTable, Card, HealthBadge, miningState } from "./components/ui.jsx";
-import RewardsChart from "./components/RewardsChart.jsx";
-import RewardsSummary from "./components/RewardsSummary.jsx";
+import { Card, HealthBadge, miningState } from "./components/ui.jsx";
+import Blocks from "./pages/Blocks.jsx";
 import Miner from "./pages/Miner.jsx";
 import Miners from "./pages/Miners.jsx";
 import Overview from "./pages/Overview.jsx";
@@ -102,24 +101,8 @@ function useHashRoute() {
 }
 
 // Pages that show their own top-level heading; the others get one for screen readers.
-const PAGES_WITH_OWN_HEADING = ["/miners", "/miner", "/nodes", "/node-data", "/settings", "/setup", "/connect"];
-const PAGE_NAMES = /** @type {Record<string, string>} */ ({ "/": "Overview", "/blocks": "Blocks", "/health": "Health" });
-
-function Blocks() {
-  const blocks = usePolled("/api/v1/blocks?limit=200");
-  const overview = usePolled("/api/v1/overview");
-  return (
-    <div className="space-y-4">
-      <a href="#/" className="inline-flex min-h-6 items-center text-xs text-ink-2 hover:text-ink hover:underline">← Overview</a>
-      <RewardsSummary totals={blocks.data?.totals} />
-      <Card title="Rewards over time" subtitle="Running total found, against what the work done should have found">
-        <RewardsChart rewardPerBlock={Number(overview.data?.node?.miner_reward) || null} />
-      </Card>
-      <Card title="Blocks" subtitle="Most recent 200"
-        action={<a href="/api/v1/blocks.csv" download className="inline-flex min-h-6 items-center text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">Download all as CSV</a>}>{blocks.data && <BlocksTable blocks={blocks.data.blocks} />}</Card>
-    </div>
-  );
-}
+const PAGES_WITH_OWN_HEADING = ["/miners", "/miner", "/blocks", "/nodes", "/node-data", "/settings", "/setup", "/connect"];
+const PAGE_NAMES = /** @type {Record<string, string>} */ ({ "/": "Overview", "/health": "Health" });
 
 /** Decoded path segment, or null for a malformed %-escape (which would otherwise throw). @param {string} segment */
 function decode(segment) {
