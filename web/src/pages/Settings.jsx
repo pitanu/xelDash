@@ -13,8 +13,38 @@ import { Card, Segmented } from "../components/ui.jsx";
 import { usePolled } from "../api.js";
 import { useNodes } from "../nodes.js";
 
+/** Light, dark or system, and the colour theme: this browser's, never the server's. */
+function Appearance() {
+  return (
+    <Card title="Appearance" subtitle="Saved in this browser only.">
+      <ThemeSetting />
+    </Card>
+  );
+}
+
+/**
+ * On a public server's public view, only what each visitor chooses for their own browser: no node administration is asked anything.
+ */
+function VisitorSettings() {
+  return (
+    <div className="space-y-5">
+      <div className="page-head">
+        <div><h1>Settings</h1><p>How this dashboard looks and sounds for you. Saved in this browser only.</p></div>
+      </div>
+      <Appearance />
+      <MotionSetting />
+      <BlockSoundSetting visitor />
+    </div>
+  );
+}
+
+/** @param {{ publicView?: boolean }} props */
+export default function Settings({ publicView = false }) {
+  return publicView ? <VisitorSettings /> : <OperatorSettings />;
+}
+
 /** Everything about the node that can be changed from the dashboard, with what each does. */
-export default function Settings() {
+function OperatorSettings() {
   const admin = useAdminToken();
   const [actionsEnabled, setActionsEnabled] = useState(/** @type {boolean | null} */ (null));
   const [error, setError] = useState(/** @type {string | null} */ (null));
@@ -41,7 +71,7 @@ export default function Settings() {
       </div>
 
       <h2 className="text-base font-semibold text-ink">Display</h2>
-      <ThemeSetting />
+      <Appearance />
       <MotionSetting />
       <PriceSetting />
       <BlockSoundSetting />

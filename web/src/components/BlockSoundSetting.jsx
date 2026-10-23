@@ -4,8 +4,12 @@ import {
 } from "../block-sound.js";
 import { Card } from "./ui.jsx";
 
-/** Per-browser choice of a sound when a block is found: the chime or the person's own (kept in this browser, never uploaded). */
-export default function BlockSoundSetting() {
+/**
+ * Per-browser choice of a sound when a block is found: the chime or the person's own (kept in this browser, never uploaded).
+ * `visitor`: a public server's visitor, who hears of every block found here and has no alerts to set up.
+ * @param {{ visitor?: boolean }} props
+ */
+export default function BlockSoundSetting({ visitor = false }) {
   const on = useBlockSound();
   const custom = useCustomSoundName();
   const [error, setError] = useState(/** @type {string | null} */ (null));
@@ -24,7 +28,7 @@ export default function BlockSoundSetting() {
 
   return (
     <Card title="Block found sound"
-      subtitle="Play a sound when one of your miners finds a block while this page is open. Saved in this browser only.">
+      subtitle={`Play a sound when ${visitor ? "a block is found on this server" : "one of your miners finds a block"} while this page is open. Saved in this browser only.`}>
       <div className="flex flex-wrap items-center gap-4">
         <label className="flex items-center gap-2 text-sm text-ink">
           <input type="checkbox" checked={on} onChange={(e) => {
@@ -57,7 +61,7 @@ export default function BlockSoundSetting() {
       <p className="mt-2 text-xs text-ink-2">
         Your own sound: an audio file of at most 1 MB and {MAX_SOUND_SECONDS} seconds. It stays in this browser and is never sent to
         the server. Browsers only allow sound after you have clicked on the page once, so a tab left open without a click may stay
-        silent. For when you are away, set up alerts below.
+        silent.{visitor ? "" : " For when you are away, set up alerts below."}
       </p>
     </Card>
   );

@@ -21,14 +21,23 @@ async function open(hash) {
 }
 
 /** @param {HTMLElement} container */
-const navLinks = (container) => [...container.querySelectorAll("nav a")].map((a) => a.textContent);
+// The top menu (the phone's tab bar repeats the same links).
+const navLinks = (container) => [...container.querySelectorAll("nav.topnav a")].map((a) => a.textContent);
 
-test("the menu offers the public pages and Mine here, and none of the operator's", async () => {
+test("the menu offers the public pages, Mine here and Settings, and none of the operator's", async () => {
   const view = await open("#/");
-  assert.deepEqual(navLinks(view.container), ["Overview", "Miners", "Blocks", "Health", "Mine here"]);
+  assert.deepEqual(navLinks(view.container), ["Overview", "Miners", "Blocks", "Health", "Mine here", "Settings"]);
 });
 
-for (const page of ["/settings", "/nodes", "/node-data", "/setup"]) {
+test("a visitor's Settings are this browser's appearance only: no alerts, node or mining settings", async () => {
+  const view = await open("#/settings");
+  assert.match(view.text(), /Appearance/);
+  assert.match(view.text(), /Colour theme/);
+  assert.match(view.text(), /Saved in this browser only/);
+  assert.doesNotMatch(view.text(), /Alerts|Where to send alerts|Default payout|daemon|Unlock changes|Backup/i);
+});
+
+for (const page of ["/nodes", "/node-data", "/setup"]) {
   test(`#${page} is not available to a visitor`, async () => {
     const view = await open(`#${page}`);
     assert.match(view.text(), /Not available here/);
