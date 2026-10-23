@@ -9,6 +9,7 @@
 | [Connecting miners](MINERS.md) | Pool URLs, difficulty, tested miners |
 | [Operations](OPERATIONS.md) | A public server anyone may mine on ([public mode](OPERATIONS.md#public-mode)), alerts, metrics for Prometheus and Grafana, backups and restores, what happens when the database goes down, HTTPS and login, node settings, snapshots, two-server redundancy, the front door, redundant nodes, daemon upgrades, the official node fallback |
 | [Security](SECURITY.md) | What is protected, what the admin token can do, remaining risks |
+| [What 1.0.0 promises](COMPATIBILITY.md) | What stays the same across 1.x: settings, launcher commands, the API, webhook alerts, metrics, ports |
 | [Devnet](DEVNET.md) | Trying xelDash without real coins, and how the mining path is verified |
 
 **How it works**
