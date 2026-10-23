@@ -28,7 +28,7 @@ test("until the kind of server is known, operator links and pages stay hidden; t
 
   answerConnect({ address: null, network: "mainnet", host: null, stratumPort: 3333, getworkPort: 8090, tlsPort: null, reachableFromNetwork: false, publicMode: false, view: "operator" });
   await settle();
-  assert.deepEqual(navLinks(view.container), ["Overview", "Miners", "Blocks", "Health", "Nodes", "Settings"]);
+  assert.deepEqual(navLinks(view.container), ["Overview", "Miners", "Blocks", "Health", "Nodes", "Connect", "Settings"]);
   assert.doesNotMatch(view.text(), /Not available here/);
   assert.match(view.text(), /xelDash 0\.3\.0 is available/, "the operator is told about updates");
 });

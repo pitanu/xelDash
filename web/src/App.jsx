@@ -29,7 +29,7 @@ const TAB_ICONS = /** @type {Record<string, string>} */ ({
   "/connect": "M8 12l4-4M6.5 9.5l-2 2a3 3 0 0 0 4 4l2-2M13.5 10.5l2-2a3 3 0 0 0-4-4l-2 2",
   "/settings": "M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM10 2v2.5M10 15.5V18M2 10h2.5M15.5 10H18M4.3 4.3l1.8 1.8M13.9 13.9l1.8 1.8M4.3 15.7l1.8-1.8M13.9 6.1l1.8-1.8",
 });
-const NAV = [["/", "Overview"], ["/miners", "Miners"], ["/blocks", "Blocks"], ["/health", "Health"], ["/nodes", "Nodes"], ["/settings", "Settings"]];
+const NAV = [["/", "Overview"], ["/miners", "Miners"], ["/blocks", "Blocks"], ["/health", "Health"], ["/nodes", "Nodes"], ["/connect", "Connect"], ["/settings", "Settings"]];
 // A public server's visitors: no node administration, a page on how to mine here, and Settings with this browser's appearance only.
 const PUBLIC_NAV = [["/", "Overview"], ["/miners", "Miners"], ["/blocks", "Blocks"], ["/health", "Health"], ["/connect", "Mine here"], ["/settings", "Settings"]];
 // Pages for the server's operator only (they need node administration, or set the server up).
@@ -142,8 +142,8 @@ export default function App() {
   const mode = useServerMode();
   const operator = mode.known && !mode.publicView;
   // Until the mode is known, the operator's links stay hidden (they flash up for nobody on a public server).
-  // Settings differ between the two views, so it waits for the view too.
-  const nav = mode.publicView ? PUBLIC_NAV : operator ? NAV : NAV.filter(([href]) => !OPERATOR_PAGES.includes(href) && href !== "/settings");
+  // Settings and Connect differ between the two views, so they wait for the view too.
+  const nav = mode.publicView ? PUBLIC_NAV : operator ? NAV : NAV.filter(([href]) => !OPERATOR_PAGES.includes(href) && href !== "/settings" && href !== "/connect");
   const workerMatch = /^\/miner\/([^/]+)\/worker\/(.+)$/.exec(route);
   const minerMatch = /^\/miner\/([^/]+)$/.exec(route);
   /** @type {import("react").ReactNode} */

@@ -147,8 +147,12 @@ function Field({ label, value, hint }) {
   );
 }
 
-/** What to type into a mining program. @param {{ info: any }} props */
-export function ConnectPanel({ info }) {
+/**
+ * What to type into a mining program. `address` replaces the server's mining address in every setting and command (the Connect
+ * page lets a visitor type their own).
+ * @param {{ info: any, address?: string | null }} props
+ */
+export function ConnectPanel({ info, address: chosen = null }) {
   const [miner, setMiner] = useState("rigel");
   const frontDoor = usePolled("/api/v1/front-door", { intervalMs: 30_000 }).data;
   if (!info) return null;
@@ -156,7 +160,7 @@ export function ConnectPanel({ info }) {
   const frontDoorAddress = frontDoor?.configured ? String(frontDoor.from).split(",").map((v) => v.trim()).find((v) => /^\d{1,3}(\.\d{1,3}){3}$/.test(v)) ?? null : null;
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
   const host = info.host ?? window.location.hostname;
-  const address = info.address ?? (info.network === "mainnet" ? "xel:YOUR_ADDRESS" : "xet:YOUR_ADDRESS");
+  const address = chosen || info.address || (info.network === "mainnet" ? "xel:YOUR_ADDRESS" : "xet:YOUR_ADDRESS");
   const stratum = `stratum+tcp://${host}:${info.stratumPort}`;
   const getwork = info.getworkPort ? `ws://${host}:${info.getworkPort}` : null;
   const rigel = `rigel -a xelishashv3 -o ${stratum} -u ${address} -w rig1`;
