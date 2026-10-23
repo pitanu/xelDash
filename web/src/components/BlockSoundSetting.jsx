@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import {
   MAX_SOUND_SECONDS, clearCustomSound, loadCustomSound, playBlockSound, saveCustomSound, setBlockSound, useBlockSound, useCustomSoundName,
 } from "../block-sound.js";
-import { Card } from "./ui.jsx";
+import { SettingBlock, Switch } from "./ui.jsx";
 
 /**
  * Per-browser choice of a sound when a block is found: the chime or the person's own (kept in this browser, never uploaded).
  * `visitor`: a public server's visitor, who hears of every block found here and has no alerts to set up.
- * @param {{ visitor?: boolean }} props
+ * @param {{ visitor?: boolean, row?: boolean }} props
  */
-export default function BlockSoundSetting({ visitor = false }) {
+export default function BlockSoundSetting({ visitor = false, row = false }) {
   const on = useBlockSound();
   const custom = useCustomSoundName();
   const [error, setError] = useState(/** @type {string | null} */ (null));
@@ -27,16 +27,13 @@ export default function BlockSoundSetting({ visitor = false }) {
   }
 
   return (
-    <Card title="Block found sound"
-      subtitle={`Play a sound when ${visitor ? "a block is found on this server" : "one of your miners finds a block"} while this page is open. Saved in this browser only.`}>
+    <SettingBlock row={row} title="Sound when a block is found"
+      subtitle={`Plays when ${visitor ? "a block is found on this server" : "one of your miners finds a block"} while this page is open. Saved in this browser only.`}
+      aside={<Switch checked={on} label="Play a sound when a block is found" onChange={(next) => {
+        setBlockSound(next);
+        if (next) void playBlockSound();
+      }} />}>
       <div className="flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-2 text-sm text-ink">
-          <input type="checkbox" checked={on} onChange={(e) => {
-            setBlockSound(e.target.checked);
-            if (e.target.checked) void playBlockSound();
-          }} />
-          Play a sound
-        </label>
         <button type="button" onClick={() => void playBlockSound()}
           className="btn btn-sm">
           Play a test sound
@@ -57,12 +54,12 @@ export default function BlockSoundSetting({ visitor = false }) {
           </button>
         )}
       </div>
-      {error && <p role="alert" className="mt-2 text-sm text-critical">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
       <p className="mt-2 text-xs text-ink-2">
         Your own sound: an audio file of at most 1 MB and {MAX_SOUND_SECONDS} seconds. It stays in this browser and is never sent to
         the server. Browsers only allow sound after you have clicked on the page once, so a tab left open without a click may stay
         silent.{visitor ? "" : " For when you are away, set up alerts below."}
       </p>
-    </Card>
+    </SettingBlock>
   );
 }

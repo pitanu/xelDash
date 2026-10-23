@@ -22,6 +22,43 @@ export function Card({ title, subtitle, action, children, className = "" }) {
   );
 }
 
+/**
+ * An on/off switch: a button that says whether it is on (role="switch", aria-checked), named by `label` for screen readers.
+ * @param {{ checked: boolean, onChange: (checked: boolean) => void, label: string, disabled?: boolean }} props
+ */
+export function Switch({ checked, onChange, label, disabled = false }) {
+  return <button type="button" role="switch" className="switch" aria-checked={checked} aria-label={label} disabled={disabled} onClick={() => onChange(!checked)} />;
+}
+
+/**
+ * One setting, as its own card or (`row`) as a row in a group card: the name and what it does, the control beside them (`aside`),
+ * and anything more underneath.
+ * @param {{ row?: boolean, title: string, subtitle?: React.ReactNode, aside?: React.ReactNode, children?: React.ReactNode, id?: string }} props
+ */
+export function SettingBlock({ row = false, title, subtitle, aside, children, id }) {
+  if (!row) {
+    return (
+      <section id={id} className="card pad">
+        <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 basis-64">
+            <h2 className="text-base font-semibold text-ink">{title}</h2>
+            {subtitle && <p className="mt-0.5 text-[13px] text-muted">{subtitle}</p>}
+          </div>
+          {aside}
+        </header>
+        {children}
+      </section>
+    );
+  }
+  return (
+    <div id={id} className="settings-row">
+      <div className="txt"><b>{title}</b>{subtitle && <span>{subtitle}</span>}</div>
+      {aside}
+      {children && <div className="min-w-0 basis-full">{children}</div>}
+    </div>
+  );
+}
+
 /** Small line icons for stat tiles, drawn on a 16px grid. */
 export const ICONS = {
   hashrate: "M9 2L4 9h4l-1 5 5-7H8l1-5z",

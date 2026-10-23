@@ -133,7 +133,7 @@ function ScheduleSetting({ releases, token, locked, onUnauthorized }) {
  * Optional automatic updates (off by default): only offered with two local nodes.
  * @param {{ token: string, locked: boolean, onUnauthorized: () => void }} props
  */
-function AutoUpdateSetting({ token, locked, onUnauthorized }) {
+export function AutoUpdateSetting({ token, locked, onUnauthorized }) {
   const [status, setStatus] = useState(/** @type {any} */ (null));
   const [error, setError] = useState(/** @type {string | null} */ (null));
 

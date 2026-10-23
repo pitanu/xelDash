@@ -9,7 +9,9 @@ import MiningFallback from "../components/MiningFallback.jsx";
 import PriceSetting from "../components/PriceSetting.jsx";
 import SupportCard from "../components/SupportCard.jsx";
 import ThemeSetting from "../components/ThemeSetting.jsx";
-import { Card, Segmented } from "../components/ui.jsx";
+import { Card, Segmented, SettingBlock } from "../components/ui.jsx";
+import { AutoUpdateSetting } from "../components/UpgradeCard.jsx";
+import { AddressForm } from "./Setup.jsx";
 import { usePolled } from "../api.js";
 import { useNodes } from "../nodes.js";
 
@@ -61,31 +63,48 @@ function OperatorSettings() {
   const network = usePolled("/api/v1/status").data?.node?.network;
   const nodeIds = managed?.nodes.map((n) => n.id) ?? ["daemon"];
   const [node, setNode] = useState("daemon");
+  const connect = usePolled("/api/v1/connect", { intervalMs: 5 * 60_000 });
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold text-ink">Settings</h1>
-        <p className="text-sm text-ink-2">
-          What xelDash shows, how it mines, and how your XELIS node behaves. Each setting says what it does; the defaults suit most setups.
-        </p>
+    <div className="flex flex-col gap-5">
+      <div className="page-head">
+        <div>
+          <h1>Settings</h1>
+          <p>Saved on this server, except Appearance, prices, sound and animations, which are saved in this browser. Each setting says what it does; the defaults suit most setups.</p>
+        </div>
       </div>
 
-      <h2 className="text-base font-semibold text-ink">Display</h2>
-      <Appearance />
-      <MotionSetting />
-      <PriceSetting />
-      <BlockSoundSetting />
-
-      {error && <p className="text-sm text-critical">Unable to reach the node admin service ({error}).</p>}
+      {error && <p className="text-sm text-danger">Unable to reach the node admin service ({error}).</p>}
       {actionsEnabled !== null && <AdminUnlock actionsEnabled={actionsEnabled} admin={admin} />}
 
-      <h2 className="pt-2 text-base font-semibold text-ink">Mining</h2>
-      <MiningFallback token={token} onUnauthorized={admin.forget} />
+      <Appearance />
 
-      <h2 className="pt-2 text-base font-semibold text-ink">Alerts</h2>
-      <AlertSettings token={token} onUnauthorized={admin.forget} />
+      <section className="card pad">
+        <h2 className="mb-1 text-base font-semibold text-ink">Mining</h2>
+        <div className="settings-row">
+          <div className="txt"><b>Default payout address</b><span>Used by miners that connect without an address, checked by your node before it is saved.</span></div>
+          <div className="min-w-0 basis-full">
+            <AddressForm current={connect.data?.address ?? null} network={connect.data?.network ?? network ?? "mainnet"} onSaved={connect.reload} />
+          </div>
+        </div>
+        <MiningFallback row token={token} onUnauthorized={admin.forget} />
+        <div className="settings-row block!">
+          <AutoUpdateSetting token={token} locked={!token} onUnauthorized={admin.forget} />
+        </div>
+      </section>
 
-      <h2 className="pt-2 text-base font-semibold text-ink">Data</h2>
+      <section className="card pad">
+        <h2 className="mb-1 text-base font-semibold text-ink">Notifications and display</h2>
+        <BlockSoundSetting row />
+        <SettingBlock row title="Alerts" subtitle="Discord, Telegram or a webhook: blocks found, mining paused, workers offline, node updates, low disk."
+          aside={<button type="button" className="btn" onClick={() => document.getElementById("alerts")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Set up alerts</button>} />
+        <PriceSetting row />
+        <MotionSetting row />
+      </section>
+
+      <div id="alerts" className="scroll-mt-24">
+        <AlertSettings token={token} onUnauthorized={admin.forget} />
+      </div>
+
       <BackupCard token={token} onUnauthorized={admin.forget} />
 
       <div className="flex flex-wrap items-center justify-between gap-3 pt-2">

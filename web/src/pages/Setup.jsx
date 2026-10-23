@@ -61,7 +61,7 @@ function Step({ step, n, children }) {
 }
 
 /** Pasting the wallet address, checked by the node before it is saved. @param {{ current: string | null, network: string, onSaved: () => void }} props */
-function AddressForm({ current, network, onSaved }) {
+export function AddressForm({ current, network, onSaved }) {
   const admin = useAdminToken();
   const [info, setInfo] = useState(/** @type {{ actionsEnabled: boolean, prefix: string } | null} */ (null));
   const [value, setValue] = useState("");
