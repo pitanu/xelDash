@@ -50,7 +50,7 @@ export default function BestShareChart({ points: loaded, dimmed = false }) {
   const plotH = HEIGHT - PAD.top - PAD.bottom;
   const x = (/** @type {number} */ i) => PAD.left + (points.length > 1 ? (i / (points.length - 1)) * plotW : plotW / 2);
   const y = (/** @type {number} */ v) => PAD.top + plotH - ((Math.log10(v) - from) / (to - from)) * plotH;
-  const xTickCount = Math.max(2, Math.min(6, Math.floor(plotW / 110)));
+  const xTickCount = Math.max(2, Math.min(6, Math.floor(plotW / 160)));
   const xTicks = points.length > 1
     ? Array.from({ length: xTickCount }, (_, k) => Math.round((k / (xTickCount - 1)) * (points.length - 1)))
     : [];

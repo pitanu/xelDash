@@ -210,8 +210,8 @@ export default function App() {
       <OfflineNotice />
       {operator && <ClusterBanner />}
       {operator && <UpdateNotice />}
-      <BlockBanner />
       <main className="wrap">
+        <BlockBanner />
         {!PAGES_WITH_OWN_HEADING.some((p) => route === p || route.startsWith(`${p}/`)) && <h1 className="sr-only">{PAGE_NAMES[route] ?? "Page not found"}</h1>}
         {page}
       </main>

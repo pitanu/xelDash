@@ -43,7 +43,7 @@ const COUNT_CHANGE_MS = 600;
  * Settings, or the system asks for less motion) it is the plain text.
  * @param {{ text: string }} props
  */
-function CountUp({ text }) {
+export function CountUp({ text }) {
   // The first frame already shows zero, so the final number does not flash before the count starts.
   const [shown, setShown] = useState(() => {
     const target = numberIn(text);

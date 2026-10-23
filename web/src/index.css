@@ -213,6 +213,23 @@
   --gold-soft: #33270f;
 }
 
+/* Stale shares in the shares chart (stacked between accepted, in the accent, and invalid, in danger): a colour per palette and mode
+   that the dataviz palette validator separates from both neighbours, for colour-blind readers too. */
+:root, :root[data-palette="ember"] { --chart-stale: #1d5fd1; }
+:root[data-palette="glacier"] { --chart-stale: #5a687c; }
+:root[data-palette="amethyst"] { --chart-stale: #655c78; }
+:root[data-palette="terminal"] { --chart-stale: #1d5fd1; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]), :root:not([data-theme="light"])[data-palette="ember"] { --chart-stale: #7fb0ff; }
+  :root:not([data-theme="light"])[data-palette="glacier"] { --chart-stale: #ffd27a; }
+  :root:not([data-theme="light"])[data-palette="amethyst"] { --chart-stale: #a6e05a; }
+  :root:not([data-theme="light"])[data-palette="terminal"] { --chart-stale: #7fb0ff; }
+}
+:root[data-theme="dark"], :root[data-theme="dark"][data-palette="ember"] { --chart-stale: #7fb0ff; }
+:root[data-theme="dark"][data-palette="glacier"] { --chart-stale: #ffd27a; }
+:root[data-theme="dark"][data-palette="amethyst"] { --chart-stale: #a6e05a; }
+:root[data-theme="dark"][data-palette="terminal"] { --chart-stale: #7fb0ff; }
+
 /* The names used before the 1.0 design, while components move over (removed once none uses them). */
 :root {
   --page: var(--bg);
@@ -247,6 +264,7 @@
   --color-danger-soft: var(--danger-soft);
   --color-grid: var(--grid);
   --color-axis: var(--axis);
+  --color-chart-stale: var(--chart-stale);
   /* Old names (see above). */
   --color-page: var(--bg);
   --color-surface: var(--panel);
@@ -285,13 +303,13 @@ html::-webkit-scrollbar-thumb:hover, html *::-webkit-scrollbar-thumb:hover { bac
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* A found block: the notice slides in and its table row flashes once. Skipped for people who ask
+/* A found block: the card slides in and its table row flashes once. Skipped for people who ask
    their system for less motion; the notice and the highlighted row still appear. */
 @media (prefers-reduced-motion: no-preference) {
   .block-banner { animation: block-banner-in 0.4s ease-out; }
   .block-new { animation: block-new-flash 3s ease-out; }
 }
-@keyframes block-banner-in { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: none; } }
+@keyframes block-banner-in { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
 @keyframes block-new-flash { from { background-color: color-mix(in srgb, var(--good) 28%, transparent); } to { background-color: transparent; } }
 
 /* Chart animations (see src/motion.js): one-shot, about a second, and only transform, opacity and stroke offset, so they stay
