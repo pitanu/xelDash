@@ -95,7 +95,7 @@ function ScheduleSetting({ releases, token, locked, onUnauthorized }) {
           </span>
           {!locked && schedule.status !== "started" && (
             <button type="button" onClick={() => void send("DELETE")}
-              className="rounded-md border border-line px-3 py-1.5 text-sm text-ink hover:bg-wash">{active ? "Cancel" : "Clear"}</button>
+              className="btn btn-sm">{active ? "Cancel" : "Clear"}</button>
           )}
         </div>
       )}
@@ -105,16 +105,16 @@ function ScheduleSetting({ releases, token, locked, onUnauthorized }) {
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <select value={version} onChange={(e) => setVersion(e.target.value)} aria-label="Version for the scheduled switch"
-              className="rounded-md border border-line bg-page px-2 py-1.5 text-sm text-ink">
+              className="field w-auto">
               <option value="">Version…</option>
               {releases.map((/** @type {any} */ r) => <option key={r.version} value={r.version}>{r.version}</option>)}
             </select>
             <input type="number" inputMode="numeric" min={1} value={height} onChange={(e) => setHeight(e.target.value)}
               placeholder="Height" aria-label="Switch at height"
-              className="w-36 rounded-md border border-line bg-page px-2 py-1.5 text-sm text-ink" />
+              className="field w-36" />
             <button type="button" disabled={!version || !(wanted > (status.height ?? 0))}
               onClick={() => void send("POST", { version, height: wanted })}
-              className="rounded-md border border-line px-3 py-1.5 text-sm text-ink hover:bg-wash disabled:opacity-40">Schedule</button>
+              className="btn btn-sm">Schedule</button>
           </div>
           <p className="text-xs text-muted">
             {blocksAway !== null && blocksAway > 0 && blockMs
@@ -178,7 +178,7 @@ function AutoUpdateSetting({ token, locked, onUnauthorized }) {
           <HealthBadge level={status.enabled ? "good" : "unknown"} label={status.enabled ? "On" : "Off"} />
           {!locked && (
             <button type="button" disabled={!status.enabled && (!status.eligible || status.allowedByEnv === false)} onClick={() => void toggle(!status.enabled)}
-              className="rounded-md border border-line px-3 py-1.5 text-sm text-ink hover:bg-wash disabled:opacity-40">
+              className="btn btn-sm">
               {status.enabled ? "Turn off" : "Turn on"}
             </button>
           )}
@@ -288,19 +288,19 @@ export default function UpgradeCard({ nodes, upgrade, token, locked, onUnauthori
           <div className="flex flex-wrap items-center gap-2">
             {behind.length > 0 && !choice && (
               <button type="button" disabled={running} onClick={() => void start(/** @type {string} */ (latest))}
-                className="rounded-md bg-action px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40">
+                className="btn btn-sm btn-primary">
                 Update {nodes.length > 1 ? "all nodes" : "the node"} to {latest}
               </button>
             )}
             <select value={choice} onChange={(e) => setChoice(e.target.value)} aria-label="Version"
-              className="rounded-md border border-line bg-page px-2 py-1.5 text-sm text-ink">
+              className="field w-auto">
               <option value="">{behind.length > 0 ? "Other version…" : "Choose a version…"}</option>
               {releases.releases.map((/** @type {any} */ r) => <option key={r.version} value={r.version}>{r.version}</option>)}
               <option value="image">Back to the image's version</option>
             </select>
             {choice && (
               <button type="button" disabled={running} onClick={() => void start(target)}
-                className="rounded-md border border-line px-3 py-1.5 text-sm text-ink hover:bg-wash disabled:opacity-40">
+                className="btn btn-sm">
                 Switch to {choice === "image" ? "the image's version" : choice}
               </button>
             )}

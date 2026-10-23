@@ -111,9 +111,9 @@ function AddressForm({ current, network, onSaved }) {
       <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); void save(); }}>
         <input type="text" value={value} onChange={(e) => setValue(e.target.value)} autoComplete="off" spellCheck={false}
           placeholder={`${prefix}:...`} aria-label="Your XELIS address" disabled={!admin.token}
-          className="min-w-0 flex-1 rounded-md border border-line bg-page px-3 py-1.5 font-mono text-sm text-ink disabled:opacity-50" />
+          className="field mono min-w-0 flex-1" />
         <button type="submit" disabled={!admin.token || !value.trim() || busy}
-          className="rounded-md bg-action px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40">
+          className="btn btn-sm btn-primary">
           {busy ? "Checking..." : "Save address"}
         </button>
         {current && <button type="button" onClick={() => { setEditing(false); setError(null); }} className="text-sm text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">Cancel</button>}

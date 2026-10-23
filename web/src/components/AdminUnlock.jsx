@@ -87,9 +87,9 @@ export function AdminUnlock({ actionsEnabled, admin }) {
         void admin.unlock(input).then((ok) => ok && setInput(""));
       }}>
         <input type="password" value={input} onChange={(e) => setInput(e.target.value)} autoComplete="off"
-          aria-label="Admin token" className="min-w-0 flex-1 rounded-md border border-line bg-page px-3 py-1.5 text-sm text-ink" />
+          aria-label="Admin token" className="field min-w-0 flex-1" />
         <button type="submit" disabled={!input}
-          className="rounded-md bg-action px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40">Unlock</button>
+          className="btn btn-sm btn-primary">Unlock</button>
       </form>
       {admin.error && <p role="alert" className="mt-2 text-sm text-critical">{admin.error}</p>}
     </Card>

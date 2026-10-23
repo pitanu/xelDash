@@ -28,7 +28,7 @@ export default function PriceSetting() {
           )}
         </div>
         <select value={currency} onChange={(e) => setPriceCurrency(e.target.value)} aria-label="Price currency"
-          className="w-full rounded-md border border-line bg-page px-2 py-1.5 text-sm text-ink">
+          className="field">
           <option value="">Off</option>
           {Object.entries(CURRENCY_NAMES).map(([code, name]) => (
             <option key={code} value={code}>{code.toUpperCase()} · {name}</option>

@@ -62,9 +62,7 @@ export default function MiningFallback({ token, onUnauthorized }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <HealthBadge level={data.enabled ? "good" : "unknown"} label={data.enabled ? "On" : "Off"} />
           <button type="button" disabled={locked || busy} onClick={() => void toggle(!data.enabled)}
-            className={data.enabled
-              ? "rounded-md border border-line px-3 py-1.5 text-sm text-ink hover:bg-wash disabled:opacity-40"
-              : "rounded-md bg-action px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40"}>
+            className={data.enabled ? "btn btn-sm" : "btn btn-sm btn-primary"}>
             {data.enabled ? "Turn off" : "Turn on"}
           </button>
         </div>

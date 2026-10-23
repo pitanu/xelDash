@@ -38,21 +38,21 @@ export default function BlockSoundSetting({ visitor = false }) {
           Play a sound
         </label>
         <button type="button" onClick={() => void playBlockSound()}
-          className="rounded-md border border-line px-3 py-1.5 text-sm text-ink hover:bg-wash">
+          className="btn btn-sm">
           Play a test sound
         </button>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
         <span className="text-ink-2">Sound:</span>
         <span className="text-ink">{custom ? <>Your own: <span className="break-all">{custom}</span></> : "The built-in chime"}</span>
-        <label className="cursor-pointer rounded-md border border-line px-3 py-1.5 text-ink hover:bg-wash">
+        <label className="btn btn-sm">
           {custom ? "Choose another file" : "Use your own sound"}
           <input ref={input} type="file" accept="audio/*" className="sr-only" disabled={busy}
             onChange={(e) => void choose(e.target.files?.[0])} />
         </label>
         {custom && (
           <button type="button" onClick={() => { setError(null); void clearCustomSound(); }}
-            className="rounded-md border border-line px-3 py-1.5 text-ink hover:bg-wash">
+            className="btn btn-sm">
             Use the chime again
           </button>
         )}
