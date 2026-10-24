@@ -123,7 +123,7 @@ export class SnapshotManager {
     /** @type {AbortController | null} */
     this.abort = null;
     this.stopping = false;
-    /** @type {{ size: number | null, lastModified: string | null, checkedAt: number } | null} */
+    /** @type {{ status: number | null, size: number | null, lastModified: string | null, checkedAt: number } | null} */
     this.officialInfo = null;
     /** @type {{ at: number, bytes: number } | null} */
     this.previousSize = null;
@@ -190,18 +190,23 @@ export class SnapshotManager {
   }
 
   /** Size and date of the official snapshot, cached for ten minutes. */
+  /**
+   * The official snapshot's size and date, checked at most every 10 minutes. `status` is the server's HTTP answer (so a missing file,
+   * 404, reads differently from a server that cannot be reached, null); size and date only come with a 2xx answer.
+   */
   async official() {
     if (!this.snapshotUrl) return null;
     if (this.officialInfo && Date.now() - this.officialInfo.checkedAt < 600_000) return this.officialInfo;
     try {
       const head = await fetch(this.snapshotUrl, { method: "HEAD", signal: AbortSignal.timeout(10_000) });
       this.officialInfo = {
-        size: Number(head.headers.get("content-length")) || null,
-        lastModified: head.headers.get("last-modified"),
+        status: head.status,
+        size: head.ok ? Number(head.headers.get("content-length")) || null : null,
+        lastModified: head.ok ? head.headers.get("last-modified") : null,
         checkedAt: Date.now(),
       };
     } catch {
-      this.officialInfo = { size: null, lastModified: null, checkedAt: Date.now() };
+      this.officialInfo = { status: null, size: null, lastModified: null, checkedAt: Date.now() };
     }
     return this.officialInfo;
   }

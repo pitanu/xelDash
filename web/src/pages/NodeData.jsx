@@ -172,7 +172,10 @@ function SnapshotsPanel({ node, admin }) {
             </>
           ) : (
             <div className="mt-2 text-sm text-ink-2">
-              {s.officialAvailable ? "Not reachable right now." : `None is published for ${s.network}; you can still upload one.`}
+              {!s.officialAvailable ? `None is published for ${s.network}; you can still upload one.`
+                : s.official?.status === 404 ? "The XELIS team's server says the snapshot is not there right now (404). Try again later, or upload one."
+                : s.official?.status && s.official.status >= 300 ? `The XELIS team's server answered ${s.official.status}. Try again later, or upload one.`
+                : "The XELIS team's server cannot be reached right now. Try again later, or upload one."}
             </div>
           )}
         </div>
