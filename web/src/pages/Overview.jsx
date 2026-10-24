@@ -146,8 +146,8 @@ export default function Overview() {
   const [range, setRange] = useState("24h");
   const overview = usePolled("/api/v1/overview", { everyBlock: true });
   const history = usePolled(`/api/v1/hashrate?range=${range}`);
-  const blocks = usePolled("/api/v1/blocks?limit=10");
-  const events = usePolled("/api/v1/events?limit=10");
+  const blocks = usePolled("/api/v1/blocks?limit=12");
+  const events = usePolled("/api/v1/events?limit=5");
   const status = usePolled("/api/v1/status", { everyBlock: true });
   const rewards = usePolled("/api/v1/rewards?range=30d");
 
@@ -235,8 +235,13 @@ export default function Overview() {
         </section>
         <div className="side flex flex-col gap-5">
           <HealthSummary status={status.data} />
-          {/* Recent events are the operator's (a public server's visitors do not get them). */}
-          {operator && <Card title="Recent events">{events.data && <EventsList events={events.data.events} />}</Card>}
+          {/* Recent events are the operator's (a public server's visitors do not get them). The latest few, so the column stays about as
+              tall as the blocks beside it; Health lists more. */}
+          {operator && (
+            <Card title="Recent events" action={<a href="#/health" className="text-[13px]">All events</a>}>
+              {events.data && <EventsList events={events.data.events} />}
+            </Card>
+          )}
         </div>
       </div>
     </div>
