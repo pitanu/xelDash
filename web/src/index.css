@@ -456,7 +456,7 @@ label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) { display:
   .hero-num { font-size: 56px; font-weight: 500; letter-spacing: -0.04em; line-height: 1; }
   .topbar { border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 20; }
   .topbar-in { max-width: 1280px; margin: 0 auto; padding: 14px 32px; display: flex; align-items: center; gap: 32px; box-sizing: border-box; }
-  .topnav { display: flex; flex-wrap: wrap; gap: 4px; flex: 1 1 auto; }
+  .topnav { display: flex; flex-wrap: nowrap; gap: 4px; flex: 1 1 auto; white-space: nowrap; }
   .topnav a { padding: 8px 12px; border-radius: 8px; color: var(--ink-2); }
   .topnav a:hover { color: var(--ink); }
   .topnav a[aria-current="page"] { background: var(--panel-2); color: var(--ink); font-weight: 600; }
@@ -481,6 +481,23 @@ label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) { display:
   .switch[aria-checked="true"]::after { left: 21px; background: var(--accent-ink); }
   .switch:disabled { opacity: 0.55; cursor: not-allowed; }
   .code { font-family: var(--xd-mono); font-size: 13px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; overflow-x: auto; white-space: pre; color: var(--ink); }
+
+  /* The top bar keeps to one line as the window narrows: first the price's 24 h change and the word "Live" go (both stay in the
+     title), then the version chip (it is in the footer too) and some room between tabs, then the tabs move to the bottom bar. */
+  @media (max-width: 1279px) {
+    .hide-lg { display: none !important; }
+  }
+  @media (max-width: 1100px) {
+    .hide-md { display: none !important; }
+    .topbar-in { gap: 20px; }
+    .topnav { gap: 0; }
+    .topnav a { padding: 8px 9px; }
+  }
+  @media (max-width: 960px) {
+    .wrap { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+    .topnav { display: none !important; }
+    .bottomnav { display: grid; }
+  }
 
   /* Phone width: the same app, stacked, with a bottom tab bar (and room for it at the end of the page). */
   @media (max-width: 720px) {

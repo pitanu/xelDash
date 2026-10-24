@@ -45,11 +45,11 @@ function Logo() {
   );
 }
 
-/** The running version, next to the name (not on phones, where the top bar is narrow; the footer has it too). */
+/** The running version, next to the name (not on narrower windows, where the top bar needs the room; the footer has it too). */
 function VersionChip() {
   const version = usePolled("/api/v1/version", { intervalMs: 30 * 60_000 });
   if (!version.data?.current) return null;
-  return <span className="mono hide-sm rounded-md border border-line px-1.5 text-[11px] text-muted">{version.data.current}</span>;
+  return <span className="mono hide-md rounded-md border border-line px-1.5 text-[11px] text-muted">{version.data.current}</span>;
 }
 
 /** Whether miners are being given work right now: mining, paused (and why) or Stratum down. Refreshed every 30 s. */
@@ -67,8 +67,8 @@ function LiveIndicator() {
     <span className="inline-flex items-center gap-1.5 text-xs text-ink-2"
       title={isLive ? "Updates arrive as they happen" : "Live updates unavailable; refreshing every 15 seconds"}>
       <span className={`h-2 w-2 rounded-full ${isLive ? "bg-accent" : "bg-muted"}`} aria-hidden="true" />
-      {/* On phones the dot alone; the word stays for screen readers. */}
-      <span className="max-[720px]:sr-only">{isLive ? "Live" : live.status === "connecting" ? "Connecting…" : "Polling"}</span>
+      {/* On narrower windows the dot alone; the word stays for screen readers. */}
+      <span className="max-[1279px]:sr-only">{isLive ? "Live" : live.status === "connecting" ? "Connecting…" : "Polling"}</span>
     </span>
   );
 }
@@ -79,10 +79,10 @@ function PriceChip() {
   if (!price) return null;
   const change = price.change24h;
   return (
-    <a href="#/settings" className="mono inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-ink-2 hover:bg-panel-2 hover:text-ink"
-      title={`1 XEL in ${price.currency.toUpperCase()}, from ${price.source}${price.updatedAt ? `, updated ${new Date(price.updatedAt).toLocaleTimeString()}` : ""}`}>
+    <a href="#/settings" className="mono inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-0.5 text-xs text-ink-2 hover:bg-panel-2 hover:text-ink"
+      title={`1 XEL in ${price.currency.toUpperCase()}${change !== null ? `, ${change >= 0 ? "up" : "down"} ${Math.abs(change).toFixed(1)}% in 24 h` : ""}, from ${price.source}${price.updatedAt ? `, updated ${new Date(price.updatedAt).toLocaleTimeString()}` : ""}`}>
       <span className="font-medium text-ink">XEL {formatMoney(price.price, price.currency)}</span>
-      {change !== null && <span>{change >= 0 ? "▲" : "▼"} {Math.abs(change).toFixed(1)}% 24h</span>}
+      {change !== null && <span className="hide-lg">{change >= 0 ? "▲" : "▼"} {Math.abs(change).toFixed(1)}% 24h</span>}
     </a>
   );
 }

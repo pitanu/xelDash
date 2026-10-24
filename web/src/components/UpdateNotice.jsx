@@ -20,7 +20,7 @@ export function VersionFooter() {
   const version = usePolled("/api/v1/version", { intervalMs: 30 * 60_000 });
   // The page width; on phones, above the bottom tab bar.
   return (
-    <footer className="mx-auto -mt-8 flex max-w-[1280px] flex-wrap items-center gap-x-4 gap-y-1 px-8 pb-10 text-xs text-muted max-[720px]:-mt-20 max-[720px]:px-4 max-[720px]:pb-28">
+    <footer className="mx-auto -mt-8 flex max-w-[1280px] flex-wrap items-center gap-x-4 gap-y-1 px-8 pb-10 text-xs text-muted max-[960px]:-mt-20 max-[960px]:pb-28 max-[720px]:px-4">
       {version.data?.current && <span className="mono">xelDash {version.data.current}</span>}
       <a href="https://github.com/pitanu/xelDash#support-the-project" target="_blank" rel="noopener noreferrer"
         className="text-muted underline decoration-line underline-offset-2 hover:text-ink">Support xelDash</a>
