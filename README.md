@@ -27,7 +27,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/overview-dark.png">
-    <img alt="The xelDash overview: hashrate, expected time to a block, effort, a hashrate chart and a shares chart" src="docs/images/overview-light.png" width="900">
+    <img alt="The xelDash overview: hashrate and its chart, when the next block is expected with the round's effort and luck, tiles for shares, earnings, the network and the node, and a shares chart" src="docs/images/overview-light.png" width="900">
   </picture>
 </p>
 
@@ -94,8 +94,9 @@ holds no funds, ever.
 
 ### Dashboard
 
-- **Live overview:** hashrate, expected time to a block, blocks found (and how many in the last 24 hours), network difficulty,
-  workers, shares and node health, updating as it happens.
+- **Live overview:** hashrate, when the next block is expected, the current round's effort, blocks found (and how many in the
+  last 24 hours), luck, what you earned in 30 days, your share of the network, shares, node health and recent blocks, updating
+  as it happens.
 - **Best share.** How close your best share came to a block (100% is one), this round, in the last day and ever, with a
   chart per bucket on the miner and worker pages.
 - **Effort and luck.** See how far the current round is from an average block, and how the
@@ -112,7 +113,9 @@ holds no funds, ever.
   in your browser. The notice stays until you close it, and on another tab the page title says "Block found".
 - **Blocks** with their final status, reward and the effort of the round that found them, a link
   to each in the official block explorer, the total rewards found so far, and a CSV download.
-- **Light, dark or system theme**, and a layout that works on a phone.
+- **Light, dark or system mode** with five colour themes (Classic, the original look, is the default) or a main colour of your
+  own, a layout that works on a phone and a tablet, and it can be installed as an app from the browser (nothing runs in the
+  background).
 
 <p align="center">
   <picture>
@@ -181,9 +184,9 @@ See [Security](docs/SECURITY.md) for what is protected and what is not.
     <td width="50%">
       <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/blocks-dark.png">
-        <img alt="The Blocks page: total rewards found, and a chart of rewards found against rewards expected from the work done" src="docs/images/blocks-light.png">
+        <img alt="The Blocks page: rewards found, main-chain and side blocks, the effort of the last 12 blocks against the 100% line, and luck" src="docs/images/blocks-light.png">
       </picture>
-      <p align="center"><sub><b>Blocks:</b> rewards found, and how that compares with the work done</sub></p>
+      <p align="center"><sub><b>Blocks:</b> rewards found, the effort of each block, and luck</sub></p>
     </td>
     <td width="50%">
       <picture>
@@ -197,7 +200,7 @@ See [Security](docs/SECURITY.md) for what is protected and what is not.
     <td width="50%">
       <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/nodes-dark.png">
-        <img alt="The Nodes page: daemon versions, scheduled switches, restart and copy controls" src="docs/images/nodes-light.png">
+        <img alt="The Nodes page: daemon versions, a switch at a block height, automatic updates, and restart and stop" src="docs/images/nodes-light.png">
       </picture>
       <p align="center"><sub><b>Nodes:</b> versions, upgrades, restart, copy, snapshots</sub></p>
     </td>
