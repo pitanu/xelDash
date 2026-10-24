@@ -12,7 +12,7 @@ export default function DiskWarning() {
   if (low.length === 0) return null;
   const critical = low.some((d) => d.level === "critical");
   return (
-    <div role="alert" className={`rounded-lg border p-4 text-sm ${critical ? "border-critical/50 bg-critical/10" : "border-warning/60 bg-warning/10"}`}>
+    <div role="alert" className={`rounded-2xl border px-6 py-4 text-sm ${critical ? "border-critical/50 bg-critical/10" : "border-warning/60 bg-warning/10"}`}>
       <div className="font-semibold text-ink">{critical ? "The disk is almost full" : "Disk space is running low"}</div>
       {low.map((d) => (
         <p key={d.nodes.join()} className="mt-1 text-ink-2">

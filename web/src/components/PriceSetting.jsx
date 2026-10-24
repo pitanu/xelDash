@@ -1,20 +1,27 @@
 import { CURRENCY_NAMES, formatMoney, setPriceCurrency, usePrice } from "../price.js";
-import { Card } from "./ui.jsx";
+import { SettingBlock } from "./ui.jsx";
 
-/** Per-browser choice of showing the XEL price, and in which currency. */
-export default function PriceSetting() {
+/** Per-browser choice of showing the XEL price, and in which currency. @param {{ row?: boolean }} props */
+export default function PriceSetting({ row = false }) {
   const { currency, enabled, reason, network, price } = usePrice();
   return (
-    <Card title="XEL price"
-      subtitle="Show the current XEL price at the top of every page, and what found blocks are worth. This choice is saved in this browser only.">
-      <div className="grid gap-3 sm:grid-cols-[1fr_16rem] sm:items-start">
-        <div className="space-y-1 text-sm text-ink-2">
+    <SettingBlock row={row} title="Show prices in"
+      subtitle="The current XEL price at the top of every page, and what found blocks are worth. Saved in this browser only."
+      aside={
+        <select value={currency} onChange={(e) => setPriceCurrency(e.target.value)} aria-label="Price currency" className="field w-64 max-w-full">
+          <option value="">Off</option>
+          {Object.entries(CURRENCY_NAMES).map(([code, name]) => (
+            <option key={code} value={code}>{code.toUpperCase()} · {name}</option>
+          ))}
+        </select>
+      }>
+        <div className="space-y-1 text-[13px] text-ink-2">
           <p>
             Prices come from CoinGecko. xelDash fetches them on its server every 5 minutes while the price is on, so your
             browser never contacts CoinGecko. Off makes no requests at all.
           </p>
           {currency && !enabled && (
-            <p className="text-critical">
+            <p className="text-danger">
               {reason === "network"
                 ? `This dashboard runs on ${network}, whose coins have no market price. The price shows on mainnet only.`
                 : "The price is turned off on this server (XELDASH_PRICE=off in .env)."}
@@ -27,14 +34,6 @@ export default function PriceSetting() {
             </p>
           )}
         </div>
-        <select value={currency} onChange={(e) => setPriceCurrency(e.target.value)} aria-label="Price currency"
-          className="w-full rounded-md border border-line bg-page px-2 py-1.5 text-sm text-ink">
-          <option value="">Off</option>
-          {Object.entries(CURRENCY_NAMES).map(([code, name]) => (
-            <option key={code} value={code}>{code.toUpperCase()} · {name}</option>
-          ))}
-        </select>
-      </div>
-    </Card>
+    </SettingBlock>
   );
 }

@@ -44,16 +44,23 @@ set_env() {
 
 random_hex() { od -An -N"$1" -tx1 /dev/urandom | tr -d ' \n'; }
 
-# Settings renamed since: the old line keeps its value under the new name. Runs on every command, so .env never holds both.
+# Settings renamed since: the new name is added with the old line's value, and the old line stays (kept the same by
+# set_connect_host), so going back to an older xelDash still finds it. Runs on every command.
 # (Docker Compose also reads the old names through 1.x, for a .env the launcher has not seen.)
 rename_old_settings() {
   [ -f .env ] || return 0
   grep -q '^XELDASH_PUBLIC_HOST=' .env || return 0
   grep -q '^XELDASH_CONNECT_HOST=' .env && return 0
   local tmp; tmp="$(mktemp)"
-  awk '{ if (index($0, "XELDASH_PUBLIC_HOST=") == 1) print "XELDASH_CONNECT_HOST=" substr($0, 21); else print }' .env > "$tmp"
+  awk '{ if (index($0, "XELDASH_PUBLIC_HOST=") == 1) { print "XELDASH_CONNECT_HOST=" substr($0, 21); print "# Kept the same as XELDASH_CONNECT_HOST, for going back to xelDash 0.6.1 or older:" } print }' .env > "$tmp"
   cat "$tmp" > .env
   rm -f "$tmp"
+}
+
+# The address miners are told to connect to, and the old name for it too while .env still has it (see rename_old_settings).
+set_connect_host() {
+  set_env XELDASH_CONNECT_HOST "$1"
+  if grep -q '^XELDASH_PUBLIC_HOST=' .env; then set_env XELDASH_PUBLIC_HOST "$1"; fi
 }
 
 # ---------------------------------------------------------------- checks
@@ -128,7 +135,7 @@ lan_on() {
   fi
   set_env XELDASH_WEB_BIND_IP 0.0.0.0
   set_env XELDASH_STRATUM_BIND_IP 0.0.0.0
-  set_env XELDASH_CONNECT_HOST "$ip"
+  set_connect_host "$ip"
   ok "Other computers on your network can now use xelDash at http://$ip:$(web_port)"
   case "$(uname -s)" in
     Darwin)
@@ -142,7 +149,7 @@ lan_on() {
 lan_off() {
   set_env XELDASH_WEB_BIND_IP 127.0.0.1
   set_env XELDASH_STRATUM_BIND_IP 127.0.0.1
-  set_env XELDASH_CONNECT_HOST ""
+  set_connect_host ""
   ok "xelDash now only answers on this computer."
 }
 
@@ -637,7 +644,7 @@ cluster_setup() {
   set_env XELDASH_CLUSTER_ID "$id"
   set_env XELDASH_VIP "$vip/$prefix"
   set_env XELDASH_SERVER_NAME "$name"
-  set_env XELDASH_CONNECT_HOST "$vip"
+  set_connect_host "$vip"
   set_env COMPOSE_FILE "docker-compose.yml:docker-compose.cluster.yml"
   say "Starting the address manager..."
   compose_up

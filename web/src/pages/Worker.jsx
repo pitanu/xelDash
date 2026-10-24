@@ -31,21 +31,21 @@ export default function Worker({ address, name }) {
     : null;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <a href={`#/miner/${address}`} className="inline-flex min-h-6 items-center text-xs text-ink-2 hover:text-ink hover:underline" title={address}>
-          ← {shorten(address, 10)}
-        </a>
-        <h1 className="mt-1 break-all text-lg font-semibold text-ink">{name}</h1>
-        {w && (
-          <p className="text-xs text-muted">
-            First seen {formatAgo(w.firstSeen)} · last seen {formatAgo(w.lastSeen)}
-            {w.lastIp && <> · {w.lastIp}</>}
-          </p>
-        )}
+    <div className="flex flex-col gap-5">
+      <div className="page-head">
+        <div className="min-w-0">
+          <a href={`#/miner/${address}`} className="mono text-[13px]" title={address}>← {shorten(address, 10)}</a>
+          <h1 className="mt-1 break-all">{name}</h1>
+          {w && (
+            <p>
+              First seen {formatAgo(w.firstSeen)} · last seen {formatAgo(w.lastSeen)}
+              {w.lastIp && <> · <span className="mono">{w.lastIp}</span></>}
+            </p>
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="tiles">
         <div className="col-span-2">
           <StatTile hero icon="hashrate" label="Hashrate, last hour" value={formatHashrate(w?.hashrate["1h"])}
             detail={w ? `Last 5 min: ${formatHashrate(w.hashrate["5m"])} · 24 h: ${formatHashrate(w.hashrate["24h"])}`
@@ -69,16 +69,16 @@ export default function Worker({ address, name }) {
 
       <BestShareCard best={w?.bestShare} points={history.data?.points ?? null} dimmed={history.loading} />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-2">
         <Card title="Rejected shares by reason" subtitle="Last 24 hours">
           {w && (w.rejectReasons24h.length === 0
             ? <p className="text-sm text-muted">No rejected shares.</p>
             : (
-              <ul className="divide-y divide-line text-sm">
+              <ul className="row-list">
                 {w.rejectReasons24h.map((/** @type {{ reason: string | null, count: string }} */ r) => (
-                  <li key={r.reason ?? "unknown"} className="flex justify-between py-2">
+                  <li key={r.reason ?? "unknown"} className="justify-between">
                     <span className="text-ink-2">{REJECT_LABELS[/** @type {keyof typeof REJECT_LABELS} */ (r.reason)] ?? r.reason ?? "Unknown"}</span>
-                    <span className="tabular text-ink">{formatInteger(r.count)}</span>
+                    <span className="mono text-ink">{formatInteger(r.count)}</span>
                   </li>
                 ))}
               </ul>

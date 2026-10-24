@@ -15,7 +15,7 @@ export default function RewardsSummary({ totals }) {
   const count = (/** @type {string} */ status) => totals.byStatus[status]?.blocks ?? 0;
   const xel = Number(totals.reward) / 1e8;
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div className="tiles">
       <StatTile icon="block" label="Rewards found" value={<span className="whitespace-nowrap text-xl sm:text-2xl">{formatXel(totals.reward, coin).replace(/ [A-Z]+$/, "")}<span className="ml-1 text-sm font-medium text-ink-2">{coin}</span></span>}
         detail={price && xel > 0 ? `≈ ${formatMoney(xel * price.price, price.currency, "amount")} at today's price` : "Main-chain and side blocks"} />
       <StatTile label="Main chain" value={formatInteger(count("main-chain"))} detail={formatXel(totals.byStatus["main-chain"]?.reward ?? "0", coin)} />

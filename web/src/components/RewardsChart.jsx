@@ -83,7 +83,7 @@ export default function RewardsChart({ address = null, rewardPerBlock }) {
     series.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(pick(p)).toFixed(1)}`).join("");
   const last = series.length - 1;
   const empty = max === 0;
-  const xTickCount = Math.max(2, Math.min(6, Math.floor(plotW / 110)));
+  const xTickCount = Math.max(2, Math.min(6, Math.floor(plotW / 160)));
   const xTicks = series.length > 1
     ? Array.from({ length: xTickCount }, (_, k) => Math.round((k / (xTickCount - 1)) * last))
     : [];

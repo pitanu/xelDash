@@ -3,8 +3,8 @@ name: End-to-end
 # Starts the real stack on a private devnet and mines real blocks through it (see test/e2e/stack.e2e.js). It takes about ten
 # minutes, so it does not run on every push: run it by hand from the Actions tab, or let the weekly run catch problems that
 # appear when a base image or the daemon changes. The release workflow runs it too, before any image is published.
-# A second job updates the newest published release to this commit with its data (test/e2e/upgrade.e2e.js): the path every
-# existing install takes, which the first job, starting from nothing, does not.
+# Second jobs update published releases (the newest, and older ones) to this commit with their data (test/e2e/upgrade.e2e.js): the
+# path every existing install takes, which the first job, starting from nothing, does not.
 on:
   workflow_dispatch:
   workflow_call:
@@ -26,13 +26,21 @@ jobs:
           node-version: 26
       - run: npm run e2e
 
+  # From the newest release, and from older ones a user may not have updated since: 0.1.0 (the first, so every later migration runs)
+  # and 0.3.0 (the last before best share). Releases in between share their database with one of these.
   upgrade:
-    name: Upgrade from the last release
+    name: Upgrade from ${{ matrix.from }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        from: [the last release, "0.1.0", "0.3.0"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 26
       - run: npm run e2e:upgrade
+        env:
+          XELDASH_UPGRADE_FROM: ${{ matrix.from != 'the last release' && matrix.from || '' }}

@@ -7,6 +7,12 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-24
+
+A new look for the dashboard, with nothing taken away: colour themes and a colour of your own, a Connect page, an effort chart on
+Blocks, a layout for phones and tablets, and installing it as an app. Updates now take a backup first. No database migration, so
+going back to 0.6.1 still works.
+
 ### Operations
 
 - `xeldash update` saves a backup of the statistics before it changes anything (`backups/xeldash-before-update-<time>.dump`; the
@@ -14,14 +20,35 @@ breaking changes; they are marked **Breaking**.
   update stops with nothing changed; `XELDASH_UPDATE_SKIP_BACKUP=1` updates without one.
 - On Windows, a finished update no longer reports a failure left behind by an earlier command.
 - `XELDASH_PUBLIC_HOST` is now `XELDASH_CONNECT_HOST`: the address miners are told to connect to (your home-network address, or a
-  public server's domain), which had nothing to do with public mode. The old name keeps working through 1.x, and the launcher renames
-  it in `.env` the next time it runs, keeping its value.
+  public server's domain), which had nothing to do with public mode. The old name keeps working through 1.x. The next time the launcher
+  runs, it adds the new name to `.env` with the same value and keeps the old line, set alongside it by `lan on` and `lan off`,
+  so going back to 0.6.1 or older still finds it.
+- A miner that logs in with only a worker name (`rig1`) is told that the user name starts with the address
+  (`address.worker`), and the Connection problems card says so too. A login with no address and no default one says to set a
+  default payout address in Settings, not an environment variable.
+- The Nodes page says when the official snapshot is missing from the XELIS team's server (404), not only that it cannot be
+  reached.
 - The webhook alert's fields are written down for each kind of alert (Operations, "Webhook alerts") and checked by a test, so they
   cannot change by accident; from 1.0.0 none of them is renamed or removed within 1.x. A failed chain copy now says so in the
   webhook too (`node_update` with `outcome: "copy_failed"`).
 
 ### Dashboard
 
+- A new look, with nothing taken away: the pages are rebuilt as cards, with a top bar showing the mining status and, on phones
+  and tablets (below 960 px wide), tabs along the bottom. The Overview leads with hashrate and its chart beside when the next
+  block is expected, the round's effort and luck, then what you earned in 30 days and your share of the network. Blocks adds a
+  chart of each block's effort (hover or the arrow keys for each block, or a table) and the orphan rate.
+- Five colour themes, each with a light and a dark version: Classic (the colours from before, and the default), Ember, Glacier,
+  Amethyst and Terminal; or a main colour of your own, with light and dark versions worked out so it stays readable. Per
+  browser, under Settings, Appearance.
+- A Connect page ("Mine here" on a public server) with your address in every setting and command, and your workers listed as
+  they connect. It says when a pool address or a whole `address.worker` was pasted as the address, and that the dashboard's
+  port is not the mining port.
+- Settings is grouped into Appearance, Mining, and Notifications and display, with switches. A public server's visitors get a
+  Settings page too, with Appearance, animations and the block sound only.
+- The dashboard can be installed as an app from the browser ("Install app", "Add to Home Screen"), with its own icon. Nothing
+  runs in the background.
+- A link to support xelDash at the foot of every page.
 - The numbers on the tiles count up when they first show, and move to their new value when a refresh changes it, in your
   browser's number format; screen readers get the final value. The charts' animations take about a second instead of half that.
   Both are skipped when your system asks for less motion, and Settings ("Animate charts and numbers") turns them off.

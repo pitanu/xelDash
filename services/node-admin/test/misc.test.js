@@ -152,3 +152,34 @@ test("a node has caught up when it is level with its peers; on a private devnet 
   assert.equal(caughtUp({ peer_count: 0, median_topoheight: 0 }, info, "devnet"), true, "a private devnet has no peers");
   assert.equal(caughtUp({ peer_count: 1, median_topoheight: 1100 }, info, "devnet"), false, "a devnet node with a peer still catches up with it");
 });
+
+test("the official snapshot check tells a missing file (404) from a server that cannot be reached", async () => {
+  const { createServer } = await import("node:http");
+  const { SnapshotManager } = await import("../src/snapshot.js");
+  let answer = 404;
+  const server = createServer((req, res) => {
+    if (answer === 200) res.writeHead(200, { "content-length": "12345", "last-modified": "Sat, 24 Oct 2026 00:00:00 GMT" });
+    else res.writeHead(answer, { "content-length": "0" });
+    res.end();
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(undefined)));
+  const address = /** @type {import("node:net").AddressInfo} */ (server.address());
+  const dir = await mkdtemp(join(tmpdir(), "xeldash-official-"));
+  const manager = (/** @type {string} */ url) => new SnapshotManager({ dataDir: dir, network: "mainnet", snapshotUrl: url, checksumUrl: null, logger: { info() {}, warn() {} } });
+  try {
+    const url = `http://127.0.0.1:${address.port}/files/mainnet.zip`;
+    assert.deepEqual({ ...(await manager(url).official()), checkedAt: 0 }, { status: 404, size: null, lastModified: null, checkedAt: 0 }, "no size from a 404, which says 0");
+    answer = 200;
+    const found = await manager(url).official();
+    assert.equal(found?.status, 200);
+    assert.equal(found?.size, 12345);
+    assert.equal(found?.lastModified, "Sat, 24 Oct 2026 00:00:00 GMT");
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(() => resolve(undefined)));
+    assert.equal((await manager(url).official())?.status, null, "nothing listening: not reachable");
+  } finally {
+    server.closeAllConnections();
+    server.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});

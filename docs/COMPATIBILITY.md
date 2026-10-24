@@ -19,8 +19,8 @@ Until 1.0.0 is released, this page describes the plan; 0.x releases may still ch
 
 - Every setting in [.env.example](../.env.example) keeps its name and meaning. Defaults may be tuned (a retention period, a limit);
   such a change is listed in the changelog.
-- A setting renamed before 1.0.0 still works under its old name throughout 1.x, and the launcher renames it in `.env`:
-  `XELDASH_PUBLIC_HOST` is `XELDASH_CONNECT_HOST`.
+- A setting renamed before 1.0.0 still works under its old name throughout 1.x: `XELDASH_PUBLIC_HOST` is `XELDASH_CONNECT_HOST`.
+  The launcher adds the new name to `.env` and keeps the old line the same, so going back to an older version still works.
 - Variables that only the Compose files set for the containers (`DATA_DIR`, `CONFIG_DIR`, `DATABASE_URL`, `CONNECT_HOST` and the
   like) are not settings and are not promised.
 

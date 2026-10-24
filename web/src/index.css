@@ -1,102 +1,387 @@
 @import "tailwindcss";
 
-/* Role tokens. Components use these names, so light and dark swap in one place. */
+/* Role tokens, from the 1.0 design (five palettes, each light and dark). Components use these names, so a palette or mode swaps
+   in one place. The palette is <html data-palette> (classic when unset); the mode is <html data-theme> (light or dark), or the
+   system's when unset. Both are set before first paint by public/theme-init.js. --gold is each palette's highlight (blue in Ember, amber in Classic). */
 :root {
   color-scheme: light;
-  --page: #f9f9f7;
-  --surface: #fcfcfb;
+  --danger: #b3261e;
+  --danger-soft: #f8dcd9;
+  --grid: var(--panel-2);
+  /* Light: white cards on a page a few shades darker, tinted to the palette, so the cards stand apart. Dark keeps the page from before
+     the 1.0 design, #0d0d0d. */
+  /* Chart axes and the hover line: between the grid and the text. */
+  --axis: color-mix(in srgb, var(--muted) 55%, transparent);
+  /* Real variables (Tailwind's @theme inline only inlines its own): the text face and the one for numbers and code. */
+  --xd-sans: "Geist Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --xd-mono: "Geist Mono Variable", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+/* Classic: the colours from before the 1.0 design (neutral greys, the old blue, amber for highlights). The default. */
+:root,
+:root[data-palette="classic"] {
+  --bg: #eae9e4;
+  --panel: #ffffff;
+  --panel-2: #efeeea;
+  --line: #d9d8d1;
   --ink: #0b0b0b;
   --ink-2: #52514e;
   --muted: #6b6963;
-  --grid: #e1e0d9;
-  --axis: #c3c2b7;
-  --border: rgba(11, 11, 11, 0.1);
-  --wash: rgba(11, 11, 11, 0.04);
-  --series-1: #2a78d6;
-  /* A block in the best-share chart: categorical slot 4 (yellow) of the chart palette, validated beside series-1. Below 3:1 on the
-     light surface, so block dots always carry a label, a legend entry and the table view. */
-  --series-block: #eda100;
-  --action: #2060b8;
-  --good: #0b7a0b;
-  --warning: #fab219;
-  --serious: #a8431a;
-  --critical: #c33232;
+  --accent: #2060b8;
+  --accent-ink: #ffffff;
+  --accent-soft: #e1eaf6;
+  --gold: #a86b00;
+  --gold-soft: #f8ecd2;
 }
 
+:root[data-palette="ember"] {
+  --bg: #ece7e1;
+  --panel: #ffffff;
+  --panel-2: #f3eee8;
+  --line: #ddd5cb;
+  --ink: #1c1714;
+  --ink-2: #574d45;
+  --muted: #6e635a;
+  --accent: #c2410c;
+  --accent-ink: #ffffff;
+  --accent-soft: #fde6d8;
+  --gold: #1d5fd1;
+  --gold-soft: #dfe9fb;
+}
+
+:root[data-palette="glacier"] {
+  --bg: #e6eaf1;
+  --panel: #ffffff;
+  --panel-2: #edf1f6;
+  --line: #d3dce7;
+  --ink: #0e1726;
+  --ink-2: #3f4d63;
+  --muted: #5a687c;
+  --accent: #1d5fd1;
+  --accent-ink: #ffffff;
+  --accent-soft: #dfe9fb;
+  --gold: #9a6200;
+  --gold-soft: #f8ead0;
+}
+
+:root[data-palette="amethyst"] {
+  --bg: #e9e6ef;
+  --panel: #ffffff;
+  --panel-2: #f1eef6;
+  --line: #d9d3e6;
+  --ink: #17121f;
+  --ink-2: #4d4560;
+  --muted: #655c78;
+  --accent: #6d3fd1;
+  --accent-ink: #ffffff;
+  --accent-soft: #ebe3fb;
+  --gold: #3f7a0b;
+  --gold-soft: #e3f1d4;
+}
+
+:root[data-palette="terminal"] {
+  --bg: #e8e8e8;
+  --panel: #ffffff;
+  --panel-2: #efefef;
+  --line: #d6d6d6;
+  --ink: #111111;
+  --ink-2: #474747;
+  --muted: #636363;
+  --accent: #157a3c;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcf2e3;
+  --gold: #9a6200;
+  --gold-soft: #f8ead0;
+}
+
+/* Dark: chosen, or the system's while no mode is chosen. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --page: #0d0d0d;
-    --surface: #1a1a19;
+    --danger: #ff8a80;
+    --danger-soft: #3a1714;
+  }
+
+  :root:not([data-theme="light"]),
+  :root:not([data-theme="light"])[data-palette="classic"] {
+    --bg: #0d0d0d;
+    --panel: #1a1a19;
+    --panel-2: #232322;
+    --line: #2e2e2c;
     --ink: #ffffff;
     --ink-2: #c3c2b7;
     --muted: #898781;
-    --grid: #2c2c2a;
-    --axis: #383835;
-    --border: rgba(255, 255, 255, 0.1);
-    --wash: rgba(255, 255, 255, 0.05);
-    --series-1: #3987e5;
-    --series-block: #c98500;
-    --good: #0ca30c;
-    --serious: #ec835a;
-    --critical: #f07a7a;
+    --accent: #3987e5;
+    --accent-ink: #06142b;
+    --accent-soft: #12233a;
+    --gold: #e0a326;
+    --gold-soft: #2e2410;
+  }
+
+  :root:not([data-theme="light"])[data-palette="ember"] {
+    --bg: #0d0d0d;
+    --panel: #1c1815;
+    --panel-2: #25201c;
+    --line: #342d27;
+    --ink: #f5efe9;
+    --ink-2: #cdbfb2;
+    --muted: #9b8f84;
+    --accent: #ff8a4c;
+    --accent-ink: #2a1205;
+    --accent-soft: #3a1e10;
+    --gold: #7fb0ff;
+    --gold-soft: #17243d;
+  }
+
+  :root:not([data-theme="light"])[data-palette="glacier"] {
+    --bg: #0d0d0d;
+    --panel: #111a28;
+    --panel-2: #172235;
+    --line: #233149;
+    --ink: #ecf2fb;
+    --ink-2: #b4c2d6;
+    --muted: #8495ad;
+    --accent: #6ea8ff;
+    --accent-ink: #06142b;
+    --accent-soft: #13284a;
+    --gold: #f2b84b;
+    --gold-soft: #33270f;
+  }
+
+  :root:not([data-theme="light"])[data-palette="amethyst"] {
+    --bg: #0d0d0d;
+    --panel: #18141f;
+    --panel-2: #211b2b;
+    --line: #2f273d;
+    --ink: #f1edf8;
+    --ink-2: #c3b9d6;
+    --muted: #9488a8;
+    --accent: #b496ff;
+    --accent-ink: #1b0d3d;
+    --accent-soft: #2a1f45;
+    --gold: #a6e05a;
+    --gold-soft: #1f2c12;
+  }
+
+  :root:not([data-theme="light"])[data-palette="terminal"] {
+    --bg: #0d0d0d;
+    --panel: #0e0e0e;
+    --panel-2: #171717;
+    --line: #262626;
+    --ink: #f2f2f2;
+    --ink-2: #bdbdbd;
+    --muted: #8c8c8c;
+    --accent: #4ade80;
+    --accent-ink: #052e14;
+    --accent-soft: #0f2a19;
+    --gold: #f2b84b;
+    --gold-soft: #33270f;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --page: #0d0d0d;
-  --surface: #1a1a19;
+  --danger: #ff8a80;
+  --danger-soft: #3a1714;
+}
+
+:root[data-theme="dark"],
+:root[data-theme="dark"][data-palette="classic"] {
+  --bg: #0d0d0d;
+  --panel: #1a1a19;
+  --panel-2: #232322;
+  --line: #2e2e2c;
   --ink: #ffffff;
   --ink-2: #c3c2b7;
   --muted: #898781;
-  --grid: #2c2c2a;
-  --axis: #383835;
-  --border: rgba(255, 255, 255, 0.1);
-  --wash: rgba(255, 255, 255, 0.05);
-  --series-1: #3987e5;
-  --series-block: #c98500;
-  --good: #0ca30c;
-  --serious: #ec835a;
-  --critical: #f07a7a;
+  --accent: #3987e5;
+  --accent-ink: #06142b;
+  --accent-soft: #12233a;
+  --gold: #e0a326;
+  --gold-soft: #2e2410;
+}
+
+:root[data-theme="dark"][data-palette="ember"] {
+  --bg: #0d0d0d;
+  --panel: #1c1815;
+  --panel-2: #25201c;
+  --line: #342d27;
+  --ink: #f5efe9;
+  --ink-2: #cdbfb2;
+  --muted: #9b8f84;
+  --accent: #ff8a4c;
+  --accent-ink: #2a1205;
+  --accent-soft: #3a1e10;
+  --gold: #7fb0ff;
+  --gold-soft: #17243d;
+}
+
+:root[data-theme="dark"][data-palette="glacier"] {
+  --bg: #0d0d0d;
+  --panel: #111a28;
+  --panel-2: #172235;
+  --line: #233149;
+  --ink: #ecf2fb;
+  --ink-2: #b4c2d6;
+  --muted: #8495ad;
+  --accent: #6ea8ff;
+  --accent-ink: #06142b;
+  --accent-soft: #13284a;
+  --gold: #f2b84b;
+  --gold-soft: #33270f;
+}
+
+:root[data-theme="dark"][data-palette="amethyst"] {
+  --bg: #0d0d0d;
+  --panel: #18141f;
+  --panel-2: #211b2b;
+  --line: #2f273d;
+  --ink: #f1edf8;
+  --ink-2: #c3b9d6;
+  --muted: #9488a8;
+  --accent: #b496ff;
+  --accent-ink: #1b0d3d;
+  --accent-soft: #2a1f45;
+  --gold: #a6e05a;
+  --gold-soft: #1f2c12;
+}
+
+:root[data-theme="dark"][data-palette="terminal"] {
+  --bg: #0d0d0d;
+  --panel: #0e0e0e;
+  --panel-2: #171717;
+  --line: #262626;
+  --ink: #f2f2f2;
+  --ink-2: #bdbdbd;
+  --muted: #8c8c8c;
+  --accent: #4ade80;
+  --accent-ink: #052e14;
+  --accent-soft: #0f2a19;
+  --gold: #f2b84b;
+  --gold-soft: #33270f;
+}
+
+/* A main colour of the person's own (Settings › Appearance; src/accent.js works out the light and dark versions, and theme.js sets
+   them as --custom-* on <html> with data-accent="custom"). It replaces the theme's accent only; these rules come after the themes, so
+   they win in every mode. */
+:root[data-accent="custom"] {
+  --accent: var(--custom-accent);
+  --accent-soft: var(--custom-accent-soft);
+  --accent-ink: var(--custom-accent-ink);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-accent="custom"]:not([data-theme="light"]) {
+    --accent: var(--custom-accent-dark);
+    --accent-soft: var(--custom-accent-soft-dark);
+    --accent-ink: var(--custom-accent-ink-dark);
+  }
+}
+:root[data-accent="custom"][data-theme="dark"] {
+  --accent: var(--custom-accent-dark);
+  --accent-soft: var(--custom-accent-soft-dark);
+  --accent-ink: var(--custom-accent-ink-dark);
+}
+
+/* Stale shares in the shares chart (stacked between accepted, in the accent, and invalid, in danger): a colour per palette and mode
+   that the dataviz palette validator separates from both neighbours, for colour-blind readers too. */
+:root, :root[data-palette="classic"] { --chart-stale: #d99a00; }
+:root[data-palette="ember"] { --chart-stale: #1d5fd1; }
+:root[data-palette="glacier"] { --chart-stale: #5a687c; }
+:root[data-palette="amethyst"] { --chart-stale: #655c78; }
+:root[data-palette="terminal"] { --chart-stale: #1d5fd1; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]), :root:not([data-theme="light"])[data-palette="classic"] { --chart-stale: #fab219; }
+  :root:not([data-theme="light"])[data-palette="ember"] { --chart-stale: #7fb0ff; }
+  :root:not([data-theme="light"])[data-palette="glacier"] { --chart-stale: #ffd27a; }
+  :root:not([data-theme="light"])[data-palette="amethyst"] { --chart-stale: #a6e05a; }
+  :root:not([data-theme="light"])[data-palette="terminal"] { --chart-stale: #7fb0ff; }
+}
+:root[data-theme="dark"], :root[data-theme="dark"][data-palette="classic"] { --chart-stale: #fab219; }
+:root[data-theme="dark"][data-palette="ember"] { --chart-stale: #7fb0ff; }
+:root[data-theme="dark"][data-palette="glacier"] { --chart-stale: #ffd27a; }
+:root[data-theme="dark"][data-palette="amethyst"] { --chart-stale: #a6e05a; }
+:root[data-theme="dark"][data-palette="terminal"] { --chart-stale: #7fb0ff; }
+
+/* The names used before the 1.0 design, while components move over (removed once none uses them). */
+:root {
+  --page: var(--bg);
+  --surface: var(--panel);
+  --border: var(--line);
+  --wash: var(--panel-2);
+  --series-1: var(--accent);
+  --series-block: var(--gold);
+  --action: var(--accent);
+  --good: var(--accent);
+  --warning: var(--gold);
+  --serious: var(--danger);
+  --critical: var(--danger);
 }
 
 @theme inline {
-  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --color-page: var(--page);
-  --color-surface: var(--surface);
+  --font-sans: var(--xd-sans);
+  --font-mono: var(--xd-mono);
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-line: var(--line);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
   --color-grid: var(--grid);
-  --color-line: var(--border);
-  --color-wash: var(--wash);
-  --color-series-1: var(--series-1);
-  --color-series-block: var(--series-block);
-  --color-action: var(--action);
-  --color-good: var(--good);
-  --color-warning: var(--warning);
-  --color-serious: var(--serious);
-  --color-critical: var(--critical);
+  --color-axis: var(--axis);
+  --color-chart-stale: var(--chart-stale);
+  /* Old names (see above). */
+  --color-page: var(--bg);
+  --color-surface: var(--panel);
+  --color-wash: var(--panel-2);
+  --color-series-1: var(--accent);
+  --color-series-block: var(--gold);
+  --color-action: var(--accent);
+  --color-good: var(--accent);
+  --color-warning: var(--gold);
+  --color-serious: var(--danger);
+  --color-critical: var(--danger);
 }
 
 body {
-  background: var(--page);
+  margin: 0;
+  background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-sans);
+  font-family: var(--xd-sans);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
-.tabular {
+/* Every number in the mono face with tabular figures. */
+.tabular,
+.mono {
+  font-family: var(--xd-mono);
   font-variant-numeric: tabular-nums;
 }
 
-/* A found block: the notice slides in and its table row flashes once. Skipped for people who ask
+/* Scrollbars follow the theme. */
+html, html * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+html::-webkit-scrollbar, html *::-webkit-scrollbar { width: 10px; height: 10px; }
+html::-webkit-scrollbar-track, html *::-webkit-scrollbar-track { background: transparent; }
+html::-webkit-scrollbar-thumb, html *::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; border: 2px solid var(--bg); }
+html::-webkit-scrollbar-thumb:hover, html *::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* A found block: the card slides in and its table row flashes once. Skipped for people who ask
    their system for less motion; the notice and the highlighted row still appear. */
 @media (prefers-reduced-motion: no-preference) {
   .block-banner { animation: block-banner-in 0.4s ease-out; }
   .block-new { animation: block-new-flash 3s ease-out; }
 }
-@keyframes block-banner-in { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: none; } }
+@keyframes block-banner-in { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
 @keyframes block-new-flash { from { background-color: color-mix(in srgb, var(--good) 28%, transparent); } to { background-color: transparent; } }
 
 /* Chart animations (see src/motion.js): one-shot, about a second, and only transform, opacity and stroke offset, so they stay
@@ -122,5 +407,113 @@ body {
 
 /* Checkboxes and radio buttons: a comfortable box, and a label row that is at least 24px tall, so
    the whole row is an easy target on a phone. */
-input[type="checkbox"], input[type="radio"] { width: 1.125rem; height: 1.125rem; flex-shrink: 0; }
+input[type="checkbox"], input[type="radio"] { width: 1.125rem; height: 1.125rem; flex-shrink: 0; accent-color: var(--accent); }
 label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) { display: flex; align-items: center; gap: 0.5rem; min-height: 1.5rem; }
+
+/* Building blocks from the 1.0 design. In the components layer, so a Tailwind utility on the
+   same element can still adjust one. */
+@layer components {
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; min-width: 0; }
+  .pad { padding: 24px; }
+  .label { font-size: 12px; color: var(--muted); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+  /* Pills keep the text face, also in a table of numbers. */
+  .pill { font-family: var(--xd-sans); }
+  .pill-final { background: var(--accent-soft); color: var(--accent); }
+  .pill-pending { background: var(--panel-2); color: var(--ink-2); }
+  .pill-side { background: var(--gold-soft); color: var(--gold); }
+  .pill-orphan { background: var(--danger-soft); color: var(--danger); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+  .btn { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border-radius: 10px; font-weight: 600; font-size: 13px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+  .btn:hover { background: var(--panel-2); }
+  .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn-primary:hover { background: var(--accent); filter: brightness(1.06); }
+  .btn-sm { min-height: 32px; padding: 0 12px; font-size: 12px; border-radius: 8px; }
+  .field { min-height: 42px; box-sizing: border-box; width: 100%; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
+  textarea.field { padding: 10px 12px; min-height: 84px; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .tbl th { font-weight: 500; font-size: 12px; color: var(--muted); text-align: left; padding: 8px 12px; white-space: nowrap; }
+  .tbl td { padding: 12px; border-top: 1px solid var(--line); white-space: nowrap; }
+  .tbl th:first-child, .tbl td:first-child { padding-left: 24px; }
+  .tbl th:last-child, .tbl td:last-child { padding-right: 24px; }
+  .r { text-align: right !important; }
+  .scroll-x { overflow-x: auto; }
+  .row-list { list-style: none; margin: 0; padding: 0; }
+  .row-list > li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .row-list > li:first-child { border-top: 0; }
+
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box; }
+  .page-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; }
+  .page-head h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+  .page-head p { margin: 4px 0 0; color: var(--muted); }
+  .split { display: flex; flex-wrap: wrap; gap: 20px; }
+  .split > .main { flex: 999 1 560px; min-width: 0; }
+  .split > .side { flex: 1 1 300px; min-width: 0; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
+  .tile { padding: 18px 20px; }
+  .tile .v { font-size: 26px; font-weight: 500; margin-top: 4px; }
+  .hero-num { font-size: 56px; font-weight: 500; letter-spacing: -0.04em; line-height: 1; }
+  .topbar { border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 20; }
+  .topbar-in { max-width: 1280px; margin: 0 auto; padding: 14px 32px; display: flex; align-items: center; gap: 32px; box-sizing: border-box; }
+  .topnav { display: flex; flex-wrap: nowrap; gap: 4px; flex: 1 1 auto; white-space: nowrap; }
+  .topnav a { padding: 8px 12px; border-radius: 8px; color: var(--ink-2); }
+  .topnav a:hover { color: var(--ink); }
+  .topnav a[aria-current="page"] { background: var(--panel-2); color: var(--ink); font-weight: 600; }
+  .bottomnav { display: none; border-top: 1px solid var(--line); background: var(--panel); padding: 4px 4px calc(14px + env(safe-area-inset-bottom)); position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; }
+  .bottomnav a { min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 10.5px; color: var(--ink-2); }
+  .bottomnav a[aria-current="page"] { color: var(--accent); font-weight: 600; }
+  .settings-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; padding: 18px 0; border-top: 1px solid var(--line); }
+  .settings-row:first-of-type { border-top: 0; }
+  .settings-row .txt { flex: 1 1 260px; }
+  .settings-row .txt b { display: block; font-weight: 600; }
+  .settings-row .txt span { font-size: 13px; color: var(--muted); }
+  .theme-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .theme-card { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); text-align: left; cursor: pointer; }
+  .theme-card[aria-pressed="true"] { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+  .seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+  .seg button { min-height: 36px; padding: 0 14px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-2); font-size: 13px; cursor: pointer; }
+  .seg button:hover { color: var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
+  .switch { width: 44px; height: 26px; flex-shrink: 0; border-radius: 999px; border: 0; background: var(--panel-2); position: relative; box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--muted); }
+  .switch[aria-checked="true"] { background: var(--accent); }
+  .switch[aria-checked="true"]::after { left: 21px; background: var(--accent-ink); }
+  .switch:disabled { opacity: 0.55; cursor: not-allowed; }
+  .code { font-family: var(--xd-mono); font-size: 13px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; overflow-x: auto; white-space: pre; color: var(--ink); }
+
+  /* The top bar keeps to one line as the window narrows: first the price's 24 h change and the word "Live" go (both stay in the
+     title), then the version chip (it is in the footer too) and some room between tabs, then the tabs move to the bottom bar. */
+  @media (max-width: 1279px) {
+    .hide-lg { display: none !important; }
+  }
+  @media (max-width: 1100px) {
+    .hide-md { display: none !important; }
+    .topbar-in { gap: 20px; }
+    .topnav { gap: 0; }
+    .topnav a { padding: 8px 9px; }
+  }
+  @media (max-width: 960px) {
+    .wrap { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+    .topnav { display: none !important; }
+    .bottomnav { display: grid; }
+  }
+
+  /* Phone width: the same app, stacked, with a bottom tab bar (and room for it at the end of the page). */
+  @media (max-width: 720px) {
+    .wrap { padding: 16px 16px calc(96px + env(safe-area-inset-bottom)); gap: 14px; }
+    .topbar-in { padding: 12px 16px; gap: 12px; }
+    .topnav, .hide-sm { display: none !important; }
+    .bottomnav { display: grid; }
+    .split, .tiles { gap: 14px; }
+    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tile { padding: 14px; }
+    .tile .v { font-size: 19px; }
+    .pad { padding: 18px; }
+    .hero-num { font-size: 44px; }
+    .page-head h1 { font-size: 22px; }
+    .tbl th:first-child, .tbl td:first-child { padding-left: 18px; }
+    .tbl th:last-child, .tbl td:last-child { padding-right: 18px; }
+    .seg button, .btn { min-height: 44px; }
+  }
+}

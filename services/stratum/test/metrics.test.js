@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { Metrics, isLoopback, metricsConfigFromEnv, noMetrics, startMetricsServer } from "../src/metrics.js";
 
 const quiet = { info() {}, warn() {} };
-const ADDRESS = "xel:5fuu8nkxq6cz3jn8ph3zfwn3hyn4wf8jzcdvsw509t2dxtg4vuaqq3vv9hy";
+const ADDRESS = "xel:060exlhsp28xzkxf8zpa04kw33dgs7tcqu8sq8zntddf9h7wmvusqy82lgk";
 
 /** A metrics registry with a few of each kind, as Stratum fills it. */
 function sample() {

@@ -16,7 +16,8 @@ fakeApi({
 });
 
 /** @param {HTMLElement} container */
-const navLinks = (container) => [...container.querySelectorAll("nav a")].map((a) => a.textContent);
+// The top menu (the phone's tab bar repeats the same links).
+const navLinks = (container) => [...container.querySelectorAll("nav.topnav a")].map((a) => a.textContent);
 
 test("until the kind of server is known, operator links and pages stay hidden; then the full menu appears", async () => {
   window.location.hash = "#/settings";
@@ -27,7 +28,7 @@ test("until the kind of server is known, operator links and pages stay hidden; t
 
   answerConnect({ address: null, network: "mainnet", host: null, stratumPort: 3333, getworkPort: 8090, tlsPort: null, reachableFromNetwork: false, publicMode: false, view: "operator" });
   await settle();
-  assert.deepEqual(navLinks(view.container), ["Overview", "Miners", "Blocks", "Health", "Nodes", "Settings"]);
+  assert.deepEqual(navLinks(view.container), ["Overview", "Miners", "Blocks", "Health", "Nodes", "Connect", "Settings"]);
   assert.doesNotMatch(view.text(), /Not available here/);
   assert.match(view.text(), /xelDash 0\.3\.0 is available/, "the operator is told about updates");
 });
@@ -35,7 +36,7 @@ test("until the kind of server is known, operator links and pages stay hidden; t
 test("the current section is marked in the menu, a worker page under Miners", async () => {
   window.location.hash = "#/miner/xel%3Aabc/worker/rig1";
   const view = await render(h(App));
-  const current = [...view.container.querySelectorAll("nav a[aria-current=page]")].map((a) => a.textContent);
+  const current = [...view.container.querySelectorAll("nav.topnav a[aria-current=page]")].map((a) => a.textContent);
   assert.deepEqual(current, ["Miners"]);
 });
 

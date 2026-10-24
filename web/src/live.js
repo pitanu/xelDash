@@ -58,12 +58,16 @@ function retry() {
   backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
 }
 
+/** The one live connection, opened by whichever subscriber comes first. */
+function start() {
+  if (started) return;
+  started = true;
+  connect();
+}
+
 /** @param {() => void} listener */
 export function subscribeLive(listener) {
-  if (!started) {
-    started = true;
-    connect();
-  }
+  start();
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
@@ -77,6 +81,8 @@ const blockListeners = new Set();
 
 /** Called when one of our miners finds a block (not for every block on the network). @param {() => void} listener */
 export function subscribeBlockFound(listener) {
+  // Opens the connection too: the block notice must not depend on another part of the page having opened it.
+  start();
   blockListeners.add(listener);
   return () => {
     blockListeners.delete(listener);

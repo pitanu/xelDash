@@ -9,16 +9,53 @@ import { formatMoney, usePrice } from "../price.js";
 /** @param {{ title: React.ReactNode, subtitle?: string, action?: React.ReactNode, children: React.ReactNode, className?: string }} props */
 export function Card({ title, subtitle, action, children, className = "" }) {
   return (
-    <section className={`min-w-0 rounded-lg border border-line bg-surface p-4 sm:p-5 ${className}`}>
-      <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <h2 className="text-sm font-semibold text-ink">{title}</h2>
-          {subtitle && <p className="text-xs text-muted">{subtitle}</p>}
+    <section className={`card pad ${className}`}>
+      <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-ink">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-[13px] text-muted">{subtitle}</p>}
         </div>
         {action}
       </header>
       {children}
     </section>
+  );
+}
+
+/**
+ * An on/off switch: a button that says whether it is on (role="switch", aria-checked), named by `label` for screen readers.
+ * @param {{ checked: boolean, onChange: (checked: boolean) => void, label: string, disabled?: boolean }} props
+ */
+export function Switch({ checked, onChange, label, disabled = false }) {
+  return <button type="button" role="switch" className="switch" aria-checked={checked} aria-label={label} disabled={disabled} onClick={() => onChange(!checked)} />;
+}
+
+/**
+ * One setting, as its own card or (`row`) as a row in a group card: the name and what it does, the control beside them (`aside`),
+ * and anything more underneath.
+ * @param {{ row?: boolean, title: string, subtitle?: React.ReactNode, aside?: React.ReactNode, children?: React.ReactNode, id?: string }} props
+ */
+export function SettingBlock({ row = false, title, subtitle, aside, children, id }) {
+  if (!row) {
+    return (
+      <section id={id} className="card pad">
+        <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 basis-64">
+            <h2 className="text-base font-semibold text-ink">{title}</h2>
+            {subtitle && <p className="mt-0.5 text-[13px] text-muted">{subtitle}</p>}
+          </div>
+          {aside}
+        </header>
+        {children}
+      </section>
+    );
+  }
+  return (
+    <div id={id} className="settings-row">
+      <div className="txt"><b>{title}</b>{subtitle && <span>{subtitle}</span>}</div>
+      {aside}
+      {children && <div className="min-w-0 basis-full">{children}</div>}
+    </div>
   );
 }
 
@@ -43,7 +80,7 @@ const COUNT_CHANGE_MS = 600;
  * Settings, or the system asks for less motion) it is the plain text.
  * @param {{ text: string }} props
  */
-function CountUp({ text }) {
+export function CountUp({ text }) {
   // The first frame already shows zero, so the final number does not flash before the count starts.
   const [shown, setShown] = useState(() => {
     const target = numberIn(text);
@@ -93,11 +130,11 @@ function CountUp({ text }) {
  */
 export function StatTile({ label, value, detail, hero = false, icon, aside }) {
   return (
-    <div className={`min-w-0 rounded-lg border border-line p-3 sm:p-4 ${hero ? "h-full bg-linear-to-br from-series-1/10 via-surface to-surface" : "bg-surface"}`}>
+    <div className={`card ${hero ? "pad h-full" : "tile"}`}>
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-xs text-ink-2">
+        <div className="label flex items-center gap-1.5">
           {icon && (
-            <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0 text-muted">
+            <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
               <path d={ICONS[icon]} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           )}
@@ -105,50 +142,52 @@ export function StatTile({ label, value, detail, hero = false, icon, aside }) {
         </div>
         {aside}
       </div>
-      <div className={`mt-1 font-semibold tracking-tight text-ink ${hero ? "text-5xl leading-tight" : "text-2xl"}`}>
+      <div className={`mono text-ink ${hero ? "hero-num mt-3" : "v"}`}>
         {typeof value === "string" ? <CountUp text={value} /> : value}
       </div>
-      {detail && <div className="mt-1 text-xs text-muted">{detail}</div>}
+      {detail && <div className="label mt-1">{detail}</div>}
     </div>
   );
 }
 
-// Status colors are reserved for block state and always ship with an icon and a label.
+// Block states as pills: final on the main chain in the accent, pending neutral, side in the highlight, orphaned or rejected in
+// danger. Each has an icon and its name, so colour is never the only sign.
 const STATUS = {
-  "main-chain": { label: "Main chain", color: "var(--good)", icon: "M3 8.5l3 3 7-7" },
-  side: { label: "Side block", color: "var(--warning)", icon: "M4 8h8" },
-  orphaned: { label: "Orphaned", color: "var(--critical)", icon: "M4 4l8 8M12 4l-8 8" },
-  rejected: { label: "Rejected", color: "var(--critical)", icon: "M4 4l8 8M12 4l-8 8" },
-  submitted: { label: "Pending", color: "var(--muted)", icon: "M8 4v4l2.5 2.5" },
+  "main-chain": { label: "Main chain", pill: "pill-final", icon: "M3 8.5l3 3 7-7" },
+  side: { label: "Side block", pill: "pill-side", icon: "M4 8h8" },
+  orphaned: { label: "Orphaned", pill: "pill-orphan", icon: "M4 4l8 8M12 4l-8 8" },
+  rejected: { label: "Rejected", pill: "pill-orphan", icon: "M4 4l8 8M12 4l-8 8" },
+  submitted: { label: "Pending", pill: "pill-pending", icon: "M8 4v4l2.5 2.5" },
 };
 
-/** @param {{ status: string }} props */
-export function StatusBadge({ status }) {
-  const s = STATUS[/** @type {keyof typeof STATUS} */ (status)] ?? { label: status, color: "var(--muted)", icon: "M8 5v4M8 11v.5" };
+/** A small icon for a pill, in its text colour. @param {{ d: string }} props */
+function PillIcon({ d }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-ink-2">
-      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-        <circle cx="8" cy="8" r="7.5" fill={s.color} fillOpacity="0.16" />
-        <path d={s.icon} fill="none" stroke={s.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      {s.label}
-    </span>
+    <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
+      <path d={d} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
+/** @param {{ status: string }} props */
+export function StatusBadge({ status }) {
+  const s = STATUS[/** @type {keyof typeof STATUS} */ (status)] ?? { label: status, pill: "pill-pending", icon: "M8 5v4M8 11v.5" };
+  return <span className={`pill ${s.pill}`}><PillIcon d={s.icon} />{s.label}</span>;
+}
+
 /**
- * A row of mutually exclusive choices. Options are values, or [value, label] pairs.
+ * A row of mutually exclusive choices. Options are values, or [value, label] pairs. Each is a button that says whether it is the
+ * chosen one (aria-pressed).
  * @template {string} T
  * @param {{ value: T, options: readonly (T | readonly [T, string])[], onChange: (value: T) => void, label: string }} props
  */
 export function Segmented({ value, options, onChange, label }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-md border border-line p-0.5 text-xs">
+    <div role="group" aria-label={label} className="seg">
       {options.map((option) => {
         const [key, text] = typeof option === "string" ? [option, option] : option;
         return (
-          <button key={key} type="button" role="radio" aria-checked={value === key} onClick={() => onChange(key)}
-            className={`rounded px-2.5 py-1 ${value === key ? "bg-wash font-semibold text-ink" : "text-ink-2 hover:bg-wash"}`}>
+          <button key={key} type="button" aria-pressed={value === key} onClick={() => onChange(key)}>
             {text}
           </button>
         );
@@ -157,17 +196,14 @@ export function Segmented({ value, options, onChange, label }) {
   );
 }
 
-/** @param {{ children: React.ReactNode }} props */
+/** A table that scrolls sideways on its own when the page is narrow, edge to edge in its card. @param {{ children: React.ReactNode }} props */
 function Table({ children }) {
   return (
-    <div className="-mx-4 overflow-x-auto sm:-mx-5">
-      <table className="w-full min-w-[32rem] text-sm">{children}</table>
+    <div className="scroll-x -mx-6 max-[720px]:-mx-[18px]">
+      <table className="tbl min-w-[32rem]">{children}</table>
     </div>
   );
 }
-
-const th = "whitespace-nowrap px-4 py-2 text-left text-xs font-medium text-muted sm:px-5";
-const td = "whitespace-nowrap px-4 py-2 sm:px-5";
 
 /** @param {{ blocks: any[], showMiner?: boolean }} props */
 export function BlocksTable({ blocks, showMiner = true }) {
@@ -178,27 +214,27 @@ export function BlocksTable({ blocks, showMiner = true }) {
   return (
     <Table>
       <thead>
-        <tr><th className={th}>Height</th><th className={th}>Status</th>{showMiner && <th className={th}>Miner</th>}
-          <th className={`${th} text-right`} title="Work spent on the round this block ended, as a share of the work expected per block">Effort</th>
-          <th className={`${th} text-right`}>Reward</th><th className={`${th} text-right`}>Found</th></tr>
+        <tr><th>Height</th><th>Status</th>{showMiner && <th>Miner</th>}
+          <th className="r" title="Work spent on the round this block ended, as a share of the work expected per block">Effort</th>
+          <th className="r">Reward</th><th className="r">Found</th></tr>
       </thead>
-      <tbody className="tabular">
+      <tbody className="mono">
         {blocks.map((b) => (
-          <tr key={b.hash} className={`border-t border-line ${Date.now() - Date.parse(b.foundAt) < 15_000 ? "block-new" : ""}`}>
-            <td className={td}>
+          <tr key={b.hash} className={`${Date.now() - Date.parse(b.foundAt) < 15_000 ? "block-new" : ""}`}>
+            <td>
               {blockUrl(b.hash)
                 ? <a href={blockUrl(b.hash) ?? undefined} target="_blank" rel="noopener noreferrer" title="Open in the XELIS block explorer" className="hover:text-ink hover:underline">{formatInteger(b.height)}</a>
                 : <span title={b.hash}>{formatInteger(b.height)}</span>}
             </td>
-            <td className={td}><StatusBadge status={b.status} /></td>
+            <td><StatusBadge status={b.status} /></td>
             {showMiner && (
-              <td className={`${td} text-ink-2`}>
+              <td className="text-ink-2">
                 {b.address ? <a href={`#/miner/${b.address}`} className="hover:text-ink hover:underline">{shorten(b.address)}</a> : "—"}
                 {b.worker && <span className="text-muted"> · {b.worker}</span>}
               </td>
             )}
-            <td className={`${td} text-right text-ink-2`}>{b.effort === null || b.effort === undefined ? "—" : formatEffort(b.effort)}</td>
-            <td className={`${td} text-right`}>
+            <td className="r text-ink-2">{b.effort === null || b.effort === undefined ? "—" : formatEffort(b.effort)}</td>
+            <td className="r">
               {formatXel(b.reward, coin)}
               {price && b.reward && (
                 <span className="block text-xs text-muted" title="At the current price">
@@ -206,7 +242,7 @@ export function BlocksTable({ blocks, showMiner = true }) {
                 </span>
               )}
             </td>
-            <td className={`${td} text-right text-ink-2`} title={formatTime(b.foundAt)}>{formatAgo(b.foundAt)}</td>
+            <td className="r text-ink-2" title={formatTime(b.foundAt)}>{formatAgo(b.foundAt)}</td>
           </tr>
         ))}
       </tbody>
@@ -220,17 +256,17 @@ export function MinersTable({ miners }) {
   return (
     <Table>
       <thead>
-        <tr><th className={th}>Address</th><th className={`${th} text-right`}>Hashrate (1 h)</th>
-          <th className={`${th} text-right`}>Workers</th><th className={`${th} text-right`}>Blocks</th><th className={`${th} text-right`}>Last seen</th></tr>
+        <tr><th>Address</th><th className="r">Hashrate (1 h)</th>
+          <th className="r">Workers</th><th className="r">Blocks</th><th className="r">Last seen</th></tr>
       </thead>
-      <tbody className="tabular">
+      <tbody className="mono">
         {miners.map((m) => (
-          <tr key={m.address} className="border-t border-line">
-            <td className={td}><a href={`#/miner/${m.address}`} className="text-ink hover:underline" title={m.address}>{shorten(m.address, 10)}</a></td>
-            <td className={`${td} text-right`}>{formatHashrate(m.hashrate1h)}</td>
-            <td className={`${td} text-right`}>{formatInteger(m.workers)}</td>
-            <td className={`${td} text-right`}>{formatInteger(m.blocks)}</td>
-            <td className={`${td} text-right text-ink-2`}>{formatAgo(m.lastSeen)}</td>
+          <tr key={m.address}>
+            <td><a href={`#/miner/${m.address}`} className="text-ink hover:underline" title={m.address}>{shorten(m.address, 10)}</a></td>
+            <td className="r">{formatHashrate(m.hashrate1h)}</td>
+            <td className="r">{formatInteger(m.workers)}</td>
+            <td className="r">{formatInteger(m.blocks)}</td>
+            <td className="r text-ink-2">{formatAgo(m.lastSeen)}</td>
           </tr>
         ))}
       </tbody>
@@ -244,26 +280,26 @@ export function WorkersTable({ workers, address, onRemove }) {
   return (
     <Table>
       <thead>
-        <tr><th className={th}>Worker</th><th className={`${th} text-right`}>Hashrate (5 min)</th><th className={`${th} text-right`}>Hashrate (1 h)</th>
-          <th className={`${th} text-right`} title="What the miner reports about itself">Reported</th>
-          <th className={`${th} text-right`}>Accepted (1 h)</th><th className={`${th} text-right`}>Rejected (1 h)</th><th className={`${th} text-right`}>Last seen</th></tr>
+        <tr><th>Worker</th><th className="r">Hashrate (5 min)</th><th className="r">Hashrate (1 h)</th>
+          <th className="r" title="What the miner reports about itself">Reported</th>
+          <th className="r">Accepted (1 h)</th><th className="r">Rejected (1 h)</th><th className="r">Last seen</th></tr>
       </thead>
-      <tbody className="tabular">
+      <tbody className="mono">
         {workers.map((w) => (
-          <tr key={w.name} className="border-t border-line">
-            <td className={td}>
+          <tr key={w.name}>
+            <td>
               <a href={`#/miner/${address}/worker/${encodeURIComponent(w.name)}`} className="text-ink hover:underline">{w.name}</a>
             </td>
-            <td className={`${td} text-right`}>{formatHashrate(w.hashrate5m)}</td>
-            <td className={`${td} text-right`}>{formatHashrate(w.hashrate1h)}</td>
-            <td className={`${td} text-right text-ink-2`}>{formatHashrate(w.reportedHashrate)}</td>
-            <td className={`${td} text-right`}>{formatInteger(w.accepted1h)}</td>
-            <td className={`${td} text-right`}>{formatInteger(w.rejected1h)}</td>
-            <td className={`${td} text-right text-ink-2`}>{formatAgo(w.lastSeen)}</td>
+            <td className="r">{formatHashrate(w.hashrate5m)}</td>
+            <td className="r">{formatHashrate(w.hashrate1h)}</td>
+            <td className="r text-ink-2">{formatHashrate(w.reportedHashrate)}</td>
+            <td className="r">{formatInteger(w.accepted1h)}</td>
+            <td className="r">{formatInteger(w.rejected1h)}</td>
+            <td className="r text-ink-2">{formatAgo(w.lastSeen)}</td>
             {onRemove && (
-              <td className={`${td} text-right`}>
+              <td className="r">
                 <button type="button" onClick={() => onRemove(w.name)}
-                  className="rounded-md border border-line px-2 py-0.5 text-xs text-ink-2 hover:bg-wash hover:text-ink">Remove</button>
+                  className="btn btn-sm">Remove</button>
               </td>
             )}
           </tr>
@@ -301,12 +337,13 @@ const EVENT_LABELS = {
   node_restart_requested: "Node restarted from the dashboard",
 };
 
+// Health levels: good in the accent, warning in the highlight, critical in danger; always with an icon and words.
 const LEVELS = {
-  good: { color: "var(--good)", icon: "M3 8.5l3 3 7-7" },
-  warning: { color: "var(--warning)", icon: "M8 4v5M8 11.5v.5" },
-  critical: { color: "var(--critical)", icon: "M4 4l8 8M12 4l-8 8" },
-  unknown: { color: "var(--muted)", icon: "M8 5v4M8 11v.5" },
-  info: { color: "var(--muted)", icon: "M5.5 8h5" },
+  good: { color: "var(--accent)", pill: "pill-final", icon: "M3 8.5l3 3 7-7" },
+  warning: { color: "var(--gold)", pill: "pill-side", icon: "M8 4v5M8 11.5v.5" },
+  critical: { color: "var(--danger)", pill: "pill-orphan", icon: "M4 4l8 8M12 4l-8 8" },
+  unknown: { color: "var(--muted)", pill: "pill-pending", icon: "M8 5v4M8 11v.5" },
+  info: { color: "var(--muted)", pill: "pill-pending", icon: "M5.5 8h5" },
 };
 
 // How each event reads at a glance; the label next to the icon always says what happened.
@@ -352,12 +389,20 @@ export function LevelIcon({ level, className = "" }) {
 
 /** Health state with the reserved status colors; always paired with an icon and a label. @param {{ level: keyof typeof LEVELS, label: string }} props */
 export function HealthBadge({ level, label }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 text-sm text-ink">
-      <LevelIcon level={level} />
-      {label}
-    </span>
-  );
+  return <span className={`pill min-w-0 max-w-full ${LEVELS[level].pill}`}><PillIcon d={LEVELS[level].icon} /><span className="truncate">{label}</span></span>;
+}
+
+/**
+ * Whether miners are given work, from Stratum's status: mining (and through which node), paused (and why), or Stratum down.
+ * Null until the status is known.
+ * @param {{ ok?: boolean, paused?: string | null, node?: string | null } | null | undefined} stratum
+ * @returns {{ level: keyof typeof LEVELS, label: string } | null}
+ */
+export function miningState(stratum) {
+  if (!stratum) return null;
+  if (stratum.paused) return { level: "warning", label: stratum.paused === "syncing" ? "Paused: node syncing" : "Paused: node down" };
+  if (stratum.ok) return { level: "good", label: stratum.node ? `Mining via ${stratum.node}` : "Mining" };
+  return { level: "critical", label: "Stratum down" };
 }
 
 /** @param {{ events: any[] }} props */
@@ -365,15 +410,15 @@ export function EventsList({ events }) {
   const blockUrl = useBlockUrl();
   if (events.length === 0) return <p className="text-sm text-muted">No events yet.</p>;
   return (
-    <ul className="divide-y divide-line text-sm">
+    <ul className="row-list">
       {events.map((e) => (
-        <li key={e.id} className="flex items-start justify-between gap-x-4 py-2">
+        <li key={e.id} className="items-start! justify-between">
           <span className="flex min-w-0 items-start gap-2 text-ink">
             <LevelIcon level={EVENT_LEVELS[e.type] ?? "info"} className="mt-0.5" />
             <span className="min-w-0">
               {EVENT_LABELS[/** @type {keyof typeof EVENT_LABELS} */ (e.type)] ?? e.type}
               {e.payload?.height !== undefined && (
-                <span className="text-ink-2 tabular"> · height{" "}
+                <span className="mono text-ink-2"> · height{" "}
                   {blockUrl(e.payload.hash)
                     ? <a href={blockUrl(e.payload.hash) ?? undefined} target="_blank" rel="noopener noreferrer" title="Open in the XELIS block explorer" className="hover:text-ink hover:underline">{formatInteger(e.payload.height)}</a>
                     : formatInteger(e.payload.height)}
@@ -387,7 +432,7 @@ export function EventsList({ events }) {
               {e.payload?.error && <span className="text-ink-2"> · {e.payload.error}</span>}
             </span>
           </span>
-          <span className="shrink-0 pt-0.5 text-xs text-muted" title={formatTime(e.createdAt)}>{formatAgo(e.createdAt)}</span>
+          <span className="label shrink-0 pt-0.5" title={formatTime(e.createdAt)}>{formatAgo(e.createdAt)}</span>
         </li>
       ))}
     </ul>

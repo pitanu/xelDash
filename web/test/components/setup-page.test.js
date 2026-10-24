@@ -201,8 +201,8 @@ test("the connection settings switch between miners, and say when getwork is off
   fakeApi(routes({ "/api/v1/connect": { ...connect(ADDRESS), getworkPort: null } }));
   const view = await render(h(Setup));
   assert.match(view.text(), /Right now only this computer can connect\./);
-  await interact(() => getByText(view.container, "xelis_miner", "[role=radio]").click());
+  await interact(() => getByText(view.container, "xelis_miner", "[aria-pressed]").click());
   assert.match(view.text(), /Getwork is switched off on this server/);
-  await interact(() => getByText(view.container, "Other", "[role=radio]").click());
+  await interact(() => getByText(view.container, "Other", "[aria-pressed]").click());
   assert.ok(view.text().includes(`${ADDRESS}.rig1`));
 });

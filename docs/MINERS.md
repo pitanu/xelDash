@@ -1,8 +1,10 @@
 # Connecting miners
 
-The easiest way: open the dashboard's **Get started** page (`#/setup`). It shows your server's real
-address and port, your wallet address, and a ready-made command for each miner, each with a copy
-button.
+The easiest way: open the dashboard's **Connect** page (`#/connect`; **Mine here** for a public server's visitors). It shows
+your server's real address and port, your wallet address, and a ready-made command for each miner, each with a copy button,
+then lists your workers as they connect. The **Get started** page (`#/setup`) shows the same settings during a first install.
+
+Point miners at the Stratum port it shows (3333 by default), not the dashboard's port: the dashboard does not take miners.
 
 By hand: use your own XELIS address as the user name. The worker name is optional but shows up on
 the dashboard, so name each rig. Miners that have a single "user" or "wallet" field can send

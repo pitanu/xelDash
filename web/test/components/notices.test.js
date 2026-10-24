@@ -100,9 +100,12 @@ test("no notice when up to date, or when the release list cannot be read", async
   assert.equal((await render(h(UpdateNotice))).text(), "");
 });
 
-test("the footer shows the running version, and nothing until it is known", async () => {
+test("the footer shows the running version once it is known, and always the link to support xelDash", async () => {
   fakeApi({ "/api/v1/version": { current: "0.2.0", latest: null, available: false } });
-  assert.equal((await render(h(VersionFooter))).text(), "xelDash 0.2.0");
+  const view = await render(h(VersionFooter));
+  assert.equal(view.text(), "xelDash 0.2.0Support xelDash");
+  assert.equal(view.container.querySelector("a")?.getAttribute("href"), "https://github.com/pitanu/xelDash#support-the-project");
+  await cleanup();
   fakeApi({});
-  assert.equal((await render(h(VersionFooter))).container.innerHTML, "");
+  assert.equal((await render(h(VersionFooter))).text(), "Support xelDash");
 });

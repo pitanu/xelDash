@@ -171,18 +171,18 @@ export default function AlertSettings({ token, onUnauthorized }) {
             <label className="mt-3 flex flex-wrap items-center gap-2 text-sm text-ink-2">
               A worker counts as offline after
               <input type="number" min={1} max={1440} value={minutes} onChange={(e) => setMinutes(e.target.value)} disabled={disabled}
-                className="w-20 rounded-md border border-line bg-page px-2 py-1 text-sm text-ink" />
+                className="field w-20" />
               minutes without a share
             </label>
           </fieldset>
 
           <div className="flex flex-wrap items-center gap-3">
             <button type="submit" disabled={disabled}
-              className="rounded-md bg-action px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40">
+              className="btn btn-sm btn-primary">
               {busy ? "Working..." : "Save"}
             </button>
             <button type="button" disabled={disabled || !anySet} onClick={() => void sendTest()}
-              className="rounded-md border border-line px-3 py-1.5 text-sm text-ink hover:bg-wash disabled:opacity-40">
+              className="btn btn-sm">
               Send a test message
             </button>
             {!token && <span className="text-xs text-ink-2">Unlock above to change alerts.</span>}
