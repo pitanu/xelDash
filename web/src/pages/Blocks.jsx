@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { usePolled } from "../api.js";
+import EffortChart from "../components/EffortChart.jsx";
 import RewardsChart from "../components/RewardsChart.jsx";
 import RewardsSummary from "../components/RewardsSummary.jsx";
 import { BlocksTable, Card, Segmented } from "../components/ui.jsx";
@@ -14,36 +15,6 @@ function matches(block, filter) {
   if (filter === "all") return true;
   if (filter === "lost") return block.status === "orphaned" || block.status === "rejected";
   return block.status === filter;
-}
-
-/**
- * The effort of the rounds that found the last blocks, oldest first: under the 100% line came quicker than average, over it took
- * longer. Each bar's height and title carry its value; the table below lists the same efforts.
- * @param {{ blocks: { hash: string, height: string, effort: number | null, foundAt: string }[] }} props
- */
-function EffortBars({ blocks }) {
-  const shown = blocks.filter((b) => b.effort !== null && b.effort !== undefined).slice(0, 12).reverse();
-  if (shown.length === 0) return <p className="text-sm text-muted">The effort of each round appears once blocks are found while shares are tracked.</p>;
-  // The scale reaches at least 200%, so the 100% line sits in the middle or lower.
-  const top = Math.max(2, ...shown.map((b) => /** @type {number} */ (b.effort)));
-  const line = (1 / top) * 100;
-  return (
-    <div className="relative h-44" role="img"
-      aria-label={`Effort of the last ${shown.length} blocks, oldest first: ${shown.map((b) => formatEffort(/** @type {number} */ (b.effort))).join(", ")}`}>
-      <div className="absolute inset-x-0 border-t border-dashed border-ink-2" style={{ bottom: `${line}%` }} aria-hidden="true" />
-      <span className="label absolute -top-0.5 right-0 bg-panel pl-1" style={{ bottom: `calc(${line}% + 2px)`, top: "auto" }} aria-hidden="true">100%</span>
-      <div className="absolute inset-0 flex items-end gap-1.5" aria-hidden="true">
-        {shown.map((b, i) => {
-          const effort = /** @type {number} */ (b.effort);
-          return (
-            <div key={b.hash} className={`chart-grow flex-1 rounded-t-[4px] ${effort <= 1 ? "bg-accent" : "bg-gold"}`}
-              style={/** @type {React.CSSProperties} */ ({ height: `${Math.max(2, (effort / top) * 100)}%`, "--i": i })}
-              title={`Block ${formatInteger(b.height)}: ${formatEffort(effort)} · ${formatTime(b.foundAt)}`} />
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 /** Every block found here: what they are worth, how lucky the rounds were, and the list. */
@@ -86,11 +57,7 @@ export default function Blocks() {
             </div>
             <span className="label mono">last {Math.min(12, list.filter((b) => b.effort !== null && b.effort !== undefined).length)} blocks</span>
           </div>
-          <EffortBars blocks={list} />
-          <div className="label mt-3 flex flex-wrap gap-x-4 gap-y-1">
-            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-accent" aria-hidden="true" />100% or less: quicker than average</span>
-            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-gold" aria-hidden="true" />Over 100%: took longer</span>
-          </div>
+          <EffortChart blocks={list} />
         </section>
         <section className="card pad side">
           <h2 className="mb-4 text-base font-semibold text-ink">Luck</h2>

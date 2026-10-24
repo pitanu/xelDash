@@ -28,8 +28,12 @@ test("luck over 7 and 30 days, the orphan rate, and each recent block's effort",
   assert.match(text, /30 days29%/);
   assert.match(text, /Blocks found10/);
   assert.match(text, /Orphan rate20%/, "2 orphaned of 10 final");
-  const bars = view.container.querySelector("[role=img]");
-  assert.match(bars?.getAttribute("aria-label") ?? "", /120%, 250%, 50%/, "oldest first");
+  // The chart draws once it has a width, which the test page never gives it; its table lists the same blocks, newest first.
+  await interact(() => getByText(view.container, "Show as table", "button").click());
+  const effort = view.container.querySelector("table:has(th) tbody")?.closest("div.mt-2");
+  assert.ok(effort, "the effort table");
+  assert.deepEqual([...effort.querySelectorAll("tbody tr td:nth-child(3)")].map((td) => td.textContent), ["50%", "250%", "120%"]);
+  await interact(() => getByText(view.container, "Hide table", "button").click());
 });
 
 test("the table can show one kind of block", async () => {
