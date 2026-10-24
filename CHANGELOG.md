@@ -7,6 +7,12 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-24
+
+A new look for the dashboard, with nothing taken away: colour themes and a colour of your own, a Connect page, an effort chart on
+Blocks, a layout for phones and tablets, and installing it as an app. Updates now take a backup first. No database migration, so
+going back to 0.6.1 still works.
+
 ### Operations
 
 - `xeldash update` saves a backup of the statistics before it changes anything (`backups/xeldash-before-update-<time>.dump`; the
