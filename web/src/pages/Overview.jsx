@@ -205,7 +205,7 @@ export default function Overview() {
           </div>
         </section>
         <NextBlockCard o={o} found={found} luck30={luck30} blocks30={blocks30}
-          foundDetail={o ? `${formatInteger(foundToday)} in 24 h · ${countOf(blockRows, "main-chain")} main chain${pending ? ` · ${pending} pending` : ""}` : null} />
+          foundDetail={o ? `${formatInteger(foundToday)} in 24 h${pending ? ` · ${pending} pending` : ""}` : null} />
       </div>
 
       <div className="tiles">
