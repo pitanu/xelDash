@@ -18,6 +18,7 @@ import { consumeTokenFromUrl } from "./session-token.js";
 import Setup from "./pages/Setup.jsx";
 import Connect from "./pages/Connect.jsx";
 import { useServerMode } from "./server-mode.js";
+import { useThemeColor } from "./theme.js";
 
 // Tab icons, drawn on a 20px grid (the phone's tab bar shows them above the names).
 const TAB_ICONS = /** @type {Record<string, string>} */ ({
@@ -140,6 +141,7 @@ function NotFound() {
 }
 
 export default function App() {
+  useThemeColor();
   const route = useHashRoute();
   const mode = useServerMode();
   const operator = mode.known && !mode.publicView;

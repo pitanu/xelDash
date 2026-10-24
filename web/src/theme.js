@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { accentVariables, parseHex } from "./accent.js";
 
 // Light, dark, or "system" (follow the operating system). Kept per browser; the saved choice
@@ -106,4 +106,24 @@ export function setAccent(hex) {
 
 export function useAccent() {
   return useSyncExternalStore(subscribe, readAccent);
+}
+
+/**
+ * Keeps the browser's theme colour (a phone's status bar, an installed app's title bar) the colour of the top bar: index.html's
+ * light and dark defaults follow the system only, not a mode or colour theme chosen under Settings.
+ */
+export function useThemeColor() {
+  const theme = useTheme();
+  const palette = usePalette();
+  useEffect(() => {
+    const apply = () => {
+      const panel = getComputedStyle(document.documentElement).getPropertyValue("--panel").trim();
+      if (!panel) return;
+      for (const meta of document.querySelectorAll("meta[name=theme-color]")) meta.setAttribute("content", panel);
+    };
+    apply();
+    const system = window.matchMedia?.("(prefers-color-scheme: dark)");
+    system?.addEventListener("change", apply);
+    return () => system?.removeEventListener("change", apply);
+  }, [theme, palette]);
 }
