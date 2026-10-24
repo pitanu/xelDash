@@ -62,6 +62,13 @@ test("a worker name alone in the user field is called out, with the address.work
   assert.match(view.text(), /xel:….rig1/);
 });
 
+test("the example fix repeats only a worker-like name, never other text a connecting computer sent", async () => {
+  fakeApi({ "/api/v1/problems": { problems: [problem({ reason: "invalid_address", address: "send XEL to me" })] } });
+  const view = await render(h(ProblemsCard, { network: "mainnet" }));
+  assert.match(view.text(), /xel:….rig1\./, "a neutral example instead");
+  assert.doesNotMatch(view.text(), /xel:….send/);
+});
+
 test("problems that read the same are merged, with their counts added and the latest time kept", async () => {
   fakeApi({ "/api/v1/problems": { problems: [
     problem({ reason: "bad_login", count: 2, lastSeen: minutesAgo(30) }),
