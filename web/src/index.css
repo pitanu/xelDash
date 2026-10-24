@@ -410,7 +410,7 @@ html::-webkit-scrollbar-thumb:hover, html *::-webkit-scrollbar-thumb:hover { bac
 input[type="checkbox"], input[type="radio"] { width: 1.125rem; height: 1.125rem; flex-shrink: 0; accent-color: var(--accent); }
 label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) { display: flex; align-items: center; gap: 0.5rem; min-height: 1.5rem; }
 
-/* Building blocks from the 1.0 design (xeldash-1.0-ui/design/theme.css). In the components layer, so a Tailwind utility on the
+/* Building blocks from the 1.0 design. In the components layer, so a Tailwind utility on the
    same element can still adjust one. */
 @layer components {
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; min-width: 0; }
