@@ -24,9 +24,14 @@ export function explainProblem(p, network) {
       if (p.address?.toLowerCase().startsWith(other)) {
         return { what: `${from} logged in with ${address}, which looks like a ${network === "mainnet" ? "test-network" : "mainnet"} address.`, fix: `This server is on ${network}, which needs an address starting with ${wanted} Use the address from your wallet (see step 2).` };
       }
+      // No "xel:" or "xet:" at all: most often a worker name alone ("rig1") in the user field. The example fix repeats it only when it
+      // looks like a worker name: it is whatever the connecting computer sent, and the fix should read as xelDash's own advice.
+      if (p.address && !/^xe[lt]:/i.test(p.address)) {
+        return { what: `${from} logged in as “${address}”, which is not an address (a worker name alone?).`, fix: `The user name starts with your wallet address, then a dot and the worker name: ${wanted}….${/^[A-Za-z0-9_-]{1,32}$/.test(p.address) ? p.address : "rig1"}. Copy the address in full from your wallet (see step 2).` };
+      }
       return { what: `${from} logged in with the address ${address || "(none)"}, which was refused.`, fix: `Addresses on ${network} start with ${wanted} and are always exactly as your wallet shows them. Copy it again in full; one missing letter makes it invalid.` };
     case "no_address":
-      return { what: `${from} logged in without a wallet address.`, fix: "Add your address in step 2 of the setup guide, or put it in the mining program's settings (the user or wallet field)." };
+      return { what: `${from} logged in without a wallet address.`, fix: "Put your address in the mining program's user (or wallet) field, as address.worker, or add a default payout address in step 2 of the setup guide." };
     case "node_not_ready":
       return { what: `${from} tried to connect while the XELIS node was still catching up.`, fix: "This is normal on a new install. Wait until step 1 shows a green check; most mining programs retry by themselves." };
     case "bad_login":

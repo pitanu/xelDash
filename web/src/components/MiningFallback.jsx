@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { Card, HealthBadge } from "./ui.jsx";
+import { SettingBlock, Switch } from "./ui.jsx";
 
 /**
  * Switch for mining through the official public XELIS node while none of our own nodes can
  * issue work. Stratum picks the change up within a few seconds; nothing restarts.
- * @param {{ token: string, onUnauthorized: () => void }} props
+ * @param {{ token: string, onUnauthorized: () => void, row?: boolean }} props
  */
-export default function MiningFallback({ token, onUnauthorized }) {
+export default function MiningFallback({ token, onUnauthorized, row = false }) {
   const [data, setData] = useState(/** @type {any} */ (null));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(/** @type {string | null} */ (null));
@@ -44,37 +44,30 @@ export default function MiningFallback({ token, onUnauthorized }) {
   if (!data) return null;
   if (!data.available) {
     return (
-      <Card title="Official node fallback">
-        <p className="text-sm text-ink-2">
+      <SettingBlock row={row} title="Fall back to the public node">
+        <p className="text-[13px] text-ink-2">
           {data.publicMode
             ? "This is a public server: it never mines through the official node, so its miners' load cannot reach the XELIS team's public node."
             : "The XELIS team runs public nodes for mainnet and testnet only, so there is no fallback on this network."}
         </p>
-      </Card>
+      </SettingBlock>
     );
   }
   const host = new URL(data.url).host;
   const locked = !data.actionsEnabled || !token;
   return (
-    <Card title="Official node fallback"
-      subtitle={`Keep mining through ${host}, the XELIS team's public node, while none of your own nodes can issue work: during a sync, an upgrade or an outage.`}>
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <HealthBadge level={data.enabled ? "good" : "unknown"} label={data.enabled ? "On" : "Off"} />
-          <button type="button" disabled={locked || busy} onClick={() => void toggle(!data.enabled)}
-            className={data.enabled
-              ? "rounded-md border border-line px-3 py-1.5 text-sm text-ink hover:bg-wash disabled:opacity-40"
-              : "rounded-md bg-action px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40"}>
-            {data.enabled ? "Turn off" : "Turn on"}
-          </button>
-        </div>
+    <SettingBlock row={row} title="Fall back to the public node"
+      subtitle={`Keep rigs mining through ${host}, the XELIS team's public node, while none of your own nodes can issue work: during a sync, an upgrade or an outage.`}
+      aside={<Switch checked={Boolean(data.enabled)} disabled={locked || busy} label="Fall back to the public node" onChange={(next) => void toggle(next)} />}>
+      <div className="space-y-2">
+        {locked && <p className="label">{data.actionsEnabled ? "Unlock changes (above) to switch it." : "Changes from the dashboard are off on this server."}</p>}
         <p className="text-xs text-ink-2">
           Your own nodes always come first; mining moves back to them as soon as one is in sync. Block rewards still go to
           each miner's address. While the fallback is in use, block templates come from a server you do not run, over the
           internet, so a few more shares may arrive late.
         </p>
-        {error && <p className="text-sm text-critical">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
       </div>
-    </Card>
+    </SettingBlock>
   );
 }

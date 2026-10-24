@@ -88,7 +88,7 @@ export default function HashrateChart({ points: loaded, dimmed = false, range, o
       // Not remembered in private mode.
     }
   }
-  const xTickCount = Math.max(2, Math.min(6, Math.floor(plotW / 110)));
+  const xTickCount = Math.max(2, Math.min(6, Math.floor(plotW / 160)));
   const xTicks = points.length > 1
     ? Array.from({ length: xTickCount }, (_, k) => Math.round((k / (xTickCount - 1)) * (points.length - 1)))
     : [];

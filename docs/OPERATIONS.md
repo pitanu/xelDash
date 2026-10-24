@@ -320,8 +320,9 @@ With `XELDASH_PUBLIC_MODE=true`:
   and Health pages leave the list out); the operator's dashboard has them as usual.
 - **Every miner must use its own address.** A login without an address is refused with a message saying so; the default address
   (`XELIS_DEFAULT_ADDRESS` or the one chosen on the setup page) is never used, so a misconfigured rig cannot mine for the server.
-- **No node administration from the public site.** The public dashboard has no Nodes, Settings or setup pages, and its web server
-  answers 404 for node administration. Visitors get a **Mine here** page with the settings for each miner instead.
+- **No node administration from the public site.** The public dashboard has no Nodes or setup pages, and its web server answers
+  404 for node administration. Visitors get a **Mine here** page with the settings for each miner instead, and a Settings page
+  with only how the dashboard looks and sounds for them (mode, colour theme, animations, block sound), kept in their browser.
 - **Warnings, not refusals.** At startup the API logs a warning if `XELDASH_ALLOWED_NETWORKS` is still `private`, if
   `XELDASH_PUBLIC_DOMAIN` is empty (no built-in HTTPS), or if a default address is set (it is ignored). It starts anyway, for
   setups with their own reverse proxy.

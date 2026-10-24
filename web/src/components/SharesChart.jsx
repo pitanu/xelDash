@@ -71,7 +71,7 @@ export default function SharesChart({ points: loaded, dimmed = false }) {
 
   const center = active === null ? 0 : PAD.left + slot * (active + 0.5);
   const tooltipLeft = Math.min(Math.max(center - 88, 0), Math.max(0, width - 176));
-  const xTickCount = Math.max(2, Math.min(6, Math.floor(plotW / 110)));
+  const xTickCount = Math.max(2, Math.min(6, Math.floor(plotW / 160)));
   const xTicks = points.length > 1
     ? Array.from({ length: xTickCount }, (_, k) => Math.round((k / (xTickCount - 1)) * last))
     : [];
@@ -80,7 +80,7 @@ export default function SharesChart({ points: loaded, dimmed = false }) {
     <div>
       <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-2">
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-series-1" />Accepted</span>
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-warning" />Stale (found just too late)</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-chart-stale" />Stale (found just too late)</span>
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-critical" />Invalid</span>
         {rate !== null && (
           <span className="tabular text-muted">
@@ -118,8 +118,8 @@ export default function SharesChart({ points: loaded, dimmed = false }) {
                 <g key={p.time} opacity={active === null || active === i ? 1 : 0.55} className="chart-grow"
                   style={/** @type {React.CSSProperties} */ ({ "--i": i })}>
                   {accepted[i] > 0 && <rect x={x} y={y(accepted[i])} width={barW} height={acceptedH} fill="var(--series-1)" />}
-                  {stale[i] > 0 && <rect x={x} y={y(accepted[i]) - staleH} width={barW} height={Math.max(1, staleH)} fill="var(--warning)" />}
-                  {rejected[i] > 0 && <rect x={x} y={y(accepted[i] + stale[i]) - rejectedH} width={barW} height={Math.max(1, rejectedH)} fill="var(--critical)" />}
+                  {stale[i] > 0 && <rect x={x} y={y(accepted[i]) - staleH} width={barW} height={Math.max(1, staleH)} fill="var(--chart-stale)" stroke="var(--panel)" strokeWidth="1.5" />}
+                  {rejected[i] > 0 && <rect x={x} y={y(accepted[i] + stale[i]) - rejectedH} width={barW} height={Math.max(1, rejectedH)} fill="var(--danger)" stroke="var(--panel)" strokeWidth="1.5" />}
                 </g>
               );
             })}
@@ -140,7 +140,7 @@ export default function SharesChart({ points: loaded, dimmed = false }) {
               <span className="h-2 w-2 rounded-sm bg-series-1" />{formatInteger(accepted[active])} accepted
             </div>
             <div className="flex items-center gap-2 tabular text-ink">
-              <span className="h-2 w-2 rounded-sm bg-warning" />{formatInteger(stale[active])} stale
+              <span className="h-2 w-2 rounded-sm bg-chart-stale" />{formatInteger(stale[active])} stale
             </div>
             <div className="flex items-center gap-2 tabular text-ink">
               <span className="h-2 w-2 rounded-sm bg-critical" />{formatInteger(rejected[active])} invalid

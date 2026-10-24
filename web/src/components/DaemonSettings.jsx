@@ -39,7 +39,7 @@ function Control({ s, value, locked, placeholder, set }) {
         </label>
       ) : s.choices.length > 0 ? (
         <select aria-label={s.flag} disabled={locked} value={typeof value === "string" ? value : ""} onChange={(e) => set(s.flag, e.target.value || null)}
-          className="w-full rounded-md border border-line bg-page px-2 py-1.5 text-sm text-ink">
+          className="field">
           <option value="">Default{s.default ? ` (${s.default})` : ""}</option>
           {s.choices.map((/** @type {string} */ c) => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -48,7 +48,7 @@ function Control({ s, value, locked, placeholder, set }) {
           value={value === UNCHANGED_SECRET ? "" : typeof value === "string" ? value : ""}
           placeholder={value === UNCHANGED_SECRET ? "Saved (hidden)" : s.default ? `Default: ${s.default}` : placeholder ?? "Not set"}
           onChange={(e) => set(s.flag, e.target.value || (value === UNCHANGED_SECRET ? UNCHANGED_SECRET : null))}
-          className="w-full min-w-0 rounded-md border border-line bg-page px-2 py-1.5 text-sm text-ink" />
+          className="field min-w-0" />
       )}
       {changed && !locked && (
         <button type="button" onClick={() => set(s.flag, null)} title="Back to the default"
@@ -105,7 +105,7 @@ function TrustedPeers({ draft, set, locked }) {
           <>
             <textarea value={text} disabled={locked} rows={Math.min(8, Math.max(3, peers.length + 1))} spellCheck={false}
               onChange={(e) => edit(e.target.value)} aria-label="Trusted peers" placeholder={"203.0.113.5:2125\n198.51.100.7:2125"}
-              className="w-full rounded-md border border-line bg-page px-3 py-2 font-mono text-sm text-ink" />
+              className="field mono" />
             {invalid.length > 0 && (
               <p className="text-xs text-critical">Not an IP:port: {invalid.join(", ")}. Host names are not accepted by the daemon.</p>
             )}
@@ -307,7 +307,7 @@ export default function DaemonSettings({ token, onUnauthorized, node = "daemon" 
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search options"
-                aria-label="Search options" className="min-w-0 flex-1 rounded-md border border-line bg-page px-3 py-1.5 text-sm text-ink" />
+                aria-label="Search options" className="field min-w-0 flex-1" />
               <label className="flex items-center gap-2 text-sm text-ink-2">
                 <input type="checkbox" checked={changedOnly} onChange={(e) => setChangedOnly(e.target.checked)} />
                 Changed only
@@ -363,9 +363,9 @@ export default function DaemonSettings({ token, onUnauthorized, node = "daemon" 
             </span>
             <span className="flex gap-2">
               <button type="button" disabled={busy} onClick={() => void discard()}
-                className="rounded-md border border-line px-3 py-1.5 text-sm text-ink hover:bg-wash disabled:opacity-40">Discard</button>
+                className="btn btn-sm">Discard</button>
               <button type="button" disabled={busy || syncConflict} onClick={() => void save(true)}
-                className="rounded-md bg-action px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40">
+                className="btn btn-sm btn-primary">
                 Save and restart node
               </button>
             </span>

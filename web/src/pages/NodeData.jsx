@@ -60,9 +60,7 @@ const PHASE_LABELS = {
 function Button({ children, onClick, disabled = false, primary = false, className = "" }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled}
-      className={`rounded-md px-3 py-1.5 text-sm disabled:opacity-40 ${primary
-        ? "bg-action font-semibold text-white hover:opacity-90"
-        : "border border-line text-ink hover:bg-wash"} ${className}`}>
+      className={`btn btn-sm ${primary ? "btn-primary" : ""} ${className}`}>
       {children}
     </button>
   );
@@ -174,7 +172,10 @@ function SnapshotsPanel({ node, admin }) {
             </>
           ) : (
             <div className="mt-2 text-sm text-ink-2">
-              {s.officialAvailable ? "Not reachable right now." : `None is published for ${s.network}; you can still upload one.`}
+              {!s.officialAvailable ? `None is published for ${s.network}; you can still upload one.`
+                : s.official?.status === 404 ? "The XELIS team's server says the snapshot is not there right now (404). Try again later, or upload one."
+                : s.official?.status && s.official.status >= 300 ? `The XELIS team's server answered ${s.official.status}. Try again later, or upload one.`
+                : "The XELIS team's server cannot be reached right now. Try again later, or upload one."}
             </div>
           )}
         </div>
@@ -434,11 +435,11 @@ export default function NodeData() {
   const locked = !token;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="flex flex-col gap-5">
+      <div className="page-head">
         <div>
-          <h1 className="text-lg font-semibold text-ink">{list.length > 1 ? "Nodes" : "Node"}</h1>
-          <p className="text-sm text-ink-2">
+          <h1>{list.length > 1 ? "Nodes" : "Node"}</h1>
+          <p>
             Restart or stop a node, bring its chain data up to date, or start it from a snapshot. Node settings are on
             the <a href="#/settings" className="underline decoration-line underline-offset-2 hover:text-ink">Settings</a> page.
           </p>

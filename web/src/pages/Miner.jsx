@@ -39,23 +39,28 @@ export default function Miner({ address, back = true }) {
   const hashrate5m = m?.workers.reduce((/** @type {number} */ sum, /** @type {{ hashrate5m: string }} */ w) => sum + Number(w.hashrate5m), 0);
   const hashrate1h = m?.workers.reduce((/** @type {number} */ sum, /** @type {{ hashrate1h: string }} */ w) => sum + Number(w.hashrate1h), 0);
   const blockList = blocks.data?.blocks ?? [];
+  const expectedBlocks = hashrate1h && overview.data?.node?.miner_reward
+    ? dailyEarnings(hashrate1h, overview.data.network.difficulty, overview.data.node.miner_reward).blocks : null;
 
   return (
-    <div className="space-y-6">
-      <div>
-        {back && <a href="#/miners" className="inline-flex min-h-6 items-center text-xs text-ink-2 hover:text-ink hover:underline">← Miners</a>}
-        <h1 className="mt-1 break-all text-lg font-semibold text-ink">{address}</h1>
-        {m && <p className="text-xs text-muted">First seen {formatAgo(m.firstSeen)} · last seen {formatAgo(m.lastSeen)}</p>}
+    <div className="flex flex-col gap-5">
+      <div className="page-head">
+        <div className="min-w-0">
+          {back && <a href="#/miners" className="text-[13px]">← Miners</a>}
+          <h1 className="mono mt-1 break-all text-[22px]!">{address}</h1>
+          {m && <p>First seen {formatAgo(m.firstSeen)} · last seen {formatAgo(m.lastSeen)}</p>}
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="tiles">
         <div className="col-span-2">
           <StatTile hero icon="hashrate" label="Hashrate, last hour" value={formatHashrate(hashrate1h)} detail={`Last 5 min: ${formatHashrate(hashrate5m)}`} />
         </div>
-        <StatTile icon="clock" label="Expected earnings"
-          value={hashrate1h && overview.data?.node?.miner_reward
-            ? `${formatBlocksPerDay(dailyEarnings(hashrate1h, overview.data.network.difficulty, overview.data.node.miner_reward).blocks)}`
-            : "—"}
-          detail={overview.data && <EarningsText hashrate={hashrate1h} difficulty={overview.data.network.difficulty} minerReward={overview.data.node.miner_reward} />} />
+        {/* The number alone in the tile (a phrase would not fit at tile size); the phrase and the XEL go underneath. */}
+        <StatTile icon="clock" label="Expected blocks a day"
+          value={expectedBlocks !== null ? expectedBlocks.toLocaleString(undefined, { maximumFractionDigits: expectedBlocks < 1 ? 2 : 1 }) : "—"}
+          detail={overview.data && expectedBlocks !== null
+            ? <>{formatBlocksPerDay(expectedBlocks)} · <EarningsText hashrate={hashrate1h} difficulty={overview.data.network.difficulty} minerReward={overview.data.node.miner_reward} /></>
+            : undefined} />
         <StatTile icon="block" label="Blocks found" value={formatInteger(blockList.filter((/** @type {{ status: string }} */ b) => b.status !== "rejected").length)}
           detail={`${blockList.filter((/** @type {{ status: string }} */ b) => b.status === "main-chain").length} main chain`} />
       </div>

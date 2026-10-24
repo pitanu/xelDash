@@ -43,7 +43,7 @@ export default function BackupCard({ token, onUnauthorized }) {
       subtitle="A copy of your statistics: miners, workers, blocks and events. It does not include the blockchain, which any node can download again, and never a wallet.">
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" disabled={!token || busy} onClick={() => void download()}
-          className="rounded-md bg-action px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40">
+          className="btn btn-sm btn-primary">
           {busy ? "Making the backup..." : "Download a backup"}
         </button>
         {!token && <span className="text-xs text-ink-2">Unlock above to download.</span>}

@@ -6,9 +6,10 @@ import { useOperatorView } from "../server-mode.js";
 /**
  * A miner's workers. Workers without shares for 7 days drop off by themselves; "Remove workers"
  * hides one now (it comes back if it mines again). Removing needs the admin token.
- * @param {{ address: string, workers: any[] | undefined, onChanged: () => void, title?: React.ReactNode }} props
+ * `summary` sits between the title and the table (the Miners page puts the address's figures there).
+ * @param {{ address: string, workers: any[] | undefined, onChanged: () => void, title?: React.ReactNode, subtitle?: string, summary?: React.ReactNode }} props
  */
-export default function WorkersCard({ address, workers, onChanged, title = "Workers" }) {
+export default function WorkersCard({ address, workers, onChanged, title = "Workers", subtitle = "Workers without shares for 7 days are left out.", summary }) {
   // Removing workers is node administration: the operator's view only.
   const operator = useOperatorView();
   const admin = useAdminToken();
@@ -30,15 +31,16 @@ export default function WorkersCard({ address, workers, onChanged, title = "Work
   }
 
   return (
-    <Card title={title} subtitle="Workers without shares for 7 days are left out."
+    <Card title={title} subtitle={subtitle}
       action={operator && workers && workers.length > 0 && (
-        <button type="button" onClick={() => setEditing((v) => !v)} className="inline-flex min-h-6 items-center text-xs text-ink-2 hover:text-ink hover:underline">
+        <button type="button" onClick={() => setEditing((v) => !v)} className="btn btn-sm">
           {editing ? "Done" : "Remove workers"}
         </button>
       )}>
+      {summary}
       {editing && !admin.token && <div className="mb-3"><AdminUnlock actionsEnabled admin={admin} /></div>}
       {workers && <WorkersTable workers={workers} address={address} onRemove={editing && admin.token ? (name) => void remove(name) : undefined} />}
-      {error && <p className="mt-2 text-sm text-critical">{error}</p>}
+      {error && <p className="mt-2 text-sm text-danger">{error}</p>}
     </Card>
   );
 }

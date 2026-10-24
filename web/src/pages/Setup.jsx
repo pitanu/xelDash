@@ -61,7 +61,7 @@ function Step({ step, n, children }) {
 }
 
 /** Pasting the wallet address, checked by the node before it is saved. @param {{ current: string | null, network: string, onSaved: () => void }} props */
-function AddressForm({ current, network, onSaved }) {
+export function AddressForm({ current, network, onSaved }) {
   const admin = useAdminToken();
   const [info, setInfo] = useState(/** @type {{ actionsEnabled: boolean, prefix: string } | null} */ (null));
   const [value, setValue] = useState("");
@@ -111,9 +111,9 @@ function AddressForm({ current, network, onSaved }) {
       <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); void save(); }}>
         <input type="text" value={value} onChange={(e) => setValue(e.target.value)} autoComplete="off" spellCheck={false}
           placeholder={`${prefix}:...`} aria-label="Your XELIS address" disabled={!admin.token}
-          className="min-w-0 flex-1 rounded-md border border-line bg-page px-3 py-1.5 font-mono text-sm text-ink disabled:opacity-50" />
+          className="field mono min-w-0 flex-1" />
         <button type="submit" disabled={!admin.token || !value.trim() || busy}
-          className="rounded-md bg-action px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40">
+          className="btn btn-sm btn-primary">
           {busy ? "Checking..." : "Save address"}
         </button>
         {current && <button type="button" onClick={() => { setEditing(false); setError(null); }} className="text-sm text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">Cancel</button>}
@@ -147,8 +147,12 @@ function Field({ label, value, hint }) {
   );
 }
 
-/** What to type into a mining program. @param {{ info: any }} props */
-export function ConnectPanel({ info }) {
+/**
+ * What to type into a mining program. `address` replaces the server's mining address in every setting and command (the Connect
+ * page lets a visitor type their own).
+ * @param {{ info: any, address?: string | null }} props
+ */
+export function ConnectPanel({ info, address: chosen = null }) {
   const [miner, setMiner] = useState("rigel");
   const frontDoor = usePolled("/api/v1/front-door", { intervalMs: 30_000 }).data;
   if (!info) return null;
@@ -156,7 +160,7 @@ export function ConnectPanel({ info }) {
   const frontDoorAddress = frontDoor?.configured ? String(frontDoor.from).split(",").map((v) => v.trim()).find((v) => /^\d{1,3}(\.\d{1,3}){3}$/.test(v)) ?? null : null;
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
   const host = info.host ?? window.location.hostname;
-  const address = info.address ?? (info.network === "mainnet" ? "xel:YOUR_ADDRESS" : "xet:YOUR_ADDRESS");
+  const address = chosen || info.address || (info.network === "mainnet" ? "xel:YOUR_ADDRESS" : "xet:YOUR_ADDRESS");
   const stratum = `stratum+tcp://${host}:${info.stratumPort}`;
   const getwork = info.getworkPort ? `ws://${host}:${info.getworkPort}` : null;
   const rigel = `rigel -a xelishashv3 -o ${stratum} -u ${address} -w rig1`;
@@ -261,10 +265,10 @@ export default function Setup() {
   const info = setup.connect;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold text-ink">{setup.complete ? "Setup" : "Get started"}</h1>
-        <p className="text-sm text-ink-2">
+    <div className="space-y-5">
+      <div className="page-head block!">
+        <h1>{setup.complete ? "Setup" : "Get started"}</h1>
+        <p>
           {setup.complete
             ? "xelDash is set up and a miner is connected. This page stays here if you need the connection settings again."
             : "Four short steps to start mining. You can leave this page open, or come back at any time."}

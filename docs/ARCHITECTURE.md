@@ -203,10 +203,13 @@ calls to the node in all (`node-budget.js`). The limits and their defaults are i
 ## 8. API and dashboard
 
 - Pages: Overview (with a setup banner until a miner has connected), Get started (`#/setup`), Miners (with Miner and Worker pages), Blocks, Health (with connection problems), Nodes (stop and start,
-  versions and upgrades, copies and snapshots) and Settings (display, the official node fallback,
-  alerts, backups, each node's daemon settings). Light, dark or system theme, an optional XEL price, the block sound (the
-  built-in chime or the visitor's own file, kept in IndexedDB and never uploaded) and chart animations, all per browser; phone-sized layouts; live updates over `/api/v1/live` with polling as the
-  fallback.
+  versions and upgrades, copies and snapshots), Connect (`#/connect`, "Mine here" for a public server's visitors) and Settings
+  (Appearance; Mining: the payout address, the official node fallback, automatic updates; Notifications and display; then alerts,
+  backups and each node's daemon settings; a public server's visitors get Appearance only). Light, dark or system mode, five colour
+  themes (`web/src/index.css`, Classic by default) or an own main colour (`web/src/accent.js`), an optional XEL price, the block
+  sound (the built-in chime or the visitor's own file, kept in IndexedDB and never uploaded) and animations, all per browser and
+  applied before first paint by `web/public/theme-init.js`; tabs along the bottom below 960 px; a web app manifest and icons, with
+  no service worker; live updates over `/api/v1/live` with polling as the fallback.
 - REST endpoints (all `GET`; `address` must be a valid `xel:`/`xet:` address; `worker` needs
   `address`): `/api/v1/overview`, `/api/v1/status`, `/api/v1/hashrate`, `/api/v1/miners`,
   `/api/v1/miners/{address}`, `/api/v1/miners/{address}/workers/{name}`, `/api/v1/blocks`,

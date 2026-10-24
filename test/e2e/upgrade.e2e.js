@@ -1,6 +1,7 @@
 // Upgrade: the previous release, as a user has it, updated to this commit with its data kept.
 //
-//   1. the newest published release (or XELDASH_UPGRADE_FROM) starts from its own archive and images, with two nodes
+//   1. the newest published release, or the one in XELDASH_UPGRADE_FROM (CI also starts from 0.1.0 and 0.3.0), starts from its own
+//      archive and images, with two nodes
 //   2. its database gets a miner, a worker, a minute of statistics and an event
 //   3. the stack is updated to this commit in the same project, with the same volumes and settings, as an update does
 //   4. the migrations finish, the stack is healthy, the data is still there, and daemon2 runs this commit's node container
