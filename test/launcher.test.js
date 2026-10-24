@@ -146,10 +146,22 @@ test("a new setup stops when xelDash already has a database on this computer, an
   assert.deepEqual(r.out.split("\n"), ["xeldash: [/home/me/xelDash]", "empty: []", "xeldash2: none"], r.err);
 });
 
-test("the old XELDASH_PUBLIC_HOST is renamed XELDASH_CONNECT_HOST in .env, keeping its value; nothing else changes", { skip }, () => {
+// The line kept above the old setting when the new one is added from it.
+const KEPT = "# Kept the same as XELDASH_CONNECT_HOST, for going back to xelDash 0.6.1 or older:\n";
+
+test("XELDASH_CONNECT_HOST is added from the old XELDASH_PUBLIC_HOST, which stays for going back to an older version", { skip }, () => {
   const rename = (/** @type {string} */ env) => bash(`eval "$(sed -n "/^rename_old_settings() {/,/^}/p" "$L")"; rename_old_settings`, { env }).dotenv;
-  assert.equal(rename("A=1\nXELDASH_PUBLIC_HOST=192.168.1.10\nB=2\n"), "A=1\nXELDASH_CONNECT_HOST=192.168.1.10\nB=2\n");
-  assert.equal(rename("XELDASH_PUBLIC_HOST=\n"), "XELDASH_CONNECT_HOST=\n", "an empty one too");
+  assert.equal(rename("A=1\nXELDASH_PUBLIC_HOST=192.168.1.10\nB=2\n"), `A=1\nXELDASH_CONNECT_HOST=192.168.1.10\n${KEPT}XELDASH_PUBLIC_HOST=192.168.1.10\nB=2\n`);
+  assert.equal(rename("XELDASH_PUBLIC_HOST=\n"), `XELDASH_CONNECT_HOST=\n${KEPT}XELDASH_PUBLIC_HOST=\n`, "an empty one too");
+  assert.equal(rename(`XELDASH_CONNECT_HOST=a\n${KEPT}XELDASH_PUBLIC_HOST=a\n`), `XELDASH_CONNECT_HOST=a\n${KEPT}XELDASH_PUBLIC_HOST=a\n`, "only once");
   assert.equal(rename("XELDASH_PUBLIC_HOST=a\nXELDASH_CONNECT_HOST=b\n"), "XELDASH_PUBLIC_HOST=a\nXELDASH_CONNECT_HOST=b\n", "both there: left alone");
   assert.equal(rename("# XELDASH_PUBLIC_HOST=a\nC=3\n"), "# XELDASH_PUBLIC_HOST=a\nC=3\n", "a comment is not a setting");
+});
+
+test("lan on and off set the old XELDASH_PUBLIC_HOST too while .env has it, so it never falls back to a stale address", { skip }, () => {
+  const set = (/** @type {string} */ env, /** @type {string} */ value) =>
+    bash(`eval "$(sed -n "/^set_connect_host() {/,/^}/p" "$L")"; set_connect_host '${value}'`, { env }).dotenv;
+  assert.equal(set(`XELDASH_CONNECT_HOST=a\n${KEPT}XELDASH_PUBLIC_HOST=a\n`, "192.168.1.20"), `XELDASH_CONNECT_HOST=192.168.1.20\n${KEPT}XELDASH_PUBLIC_HOST=192.168.1.20\n`);
+  assert.equal(set(`XELDASH_CONNECT_HOST=a\n${KEPT}XELDASH_PUBLIC_HOST=a\n`, ""), `XELDASH_CONNECT_HOST=\n${KEPT}XELDASH_PUBLIC_HOST=\n`, "lan off empties both");
+  assert.equal(set("XELDASH_CONNECT_HOST=a\n", "b"), "XELDASH_CONNECT_HOST=b\n", "a newer .env has only the new name");
 });

@@ -14,8 +14,9 @@ breaking changes; they are marked **Breaking**.
   update stops with nothing changed; `XELDASH_UPDATE_SKIP_BACKUP=1` updates without one.
 - On Windows, a finished update no longer reports a failure left behind by an earlier command.
 - `XELDASH_PUBLIC_HOST` is now `XELDASH_CONNECT_HOST`: the address miners are told to connect to (your home-network address, or a
-  public server's domain), which had nothing to do with public mode. The old name keeps working through 1.x, and the launcher renames
-  it in `.env` the next time it runs, keeping its value.
+  public server's domain), which had nothing to do with public mode. The old name keeps working through 1.x. The next time the launcher
+  runs, it adds the new name to `.env` with the same value and keeps the old line, set alongside it by `lan on` and `lan off`,
+  so going back to 0.6.1 or older still finds it.
 - A miner that logs in with only a worker name (`rig1`) is told that the user name starts with the address
   (`address.worker`), and the Connection problems card says so too. A login with no address and no default one says to set a
   default payout address in Settings, not an environment variable.

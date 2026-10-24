@@ -197,7 +197,7 @@ function Enable-Lan([string]$Ip) {
     }
     Set-EnvValue "XELDASH_WEB_BIND_IP" "0.0.0.0"
     Set-EnvValue "XELDASH_STRATUM_BIND_IP" "0.0.0.0"
-    Set-EnvValue "XELDASH_CONNECT_HOST" $Ip
+    Set-ConnectHost $Ip
     Ok "Other computers on your network can now use xelDash at http://${Ip}:$(Get-WebPort)"
     Say "    Windows may ask to allow Docker through the firewall for private networks: say yes."
     return $true
@@ -205,7 +205,7 @@ function Enable-Lan([string]$Ip) {
 function Disable-Lan {
     Set-EnvValue "XELDASH_WEB_BIND_IP" "127.0.0.1"
     Set-EnvValue "XELDASH_STRATUM_BIND_IP" "127.0.0.1"
-    Set-EnvValue "XELDASH_CONNECT_HOST" ""
+    Set-ConnectHost ""
     Ok "xelDash now only answers on this computer."
 }
 
@@ -763,14 +763,27 @@ function Show-Usage {
 
 # ---------------------------------------------------------------- dispatch
 
-# Settings renamed since: the old line keeps its value under the new name. Runs on every command, so .env never holds both.
+# Settings renamed since: the new name is added with the old line's value, and the old line stays (kept the same by
+# Set-ConnectHost), so going back to an older xelDash still finds it. Runs on every command.
 # (Docker Compose also reads the old names through 1.x, for a .env the launcher has not seen.)
 function Rename-OldSettings {
     if (-not (Test-Path -LiteralPath $envPath)) { return }
     $lines = [System.IO.File]::ReadAllLines($envPath)
     if (-not ($lines -match '^XELDASH_PUBLIC_HOST=') -or ($lines -match '^XELDASH_CONNECT_HOST=')) { return }
-    $out = foreach ($line in $lines) { if ($line.StartsWith("XELDASH_PUBLIC_HOST=")) { "XELDASH_CONNECT_HOST=" + $line.Substring(20) } else { $line } }
+    $out = foreach ($line in $lines) {
+        if ($line.StartsWith("XELDASH_PUBLIC_HOST=")) {
+            "XELDASH_CONNECT_HOST=" + $line.Substring(20)
+            "# Kept the same as XELDASH_CONNECT_HOST, for going back to xelDash 0.6.1 or older:"
+        }
+        $line
+    }
     [System.IO.File]::WriteAllText($envPath, (($out -join "`n") + "`n"), (New-Object System.Text.UTF8Encoding($false)))
+}
+
+# The address miners are told to connect to, and the old name for it too while .env still has it (see Rename-OldSettings).
+function Set-ConnectHost([string]$Value) {
+    Set-EnvValue "XELDASH_CONNECT_HOST" $Value
+    if (Get-Content -LiteralPath $envPath | Where-Object { $_ -match '^XELDASH_PUBLIC_HOST=' }) { Set-EnvValue "XELDASH_PUBLIC_HOST" $Value }
 }
 Rename-OldSettings
 
