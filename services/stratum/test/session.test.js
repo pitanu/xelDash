@@ -104,8 +104,15 @@ test("login styles: [address, worker, password], address.worker, options in the 
   assert.equal(e.session.miningAddress, ADDRESS);
   const f = harness(); await login(f, []);
   assert.equal(f.reply(2).error.code, STRATUM_ERRORS.UNAUTHORIZED);
+  assert.match(f.reply(2).error.message, /address.worker.*default payout address/, "says how to fix it");
   assert.deepEqual(f.events.problems, [{ reason: "no_address" }]);
-  for (const s of [a, b, c, d, e]) s.session.close();
+  const g = harness(); await login(g, ["rig1", "x"]);
+  assert.equal(g.reply(2).error.code, STRATUM_ERRORS.UNAUTHORIZED);
+  assert.match(g.reply(2).error.message, /must start with your XELIS address.*address.worker/, "a worker name alone is told what goes first");
+  assert.deepEqual(g.events.problems, [{ reason: "invalid_address", address: "rig1" }]);
+  const typo = harness(); await login(typo, ["xel:short", "x"]);
+  assert.equal(typo.reply(2).error.message, "Address is invalid or unauthorized");
+  for (const s of [a, b, c, d, e, f, g, typo]) s.session.close();
 });
 
 test("on a public server a login without an address is refused, even with a default address set", async () => {

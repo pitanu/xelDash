@@ -35,3 +35,17 @@ test("a visitor's own address goes into the settings and commands, and their wor
   assert.ok(view.text().includes(`-u ${MINE}`), "the Rigel command uses the typed address");
   assert.match(view.text(), /rig7/, "the worker on that address is listed");
 });
+
+test("a pasted pool address or whole user name is explained, and the dashboard's port is called out", async () => {
+  const view = await render(h(Connect));
+  await settle();
+  assert.match(view.text(), /Not this page's port \(\d+\): that is the dashboard/);
+  const input = /** @type {HTMLInputElement} */ (view.container.querySelector("#connect-address"));
+  await interact(() => type(input, "stratum+tcp://mine.example.org:3333"));
+  assert.match(view.text(), /That is the pool address/);
+  await interact(() => type(input, `${MINE}.rig7`));
+  await settle();
+  assert.match(view.text(), /Only the address is needed here/);
+  assert.ok(view.text().includes(`-u ${MINE}`), "the address before the dot is used");
+  assert.match(view.text(), /rig7/);
+});

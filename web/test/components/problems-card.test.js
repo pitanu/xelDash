@@ -28,7 +28,8 @@ test("a login without an address says what happened and what to do", async () =>
   assert.match(view.text(), /Connection problems/);
   assert.match(view.text(), /A computer at 192\.168\.1\.9 logged in without a wallet address\./);
   assert.match(view.text(), /3 times, last/);
-  assert.match(view.text(), /Add your address in step 2/);
+  assert.match(view.text(), /as address.worker/);
+  assert.match(view.text(), /default payout address in step 2/);
 });
 
 test("a hidden IP address is never shown, and the wording does not pretend to know it", async () => {
@@ -52,6 +53,13 @@ test("a mistyped address on the right network asks for it to be copied again", a
   const view = await render(h(ProblemsCard, { network: "testnet" }));
   assert.match(view.text(), /which was refused/);
   assert.match(view.text(), /Addresses on testnet start with xet:/);
+});
+
+test("a worker name alone in the user field is called out, with the address.worker form", async () => {
+  fakeApi({ "/api/v1/problems": { problems: [problem({ reason: "invalid_address", address: "rig1" })] } });
+  const view = await render(h(ProblemsCard, { network: "mainnet" }));
+  assert.match(view.text(), /logged in as “rig1”, which is not an address/);
+  assert.match(view.text(), /xel:….rig1/);
 });
 
 test("problems that read the same are merged, with their counts added and the latest time kept", async () => {

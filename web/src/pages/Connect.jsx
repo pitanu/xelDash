@@ -48,8 +48,14 @@ export default function Connect() {
   const [typed, setTyped] = useState(/** @type {string | null} */ (null));
   const prefix = info?.network === "mainnet" || !info ? "xel" : "xet";
   // The operator starts from the server's mining address; a visitor starts empty and types their own.
-  const address = (typed ?? (operator ? info?.address : null) ?? "").trim();
+  const raw = (typed ?? (operator ? info?.address : null) ?? "").trim();
+  // A pasted "address.worker" (a whole user name) counts as its address: addresses never contain a dot.
+  const dot = raw.indexOf(".");
+  const address = dot > 0 && ADDRESS.test(raw.slice(0, dot)) ? raw.slice(0, dot) : raw;
   const valid = ADDRESS.test(address) && address.startsWith(`${prefix}:`);
+  // The two easy mix-ups: the pool address pasted into the address field, and pointing a miner at this page's port.
+  const poolPasted = /:\/\/|^stratum/i.test(raw);
+  const pagePort = window.location.port || (window.location.protocol === "https:" ? "443" : "80");
 
   return (
     <div className="flex flex-col gap-5">
@@ -70,7 +76,11 @@ export default function Connect() {
             <input id="connect-address" className="field mono" type="text" spellCheck={false} autoComplete="off"
               placeholder={`${prefix}:…`} value={typed ?? (operator ? info?.address ?? "" : "")} onChange={(e) => setTyped(e.target.value)} />
             <div className="label mt-2">
-              {address && !valid
+              {poolPasted
+                ? "That is the pool address. Your wallet address goes here; the pool address is below, for the miner."
+                : address !== raw && valid
+                ? "Only the address is needed here: the part after the dot is a worker name, and the commands below add one."
+                : address && !valid
                 ? `That does not look like a ${info?.network ?? "XELIS"} address: it starts with ${prefix}: and is copied in full from your wallet.`
                 : <>Used in the settings and commands below. No address yet? Make one in the official{" "}
                   <a href={WALLET_URL} target="_blank" rel="noopener noreferrer" className="underline decoration-line underline-offset-2">XELIS web wallet</a>.
@@ -84,7 +94,7 @@ export default function Connect() {
           <h2 className="text-base font-semibold text-ink">Three steps</h2>
           <ol className="m-0 flex list-none flex-col gap-4 p-0">
             {[
-              ["Copy the pool address", info?.tlsPort ? "Use the TLS one (stratum+ssl) when mining over the internet." : "The Stratum address, with its port."],
+              ["Copy the pool address", `${info?.tlsPort ? "Use the TLS one (stratum+ssl) when mining over the internet." : "The Stratum address, with its port."}${info ? ` Not this page's port (${pagePort}): that is the dashboard, and miners cannot connect to it.` : ""}`],
               ["Log in as address.worker", "Each rig gets its own worker name, so you can tell them apart."],
               ["Watch it appear", "New workers show up below, and on Miners, within a minute."],
             ].map(([title, text], i) => (

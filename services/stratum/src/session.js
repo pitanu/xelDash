@@ -255,7 +255,7 @@ export class StratumSession {
         STRATUM_ERRORS.UNAUTHORIZED,
         this.requireAddress
           ? "This is a public server: log in with your own XELIS address as the user name (address.worker)"
-          : "Provide a miner address or configure XELIS_DEFAULT_ADDRESS",
+          : "No address: log in with your XELIS address as the user name (address.worker), or set a default payout address in xelDash's Settings",
       ));
       return;
     }
@@ -265,7 +265,10 @@ export class StratumSession {
     if (!ADDRESS_SHAPE.test(address)) {
       this.onSubmission(false);
       this.onProblem({ reason: "invalid_address", address });
-      this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, "Address is invalid or unauthorized"));
+      // No "xel:" or "xet:" at all: most often a worker name alone ("rig1") in the user field.
+      this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, /^xe[lt]:/i.test(address)
+        ? "Address is invalid or unauthorized"
+        : "The user name must start with your XELIS address, then a dot and the worker name (address.worker)"));
       return;
     }
     if (this.miningAddress !== null && this.miningAddress !== address) {
