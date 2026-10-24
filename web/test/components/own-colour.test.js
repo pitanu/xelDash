@@ -29,7 +29,7 @@ test("turning it on, picking a colour, and turning it off again", async () => {
 
   await interact(() => toggle.click());
   assert.equal(root.dataset.accent, "custom");
-  assert.equal(root.dataset.accentColor, "#c2410c", "starts from the theme's own colour");
+  assert.equal(root.dataset.accentColor, "#2060b8", "starts from the theme's own colour (Classic, the default)");
 
   await interact(() => pick(/** @type {HTMLInputElement} */ (view.container.querySelector("input[type=color]")), "#2a78d6"));
   assert.equal(root.dataset.accentColor, "#2a78d6");

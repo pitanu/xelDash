@@ -36,23 +36,23 @@ export function useTheme() {
   return useSyncExternalStore(subscribe, read);
 }
 
-// The colour theme, per browser like the mode; ember when none is chosen. Applied before first paint by public/theme-init.js too.
+// The colour theme, per browser like the mode; classic (the colours from before 1.0) when none is chosen. Applied before first paint by public/theme-init.js too.
 const PALETTE_KEY = "xeldash.palette";
-export const PALETTES = /** @type {const} */ (["ember", "glacier", "amethyst", "terminal"]);
+export const PALETTES = /** @type {const} */ (["classic", "ember", "glacier", "amethyst", "terminal"]);
 /** @typedef {typeof PALETTES[number]} Palette */
 
 /** @returns {Palette} */
 function readPalette() {
   const value = document.documentElement.dataset.palette;
-  return value === "glacier" || value === "amethyst" || value === "terminal" ? value : "ember";
+  return value === "ember" || value === "glacier" || value === "amethyst" || value === "terminal" ? value : "classic";
 }
 
 /** @param {Palette} palette */
 export function setPalette(palette) {
-  if (palette === "ember") delete document.documentElement.dataset.palette;
+  if (palette === "classic") delete document.documentElement.dataset.palette;
   else document.documentElement.dataset.palette = palette;
   try {
-    if (palette === "ember") localStorage.removeItem(PALETTE_KEY);
+    if (palette === "classic") localStorage.removeItem(PALETTE_KEY);
     else localStorage.setItem(PALETTE_KEY, palette);
   } catch {
     // Applies to this page load only.

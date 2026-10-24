@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
-/* Role tokens, from the 1.0 design (four palettes, each light and dark). Components use these names, so a palette or mode swaps
-   in one place. The palette is <html data-palette> (ember when unset); the mode is <html data-theme> (light or dark), or the
-   system's when unset. Both are set before first paint by public/theme-init.js. --gold is each palette's highlight (blue in Ember). */
+/* Role tokens, from the 1.0 design (five palettes, each light and dark). Components use these names, so a palette or mode swaps
+   in one place. The palette is <html data-palette> (classic when unset); the mode is <html data-theme> (light or dark), or the
+   system's when unset. Both are set before first paint by public/theme-init.js. --gold is each palette's highlight (blue in Ember, amber in Classic). */
 :root {
   color-scheme: light;
   --danger: #b3261e;
@@ -16,7 +16,23 @@
   --xd-mono: "Geist Mono Variable", ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 
+/* Classic: the colours from before the 1.0 design (neutral greys, the old blue, amber for highlights). The default. */
 :root,
+:root[data-palette="classic"] {
+  --bg: #f9f9f7;
+  --panel: #fcfcfb;
+  --panel-2: #efefec;
+  --line: #e1e1df;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #6b6963;
+  --accent: #2060b8;
+  --accent-ink: #ffffff;
+  --accent-soft: #e1eaf6;
+  --gold: #a86b00;
+  --gold-soft: #f8ecd2;
+}
+
 :root[data-palette="ember"] {
   --bg: #f9f9f7;
   --panel: #faf6f1;
@@ -86,6 +102,21 @@
   }
 
   :root:not([data-theme="light"]),
+  :root:not([data-theme="light"])[data-palette="classic"] {
+    --bg: #0d0d0d;
+    --panel: #1a1a19;
+    --panel-2: #232322;
+    --line: #2e2e2c;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --accent: #3987e5;
+    --accent-ink: #06142b;
+    --accent-soft: #12233a;
+    --gold: #e0a326;
+    --gold-soft: #2e2410;
+  }
+
   :root:not([data-theme="light"])[data-palette="ember"] {
     --bg: #0d0d0d;
     --panel: #1c1815;
@@ -154,6 +185,21 @@
 }
 
 :root[data-theme="dark"],
+:root[data-theme="dark"][data-palette="classic"] {
+  --bg: #0d0d0d;
+  --panel: #1a1a19;
+  --panel-2: #232322;
+  --line: #2e2e2c;
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --muted: #898781;
+  --accent: #3987e5;
+  --accent-ink: #06142b;
+  --accent-soft: #12233a;
+  --gold: #e0a326;
+  --gold-soft: #2e2410;
+}
+
 :root[data-theme="dark"][data-palette="ember"] {
   --bg: #0d0d0d;
   --panel: #1c1815;
@@ -237,17 +283,20 @@
 
 /* Stale shares in the shares chart (stacked between accepted, in the accent, and invalid, in danger): a colour per palette and mode
    that the dataviz palette validator separates from both neighbours, for colour-blind readers too. */
-:root, :root[data-palette="ember"] { --chart-stale: #1d5fd1; }
+:root, :root[data-palette="classic"] { --chart-stale: #d99a00; }
+:root[data-palette="ember"] { --chart-stale: #1d5fd1; }
 :root[data-palette="glacier"] { --chart-stale: #5a687c; }
 :root[data-palette="amethyst"] { --chart-stale: #655c78; }
 :root[data-palette="terminal"] { --chart-stale: #1d5fd1; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]), :root:not([data-theme="light"])[data-palette="ember"] { --chart-stale: #7fb0ff; }
+  :root:not([data-theme="light"]), :root:not([data-theme="light"])[data-palette="classic"] { --chart-stale: #fab219; }
+  :root:not([data-theme="light"])[data-palette="ember"] { --chart-stale: #7fb0ff; }
   :root:not([data-theme="light"])[data-palette="glacier"] { --chart-stale: #ffd27a; }
   :root:not([data-theme="light"])[data-palette="amethyst"] { --chart-stale: #a6e05a; }
   :root:not([data-theme="light"])[data-palette="terminal"] { --chart-stale: #7fb0ff; }
 }
-:root[data-theme="dark"], :root[data-theme="dark"][data-palette="ember"] { --chart-stale: #7fb0ff; }
+:root[data-theme="dark"], :root[data-theme="dark"][data-palette="classic"] { --chart-stale: #fab219; }
+:root[data-theme="dark"][data-palette="ember"] { --chart-stale: #7fb0ff; }
 :root[data-theme="dark"][data-palette="glacier"] { --chart-stale: #ffd27a; }
 :root[data-theme="dark"][data-palette="amethyst"] { --chart-stale: #a6e05a; }
 :root[data-theme="dark"][data-palette="terminal"] { --chart-stale: #7fb0ff; }

@@ -5,7 +5,7 @@ import { Segmented, Switch } from "./ui.jsx";
 // The red for problems in light and dark (index.css), which an own colour should not be mistaken for.
 const DANGER = { light: "#b3261e", dark: "#ff8a80" };
 // Where the colour picker starts when one is first turned on: the accent of the theme in use.
-const START = /** @type {Record<string, string>} */ ({ ember: "#c2410c", glacier: "#1d5fd1", amethyst: "#6d3fd1", terminal: "#157a3c" });
+const START = /** @type {Record<string, string>} */ ({ classic: "#2060b8", ember: "#c2410c", glacier: "#1d5fd1", amethyst: "#6d3fd1", terminal: "#157a3c" });
 
 /**
  * A main colour of the person's own, on top of the colour theme: the picker, the light and dark versions worked out from it, and a
@@ -59,6 +59,7 @@ const MODES = /** @type {const} */ ([["system", "System"], ["light", "Light"], [
 
 // Each colour theme's name, its character, and the colours its preview shows: background, panel and accent, light then dark.
 const THEMES = /** @type {Record<typeof PALETTES[number], [string, string, string, string, string, string, string, string]>} */ ({
+  classic: ["Classic", "original", "#f9f9f7", "#fcfcfb", "#2060b8", "#0d0d0d", "#1a1a19", "#3987e5"],
   ember: ["Ember", "warm", "#f9f9f7", "#faf6f1", "#c2410c", "#0d0d0d", "#1c1815", "#ff8a4c"],
   glacier: ["Glacier", "cool", "#f9f9f7", "#f7f9fc", "#1d5fd1", "#0d0d0d", "#111a28", "#6ea8ff"],
   amethyst: ["Amethyst", "soft", "#f9f9f7", "#f9f7fc", "#6d3fd1", "#0d0d0d", "#18141f", "#b496ff"],
@@ -75,7 +76,7 @@ function Preview({ bg, panel, accent }) {
 }
 
 /**
- * Light, dark or the system's, and one of four colour themes, each with a light and a dark version. Per browser, so on a public
+ * Light, dark or the system's, and one of five colour themes, each with a light and a dark version. Per browser, so on a public
  * server every visitor has their own.
  */
 export default function ThemeSetting() {

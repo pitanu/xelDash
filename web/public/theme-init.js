@@ -5,7 +5,7 @@ try {
   var theme = localStorage.getItem("xeldash.theme");
   if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
   var palette = localStorage.getItem("xeldash.palette");
-  if (palette === "glacier" || palette === "amethyst" || palette === "terminal") document.documentElement.dataset.palette = palette;
+  if (palette === "ember" || palette === "glacier" || palette === "amethyst" || palette === "terminal") document.documentElement.dataset.palette = palette;
   if (localStorage.getItem("xeldash.motion") === "off") document.documentElement.dataset.motion = "off";
   // A main colour of the person's own: the variables worked out when it was picked, each a plain #rrggbb colour or nothing is applied.
   var accent = localStorage.getItem("xeldash.accent");
