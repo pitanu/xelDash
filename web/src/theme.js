@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { accentVariables, parseHex } from "./accent.js";
 
 // Light, dark, or "system" (follow the operating system). Kept per browser; the saved choice
 // is applied before first paint by public/theme-init.js.
@@ -61,4 +62,48 @@ export function setPalette(palette) {
 
 export function usePalette() {
   return useSyncExternalStore(subscribe, readPalette);
+}
+
+// A main colour of the person's own, on top of the colour theme (src/accent.js). Saved as the colour picked and the variables worked
+// out from it, so public/theme-init.js can apply them before first paint without the colour maths.
+const ACCENT_KEY = "xeldash.accent";
+const ACCENT_VARS_KEY = "xeldash.accent-vars";
+
+/** @returns {string | null} the colour picked, or null for the theme's own */
+function readAccent() {
+  return document.documentElement.dataset.accent === "custom" ? document.documentElement.dataset.accentColor ?? null : null;
+}
+
+/** @param {string | null} hex a colour, or null for the theme's own */
+export function setAccent(hex) {
+  if (hex !== null && !parseHex(hex)) return;
+  const root = document.documentElement;
+  const vars = hex ? accentVariables(hex) : null;
+  for (const name of ["--custom-accent", "--custom-accent-soft", "--custom-accent-ink", "--custom-accent-dark", "--custom-accent-soft-dark", "--custom-accent-ink-dark"]) {
+    if (vars) root.style.setProperty(name, vars[name]);
+    else root.style.removeProperty(name);
+  }
+  if (hex) {
+    root.dataset.accent = "custom";
+    root.dataset.accentColor = hex;
+  } else {
+    delete root.dataset.accent;
+    delete root.dataset.accentColor;
+  }
+  try {
+    if (hex && vars) {
+      localStorage.setItem(ACCENT_KEY, hex);
+      localStorage.setItem(ACCENT_VARS_KEY, JSON.stringify(vars));
+    } else {
+      localStorage.removeItem(ACCENT_KEY);
+      localStorage.removeItem(ACCENT_VARS_KEY);
+    }
+  } catch {
+    // Applies to this page load only.
+  }
+  for (const listener of listeners) listener();
+}
+
+export function useAccent() {
+  return useSyncExternalStore(subscribe, readAccent);
 }

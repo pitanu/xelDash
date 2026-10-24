@@ -214,6 +214,27 @@
   --gold-soft: #33270f;
 }
 
+/* A main colour of the person's own (Settings › Appearance; src/accent.js works out the light and dark versions, and theme.js sets
+   them as --custom-* on <html> with data-accent="custom"). It replaces the theme's accent only; these rules come after the themes, so
+   they win in every mode. */
+:root[data-accent="custom"] {
+  --accent: var(--custom-accent);
+  --accent-soft: var(--custom-accent-soft);
+  --accent-ink: var(--custom-accent-ink);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-accent="custom"]:not([data-theme="light"]) {
+    --accent: var(--custom-accent-dark);
+    --accent-soft: var(--custom-accent-soft-dark);
+    --accent-ink: var(--custom-accent-ink-dark);
+  }
+}
+:root[data-accent="custom"][data-theme="dark"] {
+  --accent: var(--custom-accent-dark);
+  --accent-soft: var(--custom-accent-soft-dark);
+  --accent-ink: var(--custom-accent-ink-dark);
+}
+
 /* Stale shares in the shares chart (stacked between accepted, in the accent, and invalid, in danger): a colour per palette and mode
    that the dataviz palette validator separates from both neighbours, for colour-blind readers too. */
 :root, :root[data-palette="ember"] { --chart-stale: #1d5fd1; }

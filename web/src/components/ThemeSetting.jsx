@@ -1,5 +1,59 @@
-import { PALETTES, setPalette, setTheme, usePalette, useTheme } from "../theme.js";
-import { Segmented } from "./ui.jsx";
+import { BACKGROUNDS, accentFor, difference } from "../accent.js";
+import { PALETTES, setAccent, setPalette, setTheme, useAccent, usePalette, useTheme } from "../theme.js";
+import { Segmented, Switch } from "./ui.jsx";
+
+// The red for problems in light and dark (index.css), which an own colour should not be mistaken for.
+const DANGER = { light: "#b3261e", dark: "#ff8a80" };
+// Where the colour picker starts when one is first turned on: the accent of the theme in use.
+const START = /** @type {Record<string, string>} */ ({ ember: "#c2410c", glacier: "#1d5fd1", amethyst: "#6d3fd1", terminal: "#157a3c" });
+
+/**
+ * A main colour of the person's own, on top of the colour theme: the picker, the light and dark versions worked out from it, and a
+ * word when it comes close to the red used for problems or to the theme's highlight.
+ */
+function OwnColour() {
+  const accent = useAccent();
+  const palette = usePalette();
+  const highlight = typeof window === "undefined" ? "" : getComputedStyle(document.documentElement).getPropertyValue("--gold").trim();
+  const light = accent ? accentFor(accent, "light") : null;
+  const dark = accent ? accentFor(accent, "dark") : null;
+  const nearDanger = light && dark && (difference(light.accent, DANGER.light) < 15 || difference(dark.accent, DANGER.dark) < 15);
+  const nearHighlight = light && /^#[0-9a-f]{6}$/i.test(highlight) && difference(light.accent, highlight) < 15;
+  return (
+    <div className="settings-row">
+      <div className="txt">
+        <b>Your own colour</b>
+        <span>Replaces the theme's main colour (buttons, charts, the current tab) with one you pick. A light and a dark version are worked out from it, so it stays readable on both. Saved in this browser only.</span>
+      </div>
+      <Switch checked={Boolean(accent)} label="Use my own colour" onChange={(on) => setAccent(on ? START[palette] : null)} />
+      {accent && light && dark && (
+        <div className="flex min-w-0 basis-full flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2 text-[13px] text-ink-2">
+            <input type="color" value={accent} onChange={(e) => setAccent(e.target.value)} aria-label="Main colour"
+              className="h-10 w-14 cursor-pointer rounded-lg border border-line bg-bg p-1" />
+            <span className="mono">{accent}</span>
+          </label>
+          <span className="flex items-center gap-2 text-[13px] text-ink-2" aria-label={`Light: ${light.accent}, dark: ${dark.accent}`}>
+            <span className="grid h-8 w-12 place-items-center rounded-md border border-line" style={{ background: BACKGROUNDS.light }} title={`Light: ${light.accent}`}>
+              <span className="h-3 w-8 rounded-full" style={{ background: light.accent }} />
+            </span>
+            <span className="grid h-8 w-12 place-items-center rounded-md border border-line" style={{ background: BACKGROUNDS.dark }} title={`Dark: ${dark.accent}`}>
+              <span className="h-3 w-8 rounded-full" style={{ background: dark.accent }} />
+            </span>
+            light and dark
+          </span>
+          {(nearDanger || nearHighlight) && (
+            <p className="label m-0 basis-full text-danger!">
+              {nearDanger
+                ? "This colour is close to the red used for problems and invalid shares, so the two may be hard to tell apart. A different colour will read better."
+                : "This colour is close to the theme's highlight colour, which marks other things (blocks in the best share chart, stale shares), so the two may be hard to tell apart."}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const MODES = /** @type {const} */ ([["system", "System"], ["light", "Light"], ["dark", "Dark"]]);
 
@@ -53,6 +107,7 @@ export default function ThemeSetting() {
           })}
         </div>
       </div>
+      <OwnColour />
     </>
   );
 }
