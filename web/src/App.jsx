@@ -45,18 +45,19 @@ function Logo() {
   );
 }
 
-/** The running version, next to the name. */
+/** The running version, next to the name (not on phones, where the top bar is narrow; the footer has it too). */
 function VersionChip() {
   const version = usePolled("/api/v1/version", { intervalMs: 30 * 60_000 });
   if (!version.data?.current) return null;
-  return <span className="mono rounded-md border border-line px-1.5 text-[11px] text-muted">{version.data.current}</span>;
+  return <span className="mono hide-sm rounded-md border border-line px-1.5 text-[11px] text-muted">{version.data.current}</span>;
 }
 
 /** Whether miners are being given work right now: mining, paused (and why) or Stratum down. Refreshed every 30 s. */
 function MiningPill() {
   const status = usePolled("/api/v1/status", { intervalMs: 30_000 });
   const state = miningState(status.data?.services?.stratum);
-  return state ? <HealthBadge level={state.level} label={state.label} /> : null;
+  // On a narrow phone the label can end in "…"; the title has all of it.
+  return state ? <span className="flex min-w-0" title={state.label}><HealthBadge level={state.level} label={state.label} /></span> : null;
 }
 
 function LiveIndicator() {
@@ -66,7 +67,8 @@ function LiveIndicator() {
     <span className="inline-flex items-center gap-1.5 text-xs text-ink-2"
       title={isLive ? "Updates arrive as they happen" : "Live updates unavailable; refreshing every 15 seconds"}>
       <span className={`h-2 w-2 rounded-full ${isLive ? "bg-accent" : "bg-muted"}`} aria-hidden="true" />
-      {isLive ? "Live" : live.status === "connecting" ? "Connecting…" : "Polling"}
+      {/* On phones the dot alone; the word stays for screen readers. */}
+      <span className="max-[720px]:sr-only">{isLive ? "Live" : live.status === "connecting" ? "Connecting…" : "Polling"}</span>
     </span>
   );
 }
@@ -183,7 +185,7 @@ export default function App() {
               <a key={href} href={`#${href}`} aria-current={section === href ? "page" : undefined}>{label}</a>
             ))}
           </nav>
-          <div className="ml-auto flex shrink-0 items-center gap-3">
+          <div className="ml-auto flex min-w-0 items-center gap-3">
             <span className="hide-sm"><PriceChip /></span>
             <LiveIndicator />
             <MiningPill />

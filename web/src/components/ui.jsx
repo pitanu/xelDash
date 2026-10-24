@@ -389,7 +389,7 @@ export function LevelIcon({ level, className = "" }) {
 
 /** Health state with the reserved status colors; always paired with an icon and a label. @param {{ level: keyof typeof LEVELS, label: string }} props */
 export function HealthBadge({ level, label }) {
-  return <span className={`pill ${LEVELS[level].pill}`}><PillIcon d={LEVELS[level].icon} />{label}</span>;
+  return <span className={`pill min-w-0 max-w-full ${LEVELS[level].pill}`}><PillIcon d={LEVELS[level].icon} /><span className="truncate">{label}</span></span>;
 }
 
 /**
