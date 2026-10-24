@@ -8,6 +8,7 @@
   --danger: #b3261e;
   --danger-soft: #f8dcd9;
   --grid: var(--panel-2);
+  /* Every palette keeps the page background from before the 1.0 design: #f9f9f7 in light, #0d0d0d in dark (--bg below). */
   /* Chart axes and the hover line: between the grid and the text. */
   --axis: color-mix(in srgb, var(--muted) 55%, transparent);
   /* Real variables (Tailwind's @theme inline only inlines its own): the text face and the one for numbers and code. */
@@ -17,7 +18,7 @@
 
 :root,
 :root[data-palette="ember"] {
-  --bg: #f3eee7;
+  --bg: #f9f9f7;
   --panel: #faf6f1;
   --panel-2: #efe9e2;
   --line: #e2dbd2;
@@ -32,7 +33,7 @@
 }
 
 :root[data-palette="glacier"] {
-  --bg: #edf2f8;
+  --bg: #f9f9f7;
   --panel: #f7f9fc;
   --panel-2: #e8eef5;
   --line: #d7e0ea;
@@ -47,7 +48,7 @@
 }
 
 :root[data-palette="amethyst"] {
-  --bg: #f1edf7;
+  --bg: #f9f9f7;
   --panel: #f9f7fc;
   --panel-2: #ece8f4;
   --line: #ddd7ea;
@@ -62,7 +63,7 @@
 }
 
 :root[data-palette="terminal"] {
-  --bg: #efefef;
+  --bg: #f9f9f7;
   --panel: #f8f8f8;
   --panel-2: #ececec;
   --line: #dcdcdc;
@@ -86,7 +87,7 @@
 
   :root:not([data-theme="light"]),
   :root:not([data-theme="light"])[data-palette="ember"] {
-    --bg: #120f0d;
+    --bg: #0d0d0d;
     --panel: #1c1815;
     --panel-2: #25201c;
     --line: #342d27;
@@ -101,7 +102,7 @@
   }
 
   :root:not([data-theme="light"])[data-palette="glacier"] {
-    --bg: #0a0f18;
+    --bg: #0d0d0d;
     --panel: #111a28;
     --panel-2: #172235;
     --line: #233149;
@@ -116,7 +117,7 @@
   }
 
   :root:not([data-theme="light"])[data-palette="amethyst"] {
-    --bg: #0f0c15;
+    --bg: #0d0d0d;
     --panel: #18141f;
     --panel-2: #211b2b;
     --line: #2f273d;
@@ -131,7 +132,7 @@
   }
 
   :root:not([data-theme="light"])[data-palette="terminal"] {
-    --bg: #000000;
+    --bg: #0d0d0d;
     --panel: #0e0e0e;
     --panel-2: #171717;
     --line: #262626;
@@ -154,7 +155,7 @@
 
 :root[data-theme="dark"],
 :root[data-theme="dark"][data-palette="ember"] {
-  --bg: #120f0d;
+  --bg: #0d0d0d;
   --panel: #1c1815;
   --panel-2: #25201c;
   --line: #342d27;
@@ -169,7 +170,7 @@
 }
 
 :root[data-theme="dark"][data-palette="glacier"] {
-  --bg: #0a0f18;
+  --bg: #0d0d0d;
   --panel: #111a28;
   --panel-2: #172235;
   --line: #233149;
@@ -184,7 +185,7 @@
 }
 
 :root[data-theme="dark"][data-palette="amethyst"] {
-  --bg: #0f0c15;
+  --bg: #0d0d0d;
   --panel: #18141f;
   --panel-2: #211b2b;
   --line: #2f273d;
@@ -199,7 +200,7 @@
 }
 
 :root[data-theme="dark"][data-palette="terminal"] {
-  --bg: #000000;
+  --bg: #0d0d0d;
   --panel: #0e0e0e;
   --panel-2: #171717;
   --line: #262626;
