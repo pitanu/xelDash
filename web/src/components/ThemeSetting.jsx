@@ -59,11 +59,11 @@ const MODES = /** @type {const} */ ([["system", "System"], ["light", "Light"], [
 
 // Each colour theme's name, its character, and the colours its preview shows: background, panel and accent, light then dark.
 const THEMES = /** @type {Record<typeof PALETTES[number], [string, string, string, string, string, string, string, string]>} */ ({
-  classic: ["Classic", "original", "#f9f9f7", "#fcfcfb", "#2060b8", "#0d0d0d", "#1a1a19", "#3987e5"],
-  ember: ["Ember", "warm", "#f9f9f7", "#faf6f1", "#c2410c", "#0d0d0d", "#1c1815", "#ff8a4c"],
-  glacier: ["Glacier", "cool", "#f9f9f7", "#f7f9fc", "#1d5fd1", "#0d0d0d", "#111a28", "#6ea8ff"],
-  amethyst: ["Amethyst", "soft", "#f9f9f7", "#f9f7fc", "#6d3fd1", "#0d0d0d", "#18141f", "#b496ff"],
-  terminal: ["Terminal", "neutral", "#f9f9f7", "#f8f8f8", "#157a3c", "#0d0d0d", "#0e0e0e", "#4ade80"],
+  classic: ["Classic", "original", "#eae9e4", "#ffffff", "#2060b8", "#0d0d0d", "#1a1a19", "#3987e5"],
+  ember: ["Ember", "warm", "#ece7e1", "#ffffff", "#c2410c", "#0d0d0d", "#1c1815", "#ff8a4c"],
+  glacier: ["Glacier", "cool", "#e6eaf1", "#ffffff", "#1d5fd1", "#0d0d0d", "#111a28", "#6ea8ff"],
+  amethyst: ["Amethyst", "soft", "#e9e6ef", "#ffffff", "#6d3fd1", "#0d0d0d", "#18141f", "#b496ff"],
+  terminal: ["Terminal", "neutral", "#e8e8e8", "#ffffff", "#157a3c", "#0d0d0d", "#0e0e0e", "#4ade80"],
 });
 
 /** One half of a theme card's preview: the page, a panel along the bottom and an accent bar. @param {{ bg: string, panel: string, accent: string }} props */

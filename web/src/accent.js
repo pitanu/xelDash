@@ -76,8 +76,9 @@ export function difference(a, b) {
   return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) * 100;
 }
 
-// The page backgrounds the accent sits on (kept the same in every theme), and the lightness bands that read well on them.
-export const BACKGROUNDS = { light: "#f9f9f7", dark: "#0d0d0d" };
+// The page backgrounds the accent sits on (light: the Classic page, about as dark as any theme's; dark: the same in every theme), and the
+// lightness bands that read well on them.
+export const BACKGROUNDS = { light: "#eae9e4", dark: "#0d0d0d" };
 const BANDS = { light: [0.42, 0.6], dark: [0.68, 0.82] };
 
 /**

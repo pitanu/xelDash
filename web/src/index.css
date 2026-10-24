@@ -8,7 +8,8 @@
   --danger: #b3261e;
   --danger-soft: #f8dcd9;
   --grid: var(--panel-2);
-  /* Every palette keeps the page background from before the 1.0 design: #f9f9f7 in light, #0d0d0d in dark (--bg below). */
+  /* Light: white cards on a page a few shades darker, tinted to the palette, so the cards stand apart. Dark keeps the page from before
+     the 1.0 design, #0d0d0d. */
   /* Chart axes and the hover line: between the grid and the text. */
   --axis: color-mix(in srgb, var(--muted) 55%, transparent);
   /* Real variables (Tailwind's @theme inline only inlines its own): the text face and the one for numbers and code. */
@@ -19,10 +20,10 @@
 /* Classic: the colours from before the 1.0 design (neutral greys, the old blue, amber for highlights). The default. */
 :root,
 :root[data-palette="classic"] {
-  --bg: #f9f9f7;
-  --panel: #fcfcfb;
-  --panel-2: #efefec;
-  --line: #e1e1df;
+  --bg: #eae9e4;
+  --panel: #ffffff;
+  --panel-2: #efeeea;
+  --line: #d9d8d1;
   --ink: #0b0b0b;
   --ink-2: #52514e;
   --muted: #6b6963;
@@ -34,10 +35,10 @@
 }
 
 :root[data-palette="ember"] {
-  --bg: #f9f9f7;
-  --panel: #faf6f1;
-  --panel-2: #efe9e2;
-  --line: #e2dbd2;
+  --bg: #ece7e1;
+  --panel: #ffffff;
+  --panel-2: #f3eee8;
+  --line: #ddd5cb;
   --ink: #1c1714;
   --ink-2: #574d45;
   --muted: #6e635a;
@@ -49,10 +50,10 @@
 }
 
 :root[data-palette="glacier"] {
-  --bg: #f9f9f7;
-  --panel: #f7f9fc;
-  --panel-2: #e8eef5;
-  --line: #d7e0ea;
+  --bg: #e6eaf1;
+  --panel: #ffffff;
+  --panel-2: #edf1f6;
+  --line: #d3dce7;
   --ink: #0e1726;
   --ink-2: #3f4d63;
   --muted: #5a687c;
@@ -64,10 +65,10 @@
 }
 
 :root[data-palette="amethyst"] {
-  --bg: #f9f9f7;
-  --panel: #f9f7fc;
-  --panel-2: #ece8f4;
-  --line: #ddd7ea;
+  --bg: #e9e6ef;
+  --panel: #ffffff;
+  --panel-2: #f1eef6;
+  --line: #d9d3e6;
   --ink: #17121f;
   --ink-2: #4d4560;
   --muted: #655c78;
@@ -79,10 +80,10 @@
 }
 
 :root[data-palette="terminal"] {
-  --bg: #f9f9f7;
-  --panel: #f8f8f8;
-  --panel-2: #ececec;
-  --line: #dcdcdc;
+  --bg: #e8e8e8;
+  --panel: #ffffff;
+  --panel-2: #efefef;
+  --line: #d6d6d6;
   --ink: #111111;
   --ink-2: #474747;
   --muted: #636363;
