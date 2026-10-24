@@ -150,22 +150,31 @@ test("Windows: a new setup stops when xelDash already has a database on this com
   assert.deepEqual(r.stdout.trim().split(/\r?\n/), ["xeldash: [C:/xelDash]", "empty: []", "xeldash2: none"], r.stderr);
 });
 
-test("Windows: the old XELDASH_PUBLIC_HOST is renamed XELDASH_CONNECT_HOST in .env, keeping its value; nothing else changes", { skip: hasPowerShell ? false : "needs Windows PowerShell" }, () => {
+test("Windows: XELDASH_CONNECT_HOST is added from the old XELDASH_PUBLIC_HOST, which stays for going back; lan keeps both the same", { skip: hasPowerShell ? false : "needs Windows PowerShell" }, () => {
   const source = readFileSync(LAUNCHER, "utf8");
   const fn = /^function Rename-OldSettings[\s\S]*?^}/m.exec(source)?.[0];
   assert.ok(fn, "Rename-OldSettings is in the launcher");
-  const rename = (/** @type {string} */ before) => {
+  const setEnv = /^function Set-EnvValue[\s\S]*?^}/m.exec(source)?.[0];
+  const setHost = /^function Set-ConnectHost[\s\S]*?^}/m.exec(source)?.[0];
+  assert.ok(setEnv && setHost, "Set-EnvValue and Set-ConnectHost are in the launcher");
+  const run = (/** @type {string} */ before, /** @type {string} */ command) => {
     const dir = mkdtempSync(join(tmpdir(), "rename-"));
     const file = join(dir, ".env");
     writeFileSync(file, before);
-    const r = ps(["-Command", `$envPath = '${file}'\n${fn}\nRename-OldSettings`]);
+    const r = ps(["-Command", `$envPath = '${file}'\n${fn}\n${setEnv}\n${setHost}\n${command}`]);
     assert.equal(r.status, 0, r.stderr);
     const after = readFileSync(file, "utf8");
     rmSync(dir, { recursive: true, force: true });
     return after;
   };
-  assert.equal(rename("A=1\nXELDASH_PUBLIC_HOST=192.168.1.10\nB=2\n"), "A=1\nXELDASH_CONNECT_HOST=192.168.1.10\nB=2\n");
-  assert.equal(rename("XELDASH_PUBLIC_HOST=\n"), "XELDASH_CONNECT_HOST=\n", "an empty one too");
+  const rename = (/** @type {string} */ before) => run(before, "Rename-OldSettings");
+  const kept = "# Kept the same as XELDASH_CONNECT_HOST, for going back to xelDash 0.6.1 or older:\n";
+  assert.equal(rename("A=1\nXELDASH_PUBLIC_HOST=192.168.1.10\nB=2\n"), `A=1\nXELDASH_CONNECT_HOST=192.168.1.10\n${kept}XELDASH_PUBLIC_HOST=192.168.1.10\nB=2\n`);
+  assert.equal(rename("XELDASH_PUBLIC_HOST=\n"), `XELDASH_CONNECT_HOST=\n${kept}XELDASH_PUBLIC_HOST=\n`, "an empty one too");
+  assert.equal(rename(`XELDASH_CONNECT_HOST=a\n${kept}XELDASH_PUBLIC_HOST=a\n`), `XELDASH_CONNECT_HOST=a\n${kept}XELDASH_PUBLIC_HOST=a\n`, "only once");
+  assert.match(run(`XELDASH_CONNECT_HOST=a\n${kept}XELDASH_PUBLIC_HOST=a\n`, "Set-ConnectHost '192.168.1.20'"), /^XELDASH_CONNECT_HOST=192\.168\.1\.20\n# Kept.*\nXELDASH_PUBLIC_HOST=192\.168\.1\.20\n$/, "lan on sets both");
+  assert.match(run(`XELDASH_CONNECT_HOST=a\n${kept}XELDASH_PUBLIC_HOST=a\n`, "Set-ConnectHost ''"), /^XELDASH_CONNECT_HOST=\n# Kept.*\nXELDASH_PUBLIC_HOST=\n$/, "lan off empties both");
+  assert.equal(run("XELDASH_CONNECT_HOST=a\n", "Set-ConnectHost 'b'").trim(), "XELDASH_CONNECT_HOST=b", "a newer .env has only the new name");
   assert.equal(rename("XELDASH_PUBLIC_HOST=a\nXELDASH_CONNECT_HOST=b\n"), "XELDASH_PUBLIC_HOST=a\nXELDASH_CONNECT_HOST=b\n", "both there: left alone");
   assert.equal(rename("# XELDASH_PUBLIC_HOST=a\nC=3\n"), "# XELDASH_PUBLIC_HOST=a\nC=3\n", "a comment is not a setting");
 });

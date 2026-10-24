@@ -14,8 +14,9 @@ breaking changes; they are marked **Breaking**.
   update stops with nothing changed; `XELDASH_UPDATE_SKIP_BACKUP=1` updates without one.
 - On Windows, a finished update no longer reports a failure left behind by an earlier command.
 - `XELDASH_PUBLIC_HOST` is now `XELDASH_CONNECT_HOST`: the address miners are told to connect to (your home-network address, or a
-  public server's domain), which had nothing to do with public mode. The old name keeps working through 1.x, and the launcher renames
-  it in `.env` the next time it runs, keeping its value.
+  public server's domain), which had nothing to do with public mode. The old name keeps working through 1.x. The next time the launcher
+  runs, it adds the new name to `.env` with the same value and keeps the old line, set alongside it by `lan on` and `lan off`,
+  so going back to 0.6.1 or older still finds it.
 - The webhook alert's fields are written down for each kind of alert (Operations, "Webhook alerts") and checked by a test, so they
   cannot change by accident; from 1.0.0 none of them is renamed or removed within 1.x. A failed chain copy now says so in the
   webhook too (`node_update` with `outcome: "copy_failed"`).
