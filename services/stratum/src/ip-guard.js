@@ -48,8 +48,11 @@ export function parseAllowedNetworks(text) {
  * @typedef {{ maxConnectionsPerIp: number, messagesPerSecond: number, messageBurst: number,
  *   invalidWindowSeconds: number, invalidMinCount: number, invalidRatio: number,
  *   banMinutes: number, exemptIps: string[], allowedNetworks: string, maxConnections?: number, sharesPerIpPerSecond?: number,
- *   explicit?: { maxConnectionsPerIp: boolean, maxConnections: boolean, sharesPerIpPerSecond?: boolean } }} IpGuardConfig
+ *   connectionsPerIpPerSecond?: number,
+ *   explicit?: { maxConnectionsPerIp: boolean, maxConnections: boolean, sharesPerIpPerSecond?: boolean, connectionsPerIpPerSecond?: boolean } }} IpGuardConfig
  * maxConnections: all connections together (0: no limit); sharesPerIpPerSecond: shares checked for one IP address (0: no limit);
+ * connectionsPerIpPerSecond: new connections from one IP address (0: no limit; a burst of maxConnectionsPerIp at once, so a whole
+ * farm can reconnect after a restart, but a client reconnecting in a loop is held to this rate);
  * explicit: which limits were set in .env (public mode changes the others)
  */
 
@@ -66,6 +69,7 @@ export const DEFAULT_IP_GUARD = Object.freeze({
   allowedNetworks: "private",
   maxConnections: 0,
   sharesPerIpPerSecond: 0,
+  connectionsPerIpPerSecond: 0,
 });
 
 /** @param {Partial<Record<string, string | undefined>>} env @returns {IpGuardConfig} */
@@ -83,11 +87,14 @@ export function ipGuardConfigFromEnv(env) {
   if (!Number.isSafeInteger(total) || total < 0) throw new Error("STRATUM_MAX_CONNECTIONS must be 0 (no limit) or a positive number");
   const shares = given("STRATUM_SHARES_PER_IP_PER_SECOND") ? Number(env.STRATUM_SHARES_PER_IP_PER_SECOND) : 0;
   if (!Number.isFinite(shares) || shares < 0) throw new Error("STRATUM_SHARES_PER_IP_PER_SECOND must be 0 (no limit) or a positive number");
+  const rate = given("STRATUM_CONNECTIONS_PER_IP_PER_SECOND") ? Number(env.STRATUM_CONNECTIONS_PER_IP_PER_SECOND) : 0;
+  if (!Number.isFinite(rate) || rate < 0) throw new Error("STRATUM_CONNECTIONS_PER_IP_PER_SECOND must be 0 (no limit) or a positive number");
   return {
     maxConnections: total,
     sharesPerIpPerSecond: shares,
+    connectionsPerIpPerSecond: rate,
     explicit: { maxConnectionsPerIp: given("STRATUM_MAX_CONNECTIONS_PER_IP"), maxConnections: given("STRATUM_MAX_CONNECTIONS"),
-      sharesPerIpPerSecond: given("STRATUM_SHARES_PER_IP_PER_SECOND") },
+      sharesPerIpPerSecond: given("STRATUM_SHARES_PER_IP_PER_SECOND"), connectionsPerIpPerSecond: given("STRATUM_CONNECTIONS_PER_IP_PER_SECOND") },
     maxConnectionsPerIp: read("STRATUM_MAX_CONNECTIONS_PER_IP", DEFAULT_IP_GUARD.maxConnectionsPerIp),
     messagesPerSecond: read("STRATUM_MESSAGES_PER_SECOND", DEFAULT_IP_GUARD.messagesPerSecond),
     messageBurst: read("STRATUM_MESSAGE_BURST", DEFAULT_IP_GUARD.messageBurst),
@@ -152,6 +159,8 @@ export class IpGuard {
     this.windows = new Map();
     /** Shares each IP address may still have checked (sharesPerIpPerSecond). @type {Map<string, { tokens: number, updated: number }>} */
     this.shareBuckets = new Map();
+    /** New connections each IP address may still open (connectionsPerIpPerSecond). @type {Map<string, { tokens: number, updated: number }>} */
+    this.connectBuckets = new Map();
   }
 
   /**
@@ -201,6 +210,7 @@ export class IpGuard {
   connect(ip, now = Date.now()) {
     if (!this.isAllowed(ip)) return "not on your local network";
     if (this.isBanned(ip, now)) return "banned";
+    if (!this.#allowConnectAttempt(ip, now)) return "connecting too often";
     const open = this.connections.get(ip) ?? 0;
     if (open >= this.config.maxConnectionsPerIp && !this.exempt.has(ip)) return "too many connections";
     // All connections together, so many addresses at once cannot take more than the server is meant to carry.
@@ -208,6 +218,27 @@ export class IpGuard {
     this.connections.set(ip, open + 1);
     this.total++;
     return null;
+  }
+
+  /**
+   * Whether this IP address may open another connection now (connectionsPerIpPerSecond). Every attempt that gets this far counts,
+   * refused for another reason or not, since each one costs a handshake and a login.
+   * @param {string} ip @param {number} now
+   */
+  #allowConnectAttempt(ip, now) {
+    const rate = this.config.connectionsPerIpPerSecond ?? 0;
+    if (!(rate > 0) || this.exempt.has(ip)) return true;
+    const burst = Math.max(1, this.config.maxConnectionsPerIp);
+    let bucket = this.connectBuckets.get(ip);
+    if (!bucket) {
+      bucket = { tokens: burst, updated: now };
+      this.connectBuckets.set(ip, bucket);
+    }
+    bucket.tokens = Math.min(burst, bucket.tokens + ((now - bucket.updated) / 1000) * rate);
+    bucket.updated = now;
+    if (bucket.tokens < 1) return false;
+    bucket.tokens -= 1;
+    return true;
   }
 
   /** @param {string} ip */
@@ -245,6 +276,10 @@ export class IpGuard {
     for (const [ip, until] of this.bans) if (until <= now) this.bans.delete(ip);
     // A bucket left alone for a minute is full again: forget it.
     for (const [ip, bucket] of this.shareBuckets) if (now - bucket.updated >= 60_000) this.shareBuckets.delete(ip);
+    // A connection bucket refills in maxConnectionsPerIp / rate seconds; once full again it is the same as none.
+    const rate = this.config.connectionsPerIpPerSecond ?? 0;
+    const refillMs = rate > 0 ? (this.config.maxConnectionsPerIp / rate) * 1000 : 0;
+    for (const [ip, bucket] of this.connectBuckets) if (now - bucket.updated >= Math.max(60_000, refillMs)) this.connectBuckets.delete(ip);
   }
 
   /** @param {string} ip @param {string} reason @param {number} [now] */

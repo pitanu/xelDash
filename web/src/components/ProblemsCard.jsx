@@ -18,6 +18,8 @@ export function explainProblem(p, network) {
       return { what: `${from} tried to connect and was turned away.`, fix: "xelDash only accepts miners on your own network. If this is one of your computers, check it is on the same network, or allow more networks with XELDASH_ALLOWED_NETWORKS in the .env file." };
     case "banned":
       return { what: `${from} was blocked for a while after sending a lot of invalid data.`, fix: "Check the mining program's settings (algorithm xelishashv3, the right pool address). It can connect again after the block ends." };
+    case "connecting too often":
+      return { what: `${from} opened new connections faster than this server allows from one address.`, fix: "A miner reconnecting over and over usually has the wrong pool address, port or password: check its settings and its own log. A large farm behind one address reconnects at once without this." };
     case "too many connections":
       return { what: `${from} opened too many connections at once.`, fix: "Run one mining program per computer. Each one should use a different worker name." };
     case "invalid_address":

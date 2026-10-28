@@ -318,6 +318,9 @@ services:
       # Close a connection with no share for this many seconds (half of it if it never sent one). Empty: 1800 on a public server,
       # off otherwise; 0 turns it off.
       STRATUM_IDLE_SECONDS: ${STRATUM_IDLE_SECONDS:-}
+      # New connections a second per IP address, after a burst of the per-IP connection limit. Empty: 20 on a public server, no
+      # limit otherwise; 0: no limit.
+      STRATUM_CONNECTIONS_PER_IP_PER_SECOND: ${STRATUM_CONNECTIONS_PER_IP_PER_SECOND:-}
       STRATUM_MESSAGES_PER_SECOND: ${STRATUM_MESSAGES_PER_SECOND:-20}
       STRATUM_MESSAGE_BURST: ${STRATUM_MESSAGE_BURST:-40}
       STRATUM_BAN_WINDOW_SECONDS: ${STRATUM_BAN_WINDOW_SECONDS:-300}

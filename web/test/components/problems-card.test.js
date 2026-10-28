@@ -91,3 +91,10 @@ test("a reason the dashboard does not know yet is still shown, with no advice", 
   assert.match(item?.textContent ?? "", /could not connect \(something_new\)/);
   assert.equal(item?.querySelector("p"), null);
 });
+
+test("a client reconnecting too fast is told what usually causes it", async () => {
+  fakeApi({ "/api/v1/problems": { problems: [problem({ kind: "connection_refused", reason: "connecting too often" })] } });
+  const view = await render(h(ProblemsCard, { network: "mainnet" }));
+  assert.match(view.text(), /opened new connections faster than this server allows/);
+  assert.match(view.text(), /wrong pool address, port or password/);
+});

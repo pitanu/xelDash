@@ -166,6 +166,8 @@ function applyModeLimits() {
   if (!ipGuardConfig.explicit?.maxConnectionsPerIp) ipGuardConfig.maxConnectionsPerIp = pub ? 1000 : DEFAULT_IP_GUARD.maxConnectionsPerIp;
   if (!ipGuardConfig.explicit?.maxConnections) ipGuardConfig.maxConnections = pub ? 5000 : 0;
   if (!ipGuardConfig.explicit?.sharesPerIpPerSecond) ipGuardConfig.sharesPerIpPerSecond = pub ? 300 : 0;
+  // New connections per IP address: 20 a second after a burst of the per-IP connection limit (a whole farm reconnecting at once).
+  if (!ipGuardConfig.explicit?.connectionsPerIpPerSecond) ipGuardConfig.connectionsPerIpPerSecond = pub ? 20 : 0;
   const perSecond = nodeCallsSetting ?? (pub ? 100 : 0);
   nodeBudget.perSecond = perSecond;
   nodeBudget.burst = burstFor(perSecond);
@@ -174,7 +176,8 @@ function applyModeLimits() {
     removeFallbackNodes(null);
     console.info(`Public-server limits: ${perSecond || "no"} node calls a second, ${addressesPerIpSetting ?? 32} addresses, `
       + `${newWorkersPerIpSetting ?? 1000} new worker names an hour, `
-      + `${ipGuardConfig.maxConnectionsPerIp} connections and ${ipGuardConfig.sharesPerIpPerSecond || "unlimited"} shares a second per IP address, `
+      + `${ipGuardConfig.maxConnectionsPerIp} connections, ${ipGuardConfig.connectionsPerIpPerSecond || "unlimited"} new connections a second `
+      + `and ${ipGuardConfig.sharesPerIpPerSecond || "unlimited"} shares a second per IP address, `
       + `${ipGuardConfig.maxConnections || "no limit to"} connections in all, `
       + `${idleSeconds() ? `idle connections closed after ${idleSeconds()} s` : "idle connections kept"}`);
     if (ipGuardConfig.explicit?.maxConnectionsPerIp && ipGuardConfig.maxConnectionsPerIp < 600) {

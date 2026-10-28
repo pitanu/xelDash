@@ -36,6 +36,11 @@ const SHARE_BATCH = 500;
 const MAX_SHARE_BATCH = 5_000;
 /** Shares waiting beyond this are dropped (statistics only), so a stuck database cannot fill Stratum's memory. */
 const MAX_QUEUED_SHARES = 200_000;
+// A rig that logs in again within this time, from the same address, reuses the ids from its last login instead of a database
+// transaction: rigs reconnecting after a restart, or a client reconnecting in a loop, cost the database nothing. Share writes keep
+// last_seen current meanwhile, and a login from a new IP address still goes to the database (it records last_ip).
+const LOGIN_REUSE_MS = 5 * 60_000;
+const MAX_RECENT_LOGINS = 50_000;
 
 const CONNECTION_CODES = new Set([
   "ECONNREFUSED", "ECONNRESET", "ENOTFOUND", "ETIMEDOUT", "EAI_AGAIN", "EPIPE", "ECONNABORTED", "EHOSTUNREACH", "ENETUNREACH",
@@ -102,6 +107,10 @@ export class DurableStore {
     this.oldestAt = /** @type {string | null} */ (null);
     /** @type {Map<string, WorkerIds>} */
     this.cache = new Map();
+    /** Recent logins (see LOGIN_REUSE_MS). @type {Map<string, { ids: WorkerIds, ip: string | null, at: number }>} */
+    this.recentLogins = new Map();
+    /** Logins waiting for the database, so the same worker logging in on many connections at once costs one call. @type {Map<string, Promise<WorkerIds>>} */
+    this.loginsInFlight = new Map();
     /** @type {Set<string>} */
     this.recentShares = new Set();
     this.chain = Promise.resolve();
@@ -198,10 +207,10 @@ export class DurableStore {
   async ensureWorker({ address, name = "default", ip = null }) {
     const key = keyOf(address, name);
     if (this.online && !this.remote) {
+      const recent = this.recentLogins.get(key);
+      if (recent && recent.ip === ip && Date.now() - recent.at < LOGIN_REUSE_MS) return recent.ids;
       try {
-        const ids = await this.db.ensureWorker(this.pool, { address, name, ip });
-        this.#remember(key, ids);
-        return ids;
+        return await this.#loginOnce(key, { address, name, ip });
       } catch (error) {
         if (!isConnectionError(error)) throw error;
         this.#goOffline(error);
@@ -209,6 +218,28 @@ export class DurableStore {
     }
     await this.#append({ t: "worker", address, name, ip, at: new Date().toISOString() });
     return this.cache.get(key) ?? { minerId: null, workerId: null };
+  }
+
+  /**
+   * One database login for a worker at a time: logins for the same worker while one is under way wait for its answer.
+   * @param {string} key @param {{ address: string, name: string, ip: string | null }} input @returns {Promise<WorkerIds>}
+   */
+  #loginOnce(key, input) {
+    const waiting = this.loginsInFlight.get(key);
+    if (waiting) return waiting;
+    const login = (async () => {
+      const ids = await this.db.ensureWorker(this.pool, input);
+      this.#remember(key, ids);
+      const now = Date.now();
+      if (this.recentLogins.size >= MAX_RECENT_LOGINS) {
+        for (const [k, entry] of this.recentLogins) if (now - entry.at >= LOGIN_REUSE_MS) this.recentLogins.delete(k);
+        if (this.recentLogins.size >= MAX_RECENT_LOGINS) this.recentLogins.clear();
+      }
+      this.recentLogins.set(key, { ids, ip: input.ip, at: now });
+      return ids;
+    })().finally(() => this.loginsInFlight.delete(key));
+    this.loginsInFlight.set(key, login);
+    return login;
   }
 
   /**

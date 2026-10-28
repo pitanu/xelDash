@@ -403,7 +403,9 @@ community to notice a bad or tampered release. node-admin logs a warning at star
 - **Miners:** up to 1,000 connections per IP address (a farm behind one address fits; `STRATUM_MAX_CONNECTIONS_PER_IP`), 5,000
   in all (`STRATUM_MAX_CONNECTIONS`), and at most 32 different addresses per IP address (`STRATUM_MAX_ADDRESSES_PER_IP`): made-up
   addresses are what an attack on the node would need, and a connection that keeps trying them is banned like one sending bad shares.
-  The usual per-connection message limits and bans apply as well.
+  The usual per-connection message limits and bans apply as well. New connections from one IP address are limited to 20 a second
+  after a burst of 1,000 (`STRATUM_CONNECTIONS_PER_IP_PER_SECOND`), so a whole farm can reconnect at once after a restart but a
+  client reconnecting in a loop cannot. A rig logging in again within 5 minutes from the same address costs no database write.
 - **Idle connections:** a connection that sends no share for 30 minutes is closed, and one that has never sent a share after 15
   (`STRATUM_IDLE_SECONDS`, 1800 on a public server, off otherwise; 0 turns it off), so logins that only sit there cannot hold the
   places real miners need. On every server, when the per-IP or total limit is reached, the connection quiet the longest that has

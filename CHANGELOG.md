@@ -13,6 +13,10 @@ breaking changes; they are marked **Breaking**.
   longest that has never had a share accepted (and has been quiet for at least 2 minutes) is closed to make room, rather than the
   new miner being refused. On a public server, a connection with no share for 30 minutes (15 if it never sent one) is closed
   (`STRATUM_IDLE_SECONDS`; off elsewhere unless set). Stratum connections use TCP keepalive, so a rig that vanished is noticed.
+- Reconnecting in a loop no longer loads the database. A rig that logs in again within 5 minutes from the same IP address reuses its
+  last login instead of a database write, and many connections of one worker logging in at once share one. On a public server, new
+  connections from one IP address are limited to 20 a second after a burst of 1,000 (`STRATUM_CONNECTIONS_PER_IP_PER_SECOND`), so a
+  farm can still reconnect at once after a restart; the Connection problems card explains the new refusal.
 
 ### Fixed
 
