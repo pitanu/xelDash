@@ -11,9 +11,16 @@ x-logging: &logging
     max-size: ${XELDASH_LOG_MAX_SIZE:-10m}
     max-file: "${XELDASH_LOG_FILES:-5}"
 
+# No program in a container can gain privileges it was not started with (a setuid binary, say). Every container has this.
+x-no-new-privileges: &no-new-privileges
+  - no-new-privileges:true
+
 services:
   daemon:
     logging: *logging
+    security_opt: *no-new-privileges
+    # Root, and the owner of its data volume; no capabilities beyond that.
+    cap_drop: [ALL]
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/daemon:${XELDASH_VERSION:-local}
     build:
       context: docker/daemon
@@ -54,6 +61,11 @@ services:
   # See docs/OPERATIONS.md#daemon-settings and #snapshots.
   node-admin:
     logging: *logging
+    security_opt: *no-new-privileges
+    # Root, as the files on the nodes' volumes are root's; owning them is all it needs. Nothing written outside its volumes.
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/node-admin:${XELDASH_VERSION:-local}
     build:
       context: .
@@ -115,6 +127,9 @@ services:
   # nodes can be upgraded one at a time while mining continues on the other.
   daemon2:
     logging: *logging
+    security_opt: *no-new-privileges
+    # Root, and the owner of its data volume; no capabilities beyond that.
+    cap_drop: [ALL]
     profiles: ["redundant"]
     # Built here, never pulled: it can run another upstream XELIS image than daemon (XELIS_DAEMON2_IMAGE), so it has no published
     # image, and a pullable name could be anyone's. Named by version and always built, so a release's changes to the node container
@@ -149,6 +164,7 @@ services:
 
   postgres:
     logging: *logging
+    security_opt: *no-new-privileges
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
@@ -170,6 +186,11 @@ services:
   # neither service's startup depends on the other's health.
   migrate:
     logging: *logging
+    security_opt: *no-new-privileges
+    # A normal user: no capabilities, and nothing written outside its volumes.
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
     # The API's image, built (or pulled) by the api service. Building it here as well would give the same tag two different images
     # (each build is labelled with its service), so every update would recreate the API, and everything after it, for nothing.
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/api:${XELDASH_VERSION:-local}
@@ -190,6 +211,11 @@ services:
 
   api:
     logging: *logging
+    security_opt: *no-new-privileges
+    # A normal user: no capabilities, and nothing written outside its volumes.
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/api:${XELDASH_VERSION:-local}
     build:
       context: .
@@ -273,6 +299,11 @@ services:
 
   stratum:
     logging: *logging
+    security_opt: *no-new-privileges
+    # A normal user: no capabilities, and nothing written outside its volumes.
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/stratum:${XELDASH_VERSION:-local}
     build:
       context: .
@@ -389,6 +420,10 @@ services:
 
   web:
     logging: *logging
+    security_opt: *no-new-privileges
+    # nginx starts as root, hands its workers to the nginx user and gives it its cache folders.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETGID, SETUID]
     environment:
       XELDASH_ALLOWED_NETWORKS: ${XELDASH_ALLOWED_NETWORKS:-private}
       # Host names the dashboard answers to besides addresses and local names (DNS rebinding; docker/web/42-allowed-hosts.sh).
@@ -425,6 +460,10 @@ services:
   # through an SSH tunnel. See docs/OPERATIONS.md#public-mode.
   admin-web:
     logging: *logging
+    security_opt: *no-new-privileges
+    # nginx starts as root, hands its workers to the nginx user and gives it its cache folders.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETGID, SETUID]
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/web:${XELDASH_VERSION:-local}
     profiles: ["public"]
     environment:
@@ -459,6 +498,7 @@ services:
   # See docs/OPERATIONS.md#https-and-a-login.
   proxy:
     logging: *logging
+    security_opt: *no-new-privileges
     image: caddy:2.11-alpine
     profiles: ["proxy"]
     restart: unless-stopped
@@ -491,6 +531,7 @@ services:
   # Not the "proxy" profile: that one asks for a login and uses a local certificate, for a private dashboard.
   public-https:
     logging: *logging
+    security_opt: *no-new-privileges
     image: caddy:2.11-alpine
     profiles: ["public-https"]
     restart: unless-stopped
@@ -536,6 +577,7 @@ services:
   # BACKUP_INTERVAL_HOURS and keeps the newest BACKUP_KEEP. See docs/OPERATIONS.md.
   backup:
     logging: *logging
+    security_opt: *no-new-privileges
     image: postgres:17-alpine
     profiles: ["backup"]
     restart: unless-stopped
@@ -561,6 +603,10 @@ services:
   # that. A forwarder, so Stratum publishes nothing and a server without the profile has no port open for it.
   metrics:
     logging: *logging
+    security_opt: *no-new-privileges
+    # nginx starts as root, hands its workers to the nginx user and gives it its cache folders.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETGID, SETUID]
     image: nginx:1.31-alpine
     profiles: ["metrics"]
     restart: unless-stopped
