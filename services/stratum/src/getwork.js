@@ -3,6 +3,7 @@ import { createServer as createNetServer } from "node:net";
 import { acceptWithProxyHeader } from "./proxy-protocol.js";
 import { WebSocketServer } from "ws";
 import { MessageRateLimiter, guardRawConnections, normalizeIp } from "./ip-guard.js";
+import { RefusalLog } from "./refusal-log.js";
 import { ADDRESS_SHAPE } from "./session.js";
 
 // The daemon's getwork server limits worker names to 32 characters; so do we.
@@ -112,13 +113,15 @@ class GetworkSocket {
  *   sessions: Map<any, StratumSession>,
  *   createSession: (socket: GetworkSocket, ip: string) => StratumSession,
  *   admit?: (ip: string) => string | null, release?: (socket: GetworkSocket, ip: string) => void,
- *   onRefused?: (ip: string, reason: string) => void,
+ *   onRefused?: (ip: string, reason: string) => void, refusals?: RefusalLog,
  *   proxyTrust?: { trusts: (ip: string) => boolean } | null,
  *   logger?: Pick<Console, "info" | "warn"> }} options
  */
 export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, createSession, onRefused = () => {}, proxyTrust = null, logger = console,
   // Counting a connection and giving its place back; the server's own make room for new miners when a limit is reached.
-  admit = (ip) => ipGuard.connect(ip), release = (_socket, ip) => ipGuard.disconnect(ip) }) {
+  admit = (ip) => ipGuard.connect(ip), release = (_socket, ip) => ipGuard.disconnect(ip),
+  // Refusals logged at most once a minute per address and reason (refusal-log.js); the server shares its own.
+  refusals = new RefusalLog({ warn: (m) => logger.warn?.(m) }) }) {
   // A miner sends its upgrade request at once: connections that have not within 10 s are closed (checked every 2 s).
   const server = createServer({ headersTimeout: 10_000, requestTimeout: 10_000, connectionsCheckingInterval: 2_000 }, (_, response) => {
     response.writeHead(426, { "content-type": "text/plain" }).end("Connect with a getwork WebSocket client");
@@ -128,7 +131,7 @@ export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, c
   const raw = guardRawConnections(server, ipGuard, {
     deadlineMs: 10_000,
     onRefused: (ip, reason) => {
-      logger.warn?.(`Refusing getwork connection from ${ip}: ${reason}`);
+      refusals.refused("getwork", ip, reason);
       onRefused(ip, reason);
     },
   });
@@ -155,7 +158,7 @@ export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, c
     const { address, worker } = target;
     const refused = admit(ip);
     if (refused) {
-      logger.warn?.(`Refusing getwork connection from ${ip}: ${refused}`);
+      refusals.refused("getwork", ip, refused);
       onRefused(ip, refused);
       socket.end(`HTTP/1.1 ${refused === "too many connections" ? "429 Too Many Requests" : "403 Forbidden"}\r\n\r\n`);
       return;

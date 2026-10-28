@@ -38,6 +38,9 @@ breaking changes; they are marked **Breaking**.
   connections (`STRATUM_UNPROVEN_CHECKS_PER_MINUTE`). Each check is a hash, so a flood of made-up shares from fresh addresses can no
   longer keep the hash threads busy, and found blocks wait less. A real rig's first share is normally accepted, which lifts it.
 
+- Refused connections are logged at most once a minute per address and reason, with how many more there were: a client reconnecting
+  in a loop no longer costs Stratum a log line for each of thousands of refusals a second.
+
 ### Fixed
 
 - Chart axes no longer show float noise in tick labels on Node 22 (`10 ** -5` is not exact there). CI now also runs on Node
