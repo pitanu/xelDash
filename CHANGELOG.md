@@ -7,6 +7,13 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Dashboard
+
+- On-time, on each miner and worker page: how long the address or rig mined over 24 hours, 7, 30 or 90 days and its share of that
+  time, its hashrate while on, blocks its work was expected to find against blocks found, and an estimate for running around the
+  clock. A strip shows each day's hours in your own time zone, with a table view. A minute counts as on when a share came in, and
+  gaps of up to 3 minutes count too. From the minute stats already kept (90 days by default): no database change.
+
 ### Security
 
 - Idle connections can no longer fill a server. When the per-IP or total connection limit is reached, the connection quiet the
@@ -30,6 +37,9 @@ breaking changes; they are marked **Breaking**.
 - On a public server, an IP address whose shares have not yet had one accepted gets at most 30 shares checked a minute, across all its
   connections (`STRATUM_UNPROVEN_CHECKS_PER_MINUTE`). Each check is a hash, so a flood of made-up shares from fresh addresses can no
   longer keep the hash threads busy, and found blocks wait less. A real rig's first share is normally accepted, which lifts it.
+
+- Refused connections are logged at most once a minute per address and reason, with how many more there were: a client reconnecting
+  in a loop no longer costs Stratum a log line for each of thousands of refusals a second.
 
 ### Fixed
 

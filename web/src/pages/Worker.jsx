@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { usePolled } from "../api.js";
 import HashrateChart from "../components/HashrateChart.jsx";
+import ActivityCard from "../components/ActivityCard.jsx";
 import { BestShareCard } from "../components/BestShareChart.jsx";
 import SharesChart from "../components/SharesChart.jsx";
 import RewardsSummary from "../components/RewardsSummary.jsx";
@@ -66,6 +67,8 @@ export default function Worker({ address, name }) {
       <Card title="Shares" subtitle="Accepted, stale and invalid shares per bucket, for the range chosen above">
         <SharesChart points={history.data?.points ?? null} dimmed={history.loading} />
       </Card>
+
+      <ActivityCard address={address} worker={name} />
 
       <BestShareCard best={w?.bestShare} points={history.data?.points ?? null} dimmed={history.loading} />
 

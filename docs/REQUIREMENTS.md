@@ -249,6 +249,34 @@ difficulty 1 sending a share a second. Per share, on that processor:
 - **Best share** (docs/OPERATIONS.md#best-share) costs nothing measurable either: at 2,000 shares a second, 1.6 / 2.3 ms with it on
   against 1.6 / 2.2 ms off, Stratum 3.12 cores against 3.14, and the database the same 0.05 core. So it is on by default.
 
+### Under attack
+
+`npm run load` with `LOAD_ATTACK` (test/load/attack.js) runs an attack beside 100 honest rigs, from attacker containers that each
+have their own IP address, so the per-address limits apply as to a real attacker with several addresses. Each was run on 0.7.0 and
+on the version after it (idle connections, login reuse, the connection rate and probation), on the desktop above (Ryzen 9 7900X,
+24 threads, Windows, Docker Desktop), 60 s of honest rigs each:
+
+| Attack | 0.7.0 | After |
+|---|---|---|
+| **Idle fill:** 5 addresses hold 500 logged-in connections that never send a share (total limit 500), then 100 rigs connect | **no rig could connect** ("server full") | all 100 connect; answers 1.6 / 2.3 ms (typical / slowest 1%); the attackers' reconnects were refused 3,919 times |
+| **Invalid shares:** 10 addresses × 200 connections, all logged in first, then all send shares that are never good enough (public mode) | about 250 shares hashed per address before its ban (200 were in flight at once) | 30 hashed per address (probation), the other 7,500 to 8,900 answered without a hash; rigs 1.7 / 2.4 ms both times |
+| **Login churn:** 1 address, 20 loops of connect, log in, disconnect (public mode, 1,000 connections per address) | 70,758 logins; **the database at 90% of a core** | 2,999 logins and 298,955 refused ("connecting too often"); the database at 1%; rigs 2.5 / 3.0 ms |
+
+What the numbers say:
+
+- Idle logins filled 0.7.0 at no cost to the attacker; now a connection that has never mined is closed to make room once it has been
+  quiet for 2 minutes, and never one that mines.
+- A flood of bad shares costs the server 30 hashes per fresh address. Every address is banned after one burst, so to keep 8 hash
+  threads busy (about 5,800 shares a second) an attacker needs about 200 new addresses a second; the honest rigs' answers did not
+  change in either version. An address that first sends one real share (about a second of one processor core at the minimum
+  difficulty) is not on probation and can get the usual few hundred checked before its ban, which still costs it more than it
+  costs the server.
+- A client reconnecting in a loop no longer loads the database (the last login is reused). Refusing its connections still costs
+  Stratum a little: about 0.4 of a core while refusing some 450,000 in the run. Refusals are logged at most once a minute per
+  address and reason (with how many more there were); a line for each one had cost about twice as much per refusal.
+- A gate on how many hashes run at once (fair between addresses, with a longest wait) is not needed for these attacks: no flood
+  measured here changed the honest rigs' answers. It stays a possible addition for a server facing far more addresses.
+
 ## Two servers (redundancy)
 
 Both servers are **Linux with Docker Engine** (Docker Desktop cannot be part of a cluster), on the same home network, each

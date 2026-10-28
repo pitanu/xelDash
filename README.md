@@ -109,6 +109,9 @@ holds no funds, ever.
   in your browser only; off in Settings, or when your system asks for less motion.
 - **Miners and workers** with per-rig hashrate, the hashrate each miner reports about
   itself, rejected shares by reason, and a clean list that hides rigs that went away.
+- **On-time** for each rig and address: how long it mined over a day, a week, 30 or 90 days, its hashrate while on (a
+  workstation mining a few hours a day runs at full speed then), the blocks its work was expected to find against those it found,
+  and a strip of its days and hours in your own time zone.
 - **A notice, and an optional sound,** when one of your miners finds a block: the built-in chime or your own audio file, kept
   in your browser. The notice stays until you close it, and on another tab the page title says "Block found".
 - **Blocks** with their final status, reward and the effort of the round that found them, a link

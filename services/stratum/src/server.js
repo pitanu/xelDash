@@ -21,6 +21,7 @@ import { NodeBudget, burstFor } from "./node-budget.js";
 import { NodePool, rpcUrlsFromEnv } from "./node-pool.js";
 import { LineFramer } from "./line-framer.js";
 import { ConnectionPlaces, idleConnections } from "./idle-connections.js";
+import { RefusalLog } from "./refusal-log.js";
 import { StratumSession } from "./session.js";
 import { tlsConfigFromEnv, watchTlsCertificate } from "./tls-config.js";
 import { createShareSubmitter } from "./share-submitter.js";
@@ -290,6 +291,10 @@ const ipGuard = new IpGuard(ipGuardConfig, {
   .catch((error) => console.warn("Failed to load bans:", error instanceof Error ? error.message : String(error)));
 setInterval(() => ipGuard.prune(), 60_000).unref();
 
+// Refused connections, logged at most once a minute per address and reason (a client reconnecting in a loop is refused thousands
+// of times a second).
+const refusals = new RefusalLog();
+
 // Places for connections: idle logins make way for real miners when a limit is reached (idle-connections.js).
 const places = new ConnectionPlaces(ipGuard, sessions, {
   onEvict: (evicted, forIp, reason) => console.warn(`Closing a connection from ${evicted} that has not mined, to make room for one from ${forIp} (${reason})`),
@@ -432,7 +437,7 @@ function handleConnection(socket) {
   const ip = normalizeIp(socket.remoteAddress);
   const refused = places.admit(ip);
   if (refused) {
-    console.warn(`Refusing Stratum connection from ${ip}: ${refused}`);
+    refusals.refused("Stratum", ip, refused);
     reportProblem("connection_refused", { ip, reason: refused });
     socket.destroy();
     return;
@@ -618,7 +623,7 @@ if (!Number.isSafeInteger(getworkPort) || getworkPort < 1 || getworkPort > 65535
 }
 const getwork = getworkEnabled
   ? startGetworkServer({ host, port: getworkPort, ipGuard, rateLimit: ipGuardConfig, sessions, createSession: newSession,
-    admit: (ip) => places.admit(ip), release: (socket, ip) => places.release(socket, ip),
+    admit: (ip) => places.admit(ip), release: (socket, ip) => places.release(socket, ip), refusals,
     onRefused: (ip, reason) => reportProblem("connection_refused", { ip, reason }), proxyTrust })
   : null;
 
