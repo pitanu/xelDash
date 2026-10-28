@@ -13,6 +13,8 @@ breaking changes; they are marked **Breaking**.
   time, its hashrate while on, blocks its work was expected to find against blocks found, and an estimate for running around the
   clock. A strip shows each day's hours in your own time zone, with a table view. A minute counts as on when a share came in, and
   gaps of up to 3 minutes count too. From the minute stats already kept (90 days by default): no database change.
+- Each address on the Miners page says how much of the last day it was on, and a worker's 24-hour hashrate is labelled as the
+  average over the whole day it is (the On-time card has the hashrate while on).
 
 ### Security
 

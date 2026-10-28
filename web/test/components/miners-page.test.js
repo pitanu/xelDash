@@ -23,6 +23,9 @@ fakeApi({
   [`/api/v1/miners/${encodeURIComponent(B)}`]: miner(B, "rig-b"),
   [`/api/v1/rewards?range=30d&address=${encodeURIComponent(A)}`]: { range: "30d", points: [{ day: now, blocks: 2, reward: "150000000", expectedBlocks: 1 }] },
   [`/api/v1/rewards?range=30d&address=${encodeURIComponent(B)}`]: { range: "30d", points: [] },
+  // A on a quarter of the last day; B never on.
+  [`/api/v1/activity?address=${encodeURIComponent(A)}&range=24h`]: { range: "24h", periodMinutes: 1440, onMinutes: 360, dutyCycle: 0.25, stretches: [] },
+  [`/api/v1/activity?address=${encodeURIComponent(B)}&range=24h`]: { range: "24h", periodMinutes: 1440, onMinutes: 0, dutyCycle: 0, stretches: [] },
 });
 
 test("a few addresses: totals in tiles, and a card per address with its hashrate, blocks, 30-day earnings and workers", async () => {
@@ -35,6 +38,8 @@ test("a few addresses: totals in tiles, and a card per address with its hashrate
   assert.match(text, /rig-a/);
   assert.match(text, /rig-b/);
   assert.match(text, /Earned · 30 d1(\.|,)5 XEL/, "A earned 1.5 XEL");
+  assert.match(text, /On · 24 h25%/, "A mined a quarter of the last day");
+  assert.match(text, /On · 24 h0[.,]0%/, "B not at all");
   assert.equal(view.container.querySelectorAll(`a[href="#/miner/${encodeURIComponent(A)}"]`).length, 1, "the address links to its page");
 });
 

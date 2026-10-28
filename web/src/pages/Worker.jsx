@@ -49,7 +49,7 @@ export default function Worker({ address, name }) {
       <div className="tiles">
         <div className="col-span-2">
           <StatTile hero icon="hashrate" label="Hashrate, last hour" value={formatHashrate(w?.hashrate["1h"])}
-            detail={w ? `Last 5 min: ${formatHashrate(w.hashrate["5m"])} · 24 h: ${formatHashrate(w.hashrate["24h"])}`
+            detail={w ? `Last 5 min: ${formatHashrate(w.hashrate["5m"])} · 24 h average: ${formatHashrate(w.hashrate["24h"])}`
               + (w.reportedHashrate !== null ? ` · miner reports ${formatHashrate(w.reportedHashrate)}` : "") : undefined} />
         </div>
         <StatTile icon="shares" label="Accepted shares, 24 h" value={formatInteger(w?.shares.accepted24h)}

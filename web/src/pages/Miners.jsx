@@ -3,7 +3,7 @@ import { usePolled } from "../api.js";
 import { useCoin } from "../coin.js";
 import { Card, MinersTable, StatTile } from "../components/ui.jsx";
 import WorkersCard from "../components/WorkersCard.jsx";
-import { XEL_DECIMALS, formatAgo, formatHashrate, formatInteger, shorten } from "../format.js";
+import { XEL_DECIMALS, formatAgo, formatEffort, formatHashrate, formatInteger, shorten } from "../format.js";
 import Miner from "./Miner.jsx";
 
 const ACTIVE_MS = 7 * 86_400_000;
@@ -27,6 +27,8 @@ function MinerCard({ m }) {
   const encoded = encodeURIComponent(m.address);
   const miner = usePolled(`/api/v1/miners/${encoded}`);
   const rewards = usePolled(`/api/v1/rewards?range=30d&address=${encoded}`);
+  // Time on in the last day, so a rig that mines a few hours a day is not read as a slow one (see ActivityCard).
+  const activity = usePolled(`/api/v1/activity?address=${encoded}&range=24h`, { intervalMs: 60_000 });
   const earned = (rewards.data?.points ?? []).reduce((/** @type {bigint} */ sum, /** @type {any} */ d) => sum + BigInt(d.reward ?? 0), 0n);
   const workers = Number(m.workers ?? 0);
   return (
@@ -41,6 +43,10 @@ function MinerCard({ m }) {
       summary={
         <dl className="m-0 mb-4 flex flex-wrap gap-x-10 gap-y-3">
           <div><dt className="label">Hashrate · 1 h</dt><dd className="mono m-0 text-lg font-medium text-ink">{formatHashrate(m.hashrate1h)}</dd></div>
+          <div>
+            <dt className="label">On · 24 h</dt>
+            <dd className="mono m-0 text-lg font-medium text-ink">{activity.data?.dutyCycle != null ? formatEffort(activity.data.dutyCycle) : "—"}</dd>
+          </div>
           <div><dt className="label">Blocks</dt><dd className="mono m-0 text-lg font-medium text-ink">{formatInteger(m.blocks)}</dd></div>
           <div>
             <dt className="label">Earned · 30 d</dt>
