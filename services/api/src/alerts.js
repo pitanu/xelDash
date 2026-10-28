@@ -5,7 +5,13 @@ const SEND_INTERVAL_MS = 1_000;
 const MAX_QUEUE = 20;
 const FINAL_BATCH_MS = 5_000;
 const XEL_DECIMALS = 8;
-const EVENT_TYPES = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "node_update", "node_peers", "disk_low", "cluster"];
+const EVENT_TYPES = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "worker_unusual", "node_update", "node_peers", "disk_low", "cluster"];
+// Kinds sent only when selected: an unset ALERT_EVENTS (every kind) leaves them out.
+const OPT_IN_EVENTS = new Set(["worker_unusual"]);
+const DEFAULT_EVENTS = EVENT_TYPES.filter((e) => !OPT_IN_EVENTS.has(e));
+// worker_unusual: a rig counts as usually on at a time of day when it mined through the same stretch on this many of the last 7 days.
+const USUAL_DAYS = 7;
+const USUAL_MIN_DAYS = 5;
 const EXPLORERS = /** @type {Record<string, string>} */ ({
   mainnet: "https://explorer.xelis.io",
   testnet: "https://testnet-explorer.xelis.io",
@@ -39,7 +45,7 @@ function shortAddress(address) {
 /** @param {Partial<Record<string, string | undefined>>} env @returns {AlertConfig} */
 export function alertConfigFromEnv(env) {
   const value = (/** @type {string} */ name) => (env[name] ?? "").trim() || null;
-  const events = new Set((value("ALERT_EVENTS") ?? EVENT_TYPES.join(",")).split(",").map((e) => e.trim()).filter(Boolean));
+  const events = new Set((value("ALERT_EVENTS") ?? DEFAULT_EVENTS.join(",")).split(",").map((e) => e.trim()).filter(Boolean));
   for (const event of events) {
     if (!EVENT_TYPES.includes(event)) throw new Error(`ALERT_EVENTS: unknown event "${event}"; use ${EVENT_TYPES.join(", ")}`);
   }
@@ -92,6 +98,25 @@ export async function loadAlertConfig(env, file) {
   // An empty list means "nothing" here, not "everything" as it does in .env.
   if (Array.isArray(saved.events)) config.events = new Set(saved.events.filter((/** @type {string} */ e) => EVENT_TYPES.includes(e)));
   return config;
+}
+
+/**
+ * On how many of the last 7 days a worker was mining through the stretch it has now been silent for (from its last share until
+ * now, the same clock time each day). A day counts when at least half of that stretch's minutes had an accepted share.
+ * @param {Pick<import("pg").Pool, "query">} pool @param {string | number} workerId @param {Date} lastShare @param {number} minutes
+ */
+export async function usualDaysOn(pool, workerId, lastShare, minutes) {
+  const result = await pool.query(
+    `SELECT count(*) FILTER (WHERE x.on_minutes * 2 >= $3)::int AS days_on
+     FROM generate_series(1, $4::int) AS d
+     CROSS JOIN LATERAL (
+       SELECT count(*) AS on_minutes FROM worker_stats_1m s
+       WHERE s.worker_id = $1 AND s.accepted > 0
+         AND s.bucket > $2::timestamptz - make_interval(days => d) AND s.bucket <= now() - make_interval(days => d)
+     ) x`,
+    [workerId, lastShare, minutes, USUAL_DAYS],
+  );
+  return Number(result.rows[0]?.days_on ?? 0);
 }
 
 /**
@@ -199,9 +224,9 @@ async function postJson(url, body) {
  * Block, mining-state and worker-offline alerts to Discord, Telegram and/or a JSON webhook.
  * Block and state alerts follow service_events via the live channel; worker offline is a
  * once-a-minute check of per-minute stats. Returns null when no channel is configured.
- * @param {{ pool: import("pg").Pool, config: AlertConfig, logger?: Pick<Console, "info" | "warn"> }} options
+ * @param {{ pool: import("pg").Pool, config: AlertConfig, logger?: Pick<Console, "info" | "warn">, workerCheckMs?: number }} options
  */
-export function startAlerts({ pool, config, logger = console }) {
+export function startAlerts({ pool, config, logger = console, workerCheckMs = 60_000 }) {
   /** @type {ChannelQueue[]} */
   const channels = [];
   if (config.discordWebhookUrl) {
@@ -348,23 +373,27 @@ export function startAlerts({ pool, config, logger = console }) {
 
   // Workers with an accepted share in the last day are tracked. A worker is offline after
   // ALERT_WORKER_OFFLINE_MINUTES without one. The first pass only records state, so a restart
-  // does not re-announce workers that were already offline.
+  // does not re-announce workers that were already offline. worker_unusual says so only when the
+  // rig usually mines at this time of day (usualDaysOn), so a rig that runs on a schedule stays quiet.
   /** @type {Map<string, boolean>} */
   const online = new Map();
+  /** Workers announced by worker_unusual, so their return is announced too. @type {Set<string>} */
+  const unusualSent = new Set();
   let firstPass = true;
   async function checkWorkers() {
     // On a public server the workers are other people's rigs: no alerts about them, whatever is selected.
-    if (config.publicMode || !config.events.has("worker_offline")) return;
+    if (config.publicMode || !(config.events.has("worker_offline") || config.events.has("worker_unusual"))) return;
     const result = await pool.query(
-      `SELECT m.address, w.name, max(s.bucket) AS last_share
+      `SELECT m.address, w.id, w.name, max(s.bucket) AS last_share
        FROM worker_stats_1m s
        JOIN workers w ON w.id = s.worker_id
        JOIN miners m ON m.id = w.miner_id
        WHERE s.accepted > 0 AND s.bucket >= now() - interval '24 hours'
-       GROUP BY m.address, w.name`,
+       GROUP BY m.address, w.id, w.name`,
     );
     // A share lands in its minute's bucket, so allow one extra minute before calling it silent.
     const cutoff = Date.now() - (config.workerOfflineMinutes + 1) * 60_000;
+    const silentFor = `${config.workerOfflineMinutes} minute${config.workerOfflineMinutes === 1 ? "" : "s"}`;
     for (const row of result.rows) {
       const key = `${row.address}/${row.name}`;
       const isOnline = row.last_share.getTime() >= cutoff;
@@ -372,17 +401,32 @@ export function startAlerts({ pool, config, logger = console }) {
       online.set(key, isOnline);
       if (firstPass || was === undefined || was === isOnline) continue;
       const path = `/miner/${row.address}/worker/${encodeURIComponent(row.name)}`;
-      send(isOnline
-        ? { event: "worker_online", data: { address: row.address, worker: row.name },
-          text: `Worker ${row.name} (${shortAddress(row.address)}) is sending shares again.${link(path)}` }
-        : { event: "worker_offline", data: { address: row.address, worker: row.name, lastShare: row.last_share.toISOString() },
-          text: `Worker ${row.name} (${shortAddress(row.address)}) has sent no accepted shares for ${config.workerOfflineMinutes} minute${config.workerOfflineMinutes === 1 ? "" : "s"}.${link(path)}` });
+      const data = { address: row.address, worker: row.name };
+      if (isOnline) {
+        const announced = unusualSent.delete(key);
+        if (config.events.has("worker_offline") || announced) {
+          send({ event: "worker_online", data, text: `Worker ${row.name} (${shortAddress(row.address)}) is sending shares again.${link(path)}` });
+        }
+        continue;
+      }
+      if (config.events.has("worker_offline")) {
+        send({ event: "worker_offline", data: { ...data, lastShare: row.last_share.toISOString() },
+          text: `Worker ${row.name} (${shortAddress(row.address)}) has sent no accepted shares for ${silentFor}.${link(path)}` });
+      }
+      if (config.events.has("worker_unusual")) {
+        const daysOn = await usualDaysOn(pool, row.id, row.last_share, config.workerOfflineMinutes);
+        if (daysOn >= USUAL_MIN_DAYS) {
+          unusualSent.add(key);
+          send({ event: "worker_unusual", data: { ...data, lastShare: row.last_share.toISOString(), daysOn, days: USUAL_DAYS },
+            text: `Worker ${row.name} (${shortAddress(row.address)}) has sent no accepted shares for ${silentFor}, at a time it was mining on ${daysOn} of the last ${USUAL_DAYS} days.${link(path)}` });
+        }
+      }
     }
     firstPass = false;
   }
   const workerTimer = setInterval(() => {
     checkWorkers().catch((error) => logger.warn?.(`Worker offline check failed: ${message(error)}`));
-  }, 60_000);
+  }, workerCheckMs);
   workerTimer.unref();
   void checkWorkers().catch((error) => logger.warn?.(`Worker offline check failed: ${message(error)}`));
 

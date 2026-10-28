@@ -9,6 +9,7 @@ const EVENT_LABELS = /** @type {Record<string, string>} */ ({
   block_final: "A block becomes final (paid or orphaned)",
   mining_paused: "Mining pauses or moves to another node",
   worker_offline: "A worker stops sending shares",
+  worker_unusual: "A worker stops at a time of day it usually mines (quiet for rigs on a schedule)",
   node_update: "A node is updated",
   node_peers: "A node loses its connection to other nodes (mainnet, testnet)",
   disk_low: "The disk is running low on space",

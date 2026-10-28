@@ -90,6 +90,60 @@ test("each alert's webhook body has its event, a text, its documented fields and
   assert.equal(hook.received.find((b) => b.event === "block_found").address, ADDRESS);
 });
 
+/**
+ * A worker that is mining at the first check, silent at the second and back from the third, and the days it usually mines then.
+ * @param {number} daysOn
+ */
+function workerPool(daysOn) {
+  let checks = 0;
+  const pool = {
+    query: async (/** @type {string} */ sql) => {
+      if (/generate_series/.test(sql)) return { rows: [{ days_on: daysOn }] };
+      if (/FROM worker_stats_1m/.test(sql)) {
+        checks++;
+        const lastShare = new Date(checks === 2 ? Date.now() - 60 * 60_000 : Date.now());
+        return { rows: [{ address: ADDRESS, id: 7, name: "rig1", last_share: lastShare }] };
+      }
+      return { rows: [] };
+    },
+  };
+  return /** @type {import("pg").Pool} */ (/** @type {unknown} */ (pool));
+}
+
+test("a worker's alerts: offline, off at a time it usually mines, and back", async () => {
+  const hook = await webhook();
+  const alerts = startAlerts({ pool: workerPool(6), config: alertConfigFromEnv({ ALERT_WEBHOOK_URL: hook.url, ALERT_EVENTS: "worker_offline,worker_unusual" }),
+    logger: quiet, workerCheckMs: 50 });
+  await until(() => hook.received.length >= 3, 8_000);
+  alerts?.stop();
+  hook.close();
+  assert.deepEqual(hook.received.map((b) => b.event), ["worker_offline", "worker_unusual", "worker_online"]);
+  assert.deepEqual(fields(hook.received[0]), ["address", "lastShare", "worker"]);
+  assert.deepEqual(fields(hook.received[1]), ["address", "days", "daysOn", "lastShare", "worker"]);
+  assert.deepEqual(fields(hook.received[2]), ["address", "worker"]);
+  assert.equal(hook.received[1].daysOn, 6);
+  assert.equal(hook.received[1].days, 7);
+  assert.match(hook.received[1].text, /rig1 .* at a time it was mining on 6 of the last 7 days/);
+});
+
+test("worker_unusual alone: quiet for a rig that is often off at this time, and its return is said only after an alert", async () => {
+  for (const [daysOn, expected] of /** @type {[number, string[]][]} */ ([[4, []], [5, ["worker_unusual", "worker_online"]]])) {
+    const hook = await webhook();
+    const alerts = startAlerts({ pool: workerPool(daysOn), config: alertConfigFromEnv({ ALERT_WEBHOOK_URL: hook.url, ALERT_EVENTS: "worker_unusual" }),
+      logger: quiet, workerCheckMs: 50 });
+    await until(() => hook.received.length >= expected.length && expected.length > 0, expected.length ? 8_000 : 1_500);
+    alerts?.stop();
+    hook.close();
+    assert.deepEqual(hook.received.map((b) => b.event), expected, `mining on ${daysOn} of 7 days`);
+  }
+});
+
+test("worker_unusual is sent only when chosen: not part of the default of every kind", () => {
+  assert.equal(alertConfigFromEnv({}).events.has("worker_unusual"), false);
+  assert.equal(alertConfigFromEnv({}).events.has("worker_offline"), true);
+  assert.equal(alertConfigFromEnv({ ALERT_EVENTS: "worker_unusual" }).events.has("worker_unusual"), true);
+});
+
 test("a block that becomes final has its fields; several at once come as one alert with a list of them", async () => {
   const hook = await webhook();
   const final = (/** @type {number} */ height, /** @type {string} */ status) => ({ hash: HASH, height, topoheight: height + 3, status, reward: "146000000" });

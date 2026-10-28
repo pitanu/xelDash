@@ -5,7 +5,9 @@ import { join } from "node:path";
 // reads it. ALERT_* in .env only supply the starting values. The webhook addresses and the
 // Telegram token are secrets: the dashboard is only ever shown that they are set, and the end of them.
 
-const EVENTS = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "node_update", "node_peers", "disk_low", "cluster"];
+const EVENTS = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "worker_unusual", "node_update", "node_peers", "disk_low", "cluster"];
+// Sent only when selected, so they are not part of the default (every other kind).
+const OPT_IN_EVENTS = new Set(["worker_unusual"]);
 const TELEGRAM_TOKEN = /^\d{5,15}:[A-Za-z0-9_-]{20,60}$/;
 const TELEGRAM_CHAT = /^(-?\d{1,20}|@[A-Za-z][A-Za-z0-9_]{3,31})$/;
 
@@ -67,7 +69,7 @@ export class AlertSettings {
       telegramBotToken: value("ALERT_TELEGRAM_BOT_TOKEN"),
       telegramChatId: value("ALERT_TELEGRAM_CHAT_ID"),
       webhookUrl: value("ALERT_WEBHOOK_URL"),
-      events: listed.length > 0 ? listed : EVENTS,
+      events: listed.length > 0 ? listed : EVENTS.filter((e) => !OPT_IN_EVENTS.has(e)),
       workerOfflineMinutes: Number(value("ALERT_WORKER_OFFLINE_MINUTES") ?? "10") || 10,
       dashboardUrl: value("ALERT_DASHBOARD_URL"),
     };

@@ -16,6 +16,12 @@ breaking changes; they are marked **Breaking**.
 - Each address on the Miners page says how much of the last day it was on, and a worker's 24-hour hashrate is labelled as the
   average over the whole day it is (the On-time card has the hashrate while on).
 
+### Alerts
+
+- A new alert, off unless you choose it (`worker_unusual`, or "A worker stops at a time of day it usually mines" in Settings): a
+  worker that stops sending shares at a time it was mining on at least 5 of the last 7 days. A rig on a schedule, such as at night
+  only, no longer alerts every time it stops on time. Webhooks get `daysOn` and `days` with it (docs/OPERATIONS.md).
+
 ### Security
 
 - Release images are signed: each carries a build attestation (GitHub artifact attestations, through Sigstore), BuildKit's provenance
