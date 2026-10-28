@@ -24,6 +24,9 @@ breaking changes; they are marked **Breaking**.
   `.env` keep working. **Breaking** if you open the dashboard under a domain of your own (not through the `proxy` profile): add
   it to the new `XELDASH_ALLOWED_HOSTS` (`any` turns the check off).
 
+- A public server warns at start when the dashboard's own port is published past the HTTPS proxy (`XELDASH_WEB_BIND_IP` not
+  127.0.0.1), as it already did for the API's port: visitors could skip HTTPS there, and on some setups dodge the per-visitor limits.
+
 ### Fixed
 
 - Chart axes no longer show float noise in tick labels on Node 22 (`10 ** -5` is not exact there). CI now also runs on Node

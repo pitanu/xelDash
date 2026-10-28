@@ -349,7 +349,8 @@ per-address connection limits and bans cannot work there (see [SECURITY.md](SECU
    XELDASH_STRATUM_BIND_IP=0.0.0.0
    ```
 
-   Leave `XELDASH_WEB_BIND_IP` and `XELDASH_API_BIND_IP` at `127.0.0.1`: visitors come in through HTTPS only.
+   Leave `XELDASH_WEB_BIND_IP` and `XELDASH_API_BIND_IP` at `127.0.0.1`: visitors come in through HTTPS only. The API warns at
+   start when either is published wider.
 3. `docker compose up -d`, then open `https://solo.example.org`.
 4. Open to the internet only ports 80 and 443 (HTTPS), 3333 (Stratum), 8090 (getwork) and, if you set up Stratum TLS, 3334.
 

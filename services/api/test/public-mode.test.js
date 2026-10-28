@@ -50,6 +50,14 @@ test("risky public-mode settings are warned about, and nothing is said when publ
   assert.equal(open.length, 1);
   assert.match(open[0], /XELDASH_API_BIND_IP is 0\.0\.0\.0/);
   assert.deepEqual(publicModeWarnings({ XELDASH_PUBLIC_MODE: "true", XELDASH_ALLOWED_NETWORKS: "any", XELDASH_PUBLIC_DOMAIN: "solo.example.org", API_BIND_IP: "127.0.0.1" }), []);
+  // The dashboard's own port published past the HTTPS proxy.
+  const web = publicModeWarnings({ XELDASH_PUBLIC_MODE: "true", XELDASH_ALLOWED_NETWORKS: "any", XELDASH_PUBLIC_DOMAIN: "solo.example.org", WEB_BIND_IP: "0.0.0.0" });
+  assert.equal(web.length, 1);
+  assert.match(web[0], /XELDASH_WEB_BIND_IP is 0.0.0.0.*past the HTTPS proxy/);
+  for (const bind of ["127.0.0.1", "::1", "localhost", ""]) {
+    assert.deepEqual(publicModeWarnings({ XELDASH_PUBLIC_MODE: "true", XELDASH_ALLOWED_NETWORKS: "any", XELDASH_PUBLIC_DOMAIN: "solo.example.org", WEB_BIND_IP: bind }), [], bind);
+  }
+  assert.deepEqual(publicModeWarnings({ WEB_BIND_IP: "0.0.0.0" }), [], "a normal server may publish its dashboard on the LAN");
 });
 
 test("a public server's visitors are never offered the operator's address", async () => {
