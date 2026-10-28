@@ -35,6 +35,8 @@ breaking changes; they are marked **Breaking**.
 
 - Chart axes no longer show float noise in tick labels on Node 22 (`10 ** -5` is not exact there). CI now also runs on Node
   22.15.0, the oldest version that `engines` allows.
+- A settings request to node-admin over 100 kB is refused as "413 Payload Too Large" as soon as it passes the limit, counted in bytes;
+  before, it was gathered first, counted in characters, and answered with a generic error.
 
 ## [0.7.0] - 2026-10-24
 

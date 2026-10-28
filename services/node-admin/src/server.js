@@ -14,6 +14,7 @@ import { AutoUpdate } from "./autoupdate.js";
 import { ScheduledUpgrade } from "./schedule.js";
 import { RollingUpgrade, nodeView } from "./upgrade.js";
 import { message, tokensMatch } from "./snapshot.js";
+import { BodyTooLarge, readJson } from "./json-body.js";
 
 const port = Number.parseInt(process.env.SNAPSHOT_PORT ?? "8095", 10);
 const network = (process.env.XELIS_NETWORK ?? "devnet").toLowerCase();
@@ -73,21 +74,21 @@ function nodeFrom(params, name = "node") {
   return node && (node === primary || node.present) ? node : null;
 }
 
-/** One heavy disk operation at a time across all nodes (download, upload, unpack or copy). */
 /** Present nodes in update order: every other node first, the usual mining node last. */
 function updateOrder() {
   const present = nodes.filter((n) => n === primary || n.present);
   return [...present.filter((n) => n !== primary), primary];
 }
 
-// Optional (off by default): keep both local nodes on the latest release automatically.
 // A switch at a block height, for network upgrades.
 const scheduled = new ScheduledUpgrade({ configDir, releases, upgrade, order: updateOrder });
+// Optional (off by default): keep both local nodes on the latest release automatically.
 const autoUpdate = new AutoUpdate({
   configDir, releases, upgrade, nodes: () => nodes, order: updateOrder, scheduled: () => scheduled.pending(), env: process.env,
   publicMode: () => envPublicMode || (standbyAlerts?.publicMode ?? false),
 });
 
+/** One heavy disk operation at a time across all nodes (download, upload, unpack or copy). */
 function busyNode() {
   return nodes.find((node) => node.snapshots.busy) ?? null;
 }
@@ -99,20 +100,6 @@ function refuseIfBusy(response) {
   return Boolean(busy);
 }
 let ready = false;
-
-/** Read a small JSON body (settings), refusing anything large. @param {import("node:http").IncomingMessage} request */
-async function readJson(request) {
-  let text = "";
-  for await (const chunk of request) {
-    text += chunk;
-    if (text.length > 100_000) throw new Error("Request body too large");
-  }
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
 
 /** @param {import("node:http").ServerResponse} response @param {number} status @param {unknown} body */
 function send(response, status, body) {
@@ -415,7 +402,7 @@ const server = createServer(async (request, response) => {
     }
     send(response, 404, { error: "not_found" });
   } catch (error) {
-    send(response, 409, { error: message(error) });
+    send(response, error instanceof BodyTooLarge ? 413 : 409, { error: message(error) });
   }
 });
 // Uploads of several gigabytes take a while; do not time the request out.
