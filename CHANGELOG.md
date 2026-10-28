@@ -7,6 +7,13 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Dashboard
+
+- On-time, on each miner and worker page: how long the address or rig mined over 24 hours, 7, 30 or 90 days and its share of that
+  time, its hashrate while on, blocks its work was expected to find against blocks found, and an estimate for running around the
+  clock. A strip shows each day's hours in your own time zone, with a table view. A minute counts as on when a share came in, and
+  gaps of up to 3 minutes count too. From the minute stats already kept (90 days by default): no database change.
+
 ### Security
 
 - Idle connections can no longer fill a server. When the per-IP or total connection limit is reached, the connection quiet the
