@@ -56,10 +56,13 @@ function message(error) {
  * truth. Clients fall back to polling whenever the socket is down.
  * @param {{ server: import("node:http").Server, pool: import("pg").Pool,
  *   onNotification?: (payload: string) => void, logger?: Pick<Console, "info" | "warn">, maxClients?: number,
- *   isPublic?: (request: import("node:http").IncomingMessage) => boolean }} options
+ *   isPublic?: (request: import("node:http").IncomingMessage) => boolean, allowHost?: (request: import("node:http").IncomingMessage) => boolean }} options
  *   isPublic: whether a connection gets the public view (public mode): then only what the public dashboard uses is sent
  */
-export function startLiveUpdates({ server, pool, onNotification = () => {}, logger = console, maxClients = MAX_CLIENTS, isPublic = () => false }) {
+export function startLiveUpdates({ server, pool, onNotification = () => {}, logger = console, maxClients = MAX_CLIENTS, isPublic = () => false,
+  // Whether the request names this server (allowed-hosts.js). The same-origin check alone does not stop DNS rebinding: there the
+  // page's origin and the Host are both the other website's.
+  allowHost = () => true }) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
   /** @type {WeakSet<import("ws").WebSocket>} */
   const alive = new WeakSet();
@@ -74,8 +77,9 @@ export function startLiveUpdates({ server, pool, onNotification = () => {}, logg
     // absorbed here. (Refusals below destroy the socket at once, so this is a safeguard; getwork.js had a real case of it.)
     socket.on("error", () => {});
     const pathname = safePathname(request.url);
-    if (pathname !== PATH || wss.clients.size >= maxClients || !sameOrigin(request)) {
-      const status = pathname !== PATH ? "404 Not Found" : wss.clients.size >= maxClients ? "503 Service Unavailable" : "403 Forbidden";
+    if (pathname !== PATH || !allowHost(request) || wss.clients.size >= maxClients || !sameOrigin(request)) {
+      const status = pathname !== PATH ? "404 Not Found" : !allowHost(request) ? "421 Misdirected Request"
+        : wss.clients.size >= maxClients ? "503 Service Unavailable" : "403 Forbidden";
       socket.write(`HTTP/1.1 ${status}\r\n\r\n`);
       socket.destroy();
       return;

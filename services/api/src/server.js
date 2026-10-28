@@ -17,6 +17,7 @@ import { getStatus } from "./status.js";
 import { updateStatus } from "./update.js";
 import { getUptime } from "./uptime.js";
 import { isPublicView, publicModeFromEnv, publicModeWarnings, scrubIps } from "./public-mode.js";
+import { hostAllowed, hostRulesFromEnv } from "./allowed-hosts.js";
 import { ShortCache, publicCacheKey } from "./public-cache.js";
 
 const port = Number.parseInt(process.env.API_PORT ?? "8081", 10);
@@ -32,6 +33,9 @@ const priceOff = (process.env.XELDASH_PRICE ?? "on").toLowerCase() === "off" ? "
 const pool = createPool();
 // Public mode: no IP addresses in anything a visitor receives (see public-mode.js).
 const publicMode = publicModeFromEnv(process.env);
+// Host names this API answers to (allowed-hosts.js): its port is published on this computer, where a website could reach it by DNS
+// rebinding and read the operator's view.
+const hostRules = hostRulesFromEnv(process.env);
 // Best share (how close an address's shares came to a block), on unless XELDASH_BEST_SHARE=off; then its figures are null.
 const bestShare = bestShareEnabled(process.env);
 const HASHRATE_WINDOWS = Object.freeze([
@@ -193,6 +197,10 @@ function writeJson(response, statusCode, value) {
 }
 
 export const server = createServer(async (request, response) => {
+  if (!hostAllowed(request.headers.host, hostRules)) {
+    writeJson(response, 421, { error: "unknown_host", message: "This dashboard does not answer to that host name; add it to XELDASH_ALLOWED_HOSTS if it is yours." });
+    return;
+  }
   const publicView = isPublicView(publicMode, request);
   // A public visitor's GET: the answer another visitor just got, or the one being worked out right now.
   const key = publicView ? publicCacheKey(request) : null;
@@ -468,7 +476,7 @@ async function start() {
   const alerts = watchAlerts({ pool, env: process.env, file: join(process.env.CONFIG_DIR ?? "/config", "alerts.json") });
   // A public server has many more visitors: 1000 live connections in all (each visitor's own few are limited by the web server).
   const live = startLiveUpdates({ server, pool, onNotification: (payload) => alerts?.handleNotification(payload), maxClients: publicMode ? 1_000 : 100,
-    isPublic: (request) => isPublicView(publicMode, request) });
+    isPublic: (request) => isPublicView(publicMode, request), allowHost: (request) => hostAllowed(request.headers.host, hostRules) });
 
   server.listen(port, host, () => {
     console.info(`xelDash API listening on ${host}:${port}`);

@@ -38,9 +38,16 @@ Leave it unset if you do not need these features.
   connection, and a 15-minute ban after 50 or more invalid submissions or failed logins in 5 minutes, when over half of that
   client's submissions in that time were invalid.
   At most 32 workers per connection; worker names may not contain control characters.
-  Malformed requests are refused without affecting other miners.
+  Malformed requests are refused without affecting other miners. When a connection limit is reached, a connection that has never
+  had a share accepted and has been quiet for 2 minutes makes room for the new one, and on a public server connections with no share
+  for 30 minutes are closed, so idle logins cannot keep miners out.
 - **Browsers cannot reach getwork**, and the live-update WebSocket only accepts the
   dashboard's own origin, so other websites cannot use a visitor's browser against them.
+- **DNS rebinding is refused.** A website that points its own domain at the dashboard's address (your LAN address, or
+  127.0.0.1 on the xelDash computer) to read it through a visitor's browser gets 421: the dashboard and the API's own port answer
+  only addresses, names without a dot, local names (`.local`, `.lan`, `.home`, `.home.arpa`, `.internal`, `.localhost`,
+  `.ts.net`), and the names in `.env` (`XELDASH_CONNECT_HOST`, `XELDASH_PUBLIC_DOMAIN`, `XELDASH_PROXY_HOST`,
+  `XELDASH_ALLOWED_HOSTS`). The live feed checks it too.
 - **Dashboard headers.** A strict Content-Security-Policy (scripts, styles and connections
   from the dashboard itself only), no framing by other sites, no referrer, no server version.
 - **Admin actions** need the token in an `X-Admin-Token` header (not a cookie), so other
@@ -118,15 +125,12 @@ Leave it unset if you do not need these features.
   connection are for the hosting provider to stop; the dashboard's per-visitor limits trust the visitor address named by the HTTPS
   proxy only from the dashboard's own Docker network.
 
-The first three are solved by the optional `proxy` service (HTTPS, a login, and a host-name
-check); see [OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
+The first two are solved by the optional `proxy` service (HTTPS and a login); see
+[OPERATIONS.md](OPERATIONS.md#https-and-a-login). Without it:
 
 - **Anyone who can reach the dashboard can read it.** There is no login for viewing.
 - **No HTTPS.** The admin token crosses the LAN in clear text when you use it from another
   machine.
-- **DNS rebinding.** A malicious website could, in principle, read dashboard data from a
-  browser on the same network by rebinding its domain to the dashboard's address. It cannot
-  use the admin token, which stays with the dashboard's own origin.
 - **Some bad daemon settings do not stop the node** (for example, an invalid P2P bind address
   leaves it running without P2P), so they are not rolled back automatically. Check the Health
   page after a change.

@@ -273,12 +273,19 @@ computer, so on Windows and macOS this cannot block the internet by itself: run
 `xeldash firewall` (Windows, asks for administrator rights) and never forward the ports on your
 router. See [SECURITY.md](SECURITY.md). For a server open to everyone, see [Public mode](#public-mode).
 
+The dashboard also checks the name it is opened under, so another website cannot point its own domain at your dashboard and read
+it through your browser (DNS rebinding): it answers addresses (`http://192.168.1.20:8088`), names without a dot (`localhost`, the
+computer's own name), local names (`.local`, `.lan`, `.home`, `.home.arpa`, `.internal`, `.localhost`, `.ts.net`), and
+`XELDASH_CONNECT_HOST`, `XELDASH_PUBLIC_DOMAIN` and `XELDASH_PROXY_HOST`. Opened under any other name, it answers "421
+Misdirected Request". To use another name of your own, add it to `XELDASH_ALLOWED_HOSTS` (comma separated; `*.example.org` for
+every name under it; `any` turns the check off).
+
 ## HTTPS and a login
 
 By default the dashboard has no login and no HTTPS, which is fine on a trusted LAN or when you
 only open it on the xelDash machine itself. Otherwise, turn on the optional `proxy` service:
 Caddy in front of the dashboard with HTTPS, a username and password, and a check that only
-answers your chosen host name (which also blocks DNS-rebinding attacks).
+answers your chosen host name.
 
 1. Make a password hash:
    `docker run --rm caddy:2.11-alpine caddy hash-password --plaintext 'your-password'`
@@ -342,7 +349,8 @@ per-address connection limits and bans cannot work there (see [SECURITY.md](SECU
    XELDASH_STRATUM_BIND_IP=0.0.0.0
    ```
 
-   Leave `XELDASH_WEB_BIND_IP` and `XELDASH_API_BIND_IP` at `127.0.0.1`: visitors come in through HTTPS only.
+   Leave `XELDASH_WEB_BIND_IP` and `XELDASH_API_BIND_IP` at `127.0.0.1`: visitors come in through HTTPS only. The API warns at
+   start when either is published wider.
 3. `docker compose up -d`, then open `https://solo.example.org`.
 4. Open to the internet only ports 80 and 443 (HTTPS), 3333 (Stratum), 8090 (getwork) and, if you set up Stratum TLS, 3334.
 
@@ -403,10 +411,20 @@ community to notice a bad or tampered release. node-admin logs a warning at star
 - **Miners:** up to 1,000 connections per IP address (a farm behind one address fits; `STRATUM_MAX_CONNECTIONS_PER_IP`), 5,000
   in all (`STRATUM_MAX_CONNECTIONS`), and at most 32 different addresses per IP address (`STRATUM_MAX_ADDRESSES_PER_IP`): made-up
   addresses are what an attack on the node would need, and a connection that keeps trying them is banned like one sending bad shares.
-  The usual per-connection message limits and bans apply as well.
+  The usual per-connection message limits and bans apply as well. New connections from one IP address are limited to 20 a second
+  after a burst of 1,000 (`STRATUM_CONNECTIONS_PER_IP_PER_SECOND`), so a whole farm can reconnect at once after a restart but a
+  client reconnecting in a loop cannot. A rig logging in again within 5 minutes from the same address costs no database write.
+- **Idle connections:** a connection that sends no share for 30 minutes is closed, and one that has never sent a share after 15
+  (`STRATUM_IDLE_SECONDS`, 1800 on a public server, off otherwise; 0 turns it off), so logins that only sit there cannot hold the
+  places real miners need. On every server, when the per-IP or total limit is reached, the connection quiet the longest that has
+  never had a share accepted, and has been quiet for at least 2 minutes, is closed to make room for the new one; a connection that
+  has mined is never closed for it, and nor is a rig still finding its first share.
 - **Shares:** at most 300 shares checked a second per IP address (`STRATUM_SHARES_PER_IP_PER_SECOND`; a farm of 600 rigs sends about
   120). A share over the limit is answered "too many shares" without being checked. A difficulty a miner asks for in its password
   (`d=...`) is where its difficulty starts and the lowest it goes, but the server still raises it for a rig that sends shares too fast.
+  Until an IP address has had a share accepted (in the current 5-minute window), its shares are checked at most 30 a minute across all
+  its connections (`STRATUM_UNPROVEN_CHECKS_PER_MINUTE`): each check is a hash, and connections that never mine could otherwise keep
+  the hash threads busy. A real rig's first share is normally accepted, which lifts the limit at once.
   On every server, a share for a job the connection was never given counts as invalid (towards a ban), and late shares are
   recorded at most 30 a minute per connection.
 - **The database:** at most 1,000 new worker names an hour per IP address (`STRATUM_NEW_WORKERS_PER_IP_PER_HOUR`; rigs logging in

@@ -48,8 +48,14 @@ export function parseAllowedNetworks(text) {
  * @typedef {{ maxConnectionsPerIp: number, messagesPerSecond: number, messageBurst: number,
  *   invalidWindowSeconds: number, invalidMinCount: number, invalidRatio: number,
  *   banMinutes: number, exemptIps: string[], allowedNetworks: string, maxConnections?: number, sharesPerIpPerSecond?: number,
- *   explicit?: { maxConnectionsPerIp: boolean, maxConnections: boolean, sharesPerIpPerSecond?: boolean } }} IpGuardConfig
+ *   connectionsPerIpPerSecond?: number, unprovenChecksPerMinute?: number,
+ *   explicit?: { maxConnectionsPerIp: boolean, maxConnections: boolean, sharesPerIpPerSecond?: boolean, connectionsPerIpPerSecond?: boolean,
+ *     unprovenChecksPerMinute?: boolean } }} IpGuardConfig
  * maxConnections: all connections together (0: no limit); sharesPerIpPerSecond: shares checked for one IP address (0: no limit);
+ * connectionsPerIpPerSecond: new connections from one IP address (0: no limit; a burst of maxConnectionsPerIp at once, so a whole
+ * farm can reconnect after a restart, but a client reconnecting in a loop is held to this rate);
+ * unprovenChecksPerMinute: shares checked a minute for an IP address with no accepted share in the current ban window (0: no limit),
+ * so connections that never mine cannot keep the hash threads busy; a real rig's first share is accepted and ends it;
  * explicit: which limits were set in .env (public mode changes the others)
  */
 
@@ -66,6 +72,8 @@ export const DEFAULT_IP_GUARD = Object.freeze({
   allowedNetworks: "private",
   maxConnections: 0,
   sharesPerIpPerSecond: 0,
+  connectionsPerIpPerSecond: 0,
+  unprovenChecksPerMinute: 0,
 });
 
 /** @param {Partial<Record<string, string | undefined>>} env @returns {IpGuardConfig} */
@@ -83,11 +91,18 @@ export function ipGuardConfigFromEnv(env) {
   if (!Number.isSafeInteger(total) || total < 0) throw new Error("STRATUM_MAX_CONNECTIONS must be 0 (no limit) or a positive number");
   const shares = given("STRATUM_SHARES_PER_IP_PER_SECOND") ? Number(env.STRATUM_SHARES_PER_IP_PER_SECOND) : 0;
   if (!Number.isFinite(shares) || shares < 0) throw new Error("STRATUM_SHARES_PER_IP_PER_SECOND must be 0 (no limit) or a positive number");
+  const rate = given("STRATUM_CONNECTIONS_PER_IP_PER_SECOND") ? Number(env.STRATUM_CONNECTIONS_PER_IP_PER_SECOND) : 0;
+  if (!Number.isFinite(rate) || rate < 0) throw new Error("STRATUM_CONNECTIONS_PER_IP_PER_SECOND must be 0 (no limit) or a positive number");
+  const unproven = given("STRATUM_UNPROVEN_CHECKS_PER_MINUTE") ? Number(env.STRATUM_UNPROVEN_CHECKS_PER_MINUTE) : 0;
+  if (!Number.isFinite(unproven) || unproven < 0) throw new Error("STRATUM_UNPROVEN_CHECKS_PER_MINUTE must be 0 (no limit) or a positive number");
   return {
     maxConnections: total,
     sharesPerIpPerSecond: shares,
+    connectionsPerIpPerSecond: rate,
+    unprovenChecksPerMinute: unproven,
     explicit: { maxConnectionsPerIp: given("STRATUM_MAX_CONNECTIONS_PER_IP"), maxConnections: given("STRATUM_MAX_CONNECTIONS"),
-      sharesPerIpPerSecond: given("STRATUM_SHARES_PER_IP_PER_SECOND") },
+      sharesPerIpPerSecond: given("STRATUM_SHARES_PER_IP_PER_SECOND"), connectionsPerIpPerSecond: given("STRATUM_CONNECTIONS_PER_IP_PER_SECOND"),
+      unprovenChecksPerMinute: given("STRATUM_UNPROVEN_CHECKS_PER_MINUTE") },
     maxConnectionsPerIp: read("STRATUM_MAX_CONNECTIONS_PER_IP", DEFAULT_IP_GUARD.maxConnectionsPerIp),
     messagesPerSecond: read("STRATUM_MESSAGES_PER_SECOND", DEFAULT_IP_GUARD.messagesPerSecond),
     messageBurst: read("STRATUM_MESSAGE_BURST", DEFAULT_IP_GUARD.messageBurst),
@@ -152,6 +167,10 @@ export class IpGuard {
     this.windows = new Map();
     /** Shares each IP address may still have checked (sharesPerIpPerSecond). @type {Map<string, { tokens: number, updated: number }>} */
     this.shareBuckets = new Map();
+    /** New connections each IP address may still open (connectionsPerIpPerSecond). @type {Map<string, { tokens: number, updated: number }>} */
+    this.connectBuckets = new Map();
+    /** Checks left for IP addresses with no accepted share yet (unprovenChecksPerMinute). @type {Map<string, { tokens: number, updated: number }>} */
+    this.unprovenBuckets = new Map();
   }
 
   /**
@@ -160,8 +179,10 @@ export class IpGuard {
    * @param {string} ip @param {number} [now]
    */
   allowShare(ip, now = Date.now()) {
+    if (this.exempt.has(ip)) return true;
+    if (!this.#allowUnproven(ip, now)) return false;
     const rate = this.config.sharesPerIpPerSecond ?? 0;
-    if (!(rate > 0) || this.exempt.has(ip)) return true;
+    if (!(rate > 0)) return true;
     const burst = rate * 2;
     let bucket = this.shareBuckets.get(ip);
     if (!bucket) {
@@ -169,6 +190,39 @@ export class IpGuard {
       this.shareBuckets.set(ip, bucket);
     }
     bucket.tokens = Math.min(burst, bucket.tokens + ((now - bucket.updated) / 1000) * rate);
+    bucket.updated = now;
+    if (bucket.tokens < 1) return false;
+    bucket.tokens -= 1;
+    return true;
+  }
+
+  /**
+   * Whether an IP address has had a share accepted in the current ban window (record() keeps the counts).
+   * @param {string} ip @param {number} [now]
+   */
+  proven(ip, now = Date.now()) {
+    const window = this.windows.get(ip);
+    return Boolean(window && window.valid > 0 && now - window.start < this.config.invalidWindowSeconds * 1000);
+  }
+
+  /**
+   * Until an IP address has a share accepted, its shares are checked at most unprovenChecksPerMinute a minute, across all its
+   * connections: each check is a hash, and connections that never mine would otherwise keep the hash threads busy until a ban lands.
+   * @param {string} ip @param {number} now
+   */
+  #allowUnproven(ip, now) {
+    const perMinute = this.config.unprovenChecksPerMinute ?? 0;
+    if (!(perMinute > 0)) return true;
+    if (this.proven(ip, now)) {
+      this.unprovenBuckets.delete(ip);
+      return true;
+    }
+    let bucket = this.unprovenBuckets.get(ip);
+    if (!bucket) {
+      bucket = { tokens: perMinute, updated: now };
+      this.unprovenBuckets.set(ip, bucket);
+    }
+    bucket.tokens = Math.min(perMinute, bucket.tokens + ((now - bucket.updated) / 60_000) * perMinute);
     bucket.updated = now;
     if (bucket.tokens < 1) return false;
     bucket.tokens -= 1;
@@ -201,6 +255,7 @@ export class IpGuard {
   connect(ip, now = Date.now()) {
     if (!this.isAllowed(ip)) return "not on your local network";
     if (this.isBanned(ip, now)) return "banned";
+    if (!this.#allowConnectAttempt(ip, now)) return "connecting too often";
     const open = this.connections.get(ip) ?? 0;
     if (open >= this.config.maxConnectionsPerIp && !this.exempt.has(ip)) return "too many connections";
     // All connections together, so many addresses at once cannot take more than the server is meant to carry.
@@ -208,6 +263,27 @@ export class IpGuard {
     this.connections.set(ip, open + 1);
     this.total++;
     return null;
+  }
+
+  /**
+   * Whether this IP address may open another connection now (connectionsPerIpPerSecond). Every attempt that gets this far counts,
+   * refused for another reason or not, since each one costs a handshake and a login.
+   * @param {string} ip @param {number} now
+   */
+  #allowConnectAttempt(ip, now) {
+    const rate = this.config.connectionsPerIpPerSecond ?? 0;
+    if (!(rate > 0) || this.exempt.has(ip)) return true;
+    const burst = Math.max(1, this.config.maxConnectionsPerIp);
+    let bucket = this.connectBuckets.get(ip);
+    if (!bucket) {
+      bucket = { tokens: burst, updated: now };
+      this.connectBuckets.set(ip, bucket);
+    }
+    bucket.tokens = Math.min(burst, bucket.tokens + ((now - bucket.updated) / 1000) * rate);
+    bucket.updated = now;
+    if (bucket.tokens < 1) return false;
+    bucket.tokens -= 1;
+    return true;
   }
 
   /** @param {string} ip */
@@ -245,6 +321,11 @@ export class IpGuard {
     for (const [ip, until] of this.bans) if (until <= now) this.bans.delete(ip);
     // A bucket left alone for a minute is full again: forget it.
     for (const [ip, bucket] of this.shareBuckets) if (now - bucket.updated >= 60_000) this.shareBuckets.delete(ip);
+    // A connection bucket refills in maxConnectionsPerIp / rate seconds; once full again it is the same as none.
+    const rate = this.config.connectionsPerIpPerSecond ?? 0;
+    const refillMs = rate > 0 ? (this.config.maxConnectionsPerIp / rate) * 1000 : 0;
+    for (const [ip, bucket] of this.connectBuckets) if (now - bucket.updated >= Math.max(60_000, refillMs)) this.connectBuckets.delete(ip);
+    for (const [ip, bucket] of this.unprovenBuckets) if (now - bucket.updated >= 60_000) this.unprovenBuckets.delete(ip);
   }
 
   /** @param {string} ip @param {string} reason @param {number} [now] */

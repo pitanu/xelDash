@@ -18,6 +18,8 @@ export function explainProblem(p, network) {
       return { what: `${from} tried to connect and was turned away.`, fix: "xelDash only accepts miners on your own network. If this is one of your computers, check it is on the same network, or allow more networks with XELDASH_ALLOWED_NETWORKS in the .env file." };
     case "banned":
       return { what: `${from} was blocked for a while after sending a lot of invalid data.`, fix: "Check the mining program's settings (algorithm xelishashv3, the right pool address). It can connect again after the block ends." };
+    case "connecting too often":
+      return { what: `${from} opened new connections faster than this server allows from one address.`, fix: "A miner reconnecting over and over usually has the wrong pool address, port or password: check its settings and its own log. A large farm behind one address reconnects at once without this." };
     case "too many connections":
       return { what: `${from} opened too many connections at once.`, fix: "Run one mining program per computer. Each one should use a different worker name." };
     case "invalid_address":
@@ -41,6 +43,8 @@ export function explainProblem(p, network) {
       return { what: `${from} tried to use two different wallet addresses on one connection.`, fix: "Use one address per mining program." };
     case "too_many_workers":
       return { what: `${from} tried to log in too many workers on one connection.`, fix: "Use a separate connection for each computer." };
+    case "unproven_shares":
+      return { what: `${from} sent many shares, none of them accepted, and some were not checked.`, fix: "Until one share from an address is accepted, this server checks only a few a minute. Check the mining program is set up for XELIS (algorithm xelishashv3) with the right pool address and your own wallet address; its first good share lifts the limit." };
     case "too_many_shares":
       return { what: `${from} sent more shares than this server checks for one IP address, and some were not checked.`, fix: "Remove d= from the mining programs' password so the server can choose their difficulty, or raise STRATUM_SHARES_PER_IP_PER_SECOND for a very large farm." };
     case "too_many_addresses":

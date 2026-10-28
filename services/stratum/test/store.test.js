@@ -260,3 +260,33 @@ test("records that arrive together during an outage are written to the journal t
   await store.stop();
   await rm(dir, { recursive: true, force: true });
 });
+
+test("a rig logging in again soon costs no database call; a new IP address, or many connections at once, cost one", async () => {
+  const db = fakeDb();
+  const store = new DurableStore({ pool: pool(db), dir: null, db, logger: quiet });
+  const logins = () => db.state.calls.filter((c) => c[0] === "worker").length;
+  const first = await store.ensureWorker({ address: "xel:a", name: "rig1", ip: "10.0.0.5" });
+  for (let i = 0; i < 50; i++) await store.ensureWorker({ address: "xel:a", name: "rig1", ip: "10.0.0.5" });
+  check("50 reconnects from the same address: one database login", logins() === 1, String(logins()));
+  const moved = await store.ensureWorker({ address: "xel:a", name: "rig1", ip: "10.0.0.6" });
+  check("a login from a new IP address is written (last IP)", logins() === 2 && String(moved.workerId) === String(first.workerId));
+
+  // Many connections of one worker logging in at the same moment share one call.
+  let release = () => {};
+  const slow = new Promise((resolve) => { release = resolve; });
+  const realEnsure = db.ensureWorker;
+  db.ensureWorker = async (...args) => { await slow; return realEnsure(...args); };
+  const together = Promise.all(Array.from({ length: 20 }, () => store.ensureWorker({ address: "xel:b", name: "farm", ip: "10.0.0.7" })));
+  release();
+  const ids = await together;
+  check("20 logins at once: one database login", logins() === 3, String(logins()));
+  check("all get the same ids", ids.every((x) => String(x.workerId) === String(ids[0].workerId)));
+
+  // A login the database refused is not remembered: the next one asks again.
+  db.ensureWorker = async () => { throw new TypeError("rejected"); };
+  await assert.rejects(store.ensureWorker({ address: "xel:c", name: "w", ip: null }), /rejected/);
+  db.ensureWorker = realEnsure;
+  await store.ensureWorker({ address: "xel:c", name: "w", ip: null });
+  check("after a refused login the next one goes to the database", logins() === 4, String(logins()));
+  await store.stop();
+});

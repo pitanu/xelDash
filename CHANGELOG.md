@@ -7,6 +7,37 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Security
+
+- Idle connections can no longer fill a server. When the per-IP or total connection limit is reached, the connection quiet the
+  longest that has never had a share accepted (and has been quiet for at least 2 minutes) is closed to make room, rather than the
+  new miner being refused. On a public server, a connection with no share for 30 minutes (15 if it never sent one) is closed
+  (`STRATUM_IDLE_SECONDS`; off elsewhere unless set). Stratum connections use TCP keepalive, so a rig that vanished is noticed.
+- Reconnecting in a loop no longer loads the database. A rig that logs in again within 5 minutes from the same IP address reuses its
+  last login instead of a database write, and many connections of one worker logging in at once share one. On a public server, new
+  connections from one IP address are limited to 20 a second after a burst of 1,000 (`STRATUM_CONNECTIONS_PER_IP_PER_SECOND`), so a
+  farm can still reconnect at once after a restart; the Connection problems card explains the new refusal.
+
+- The dashboard and the API answer only to host names that belong to them, so another website can no longer point its own domain
+  at your dashboard (DNS rebinding) and read it through your browser: it gets "421 Misdirected Request". Addresses, names without a
+  dot, local names (`.local`, `.lan`, `.home`, `.home.arpa`, `.internal`, `.localhost`, `.ts.net`) and the names already in
+  `.env` keep working. **Breaking** if you open the dashboard under a domain of your own (not through the `proxy` profile): add
+  it to the new `XELDASH_ALLOWED_HOSTS` (`any` turns the check off).
+
+- A public server warns at start when the dashboard's own port is published past the HTTPS proxy (`XELDASH_WEB_BIND_IP` not
+  127.0.0.1), as it already did for the API's port: visitors could skip HTTPS there, and on some setups dodge the per-visitor limits.
+
+- On a public server, an IP address whose shares have not yet had one accepted gets at most 30 shares checked a minute, across all its
+  connections (`STRATUM_UNPROVEN_CHECKS_PER_MINUTE`). Each check is a hash, so a flood of made-up shares from fresh addresses can no
+  longer keep the hash threads busy, and found blocks wait less. A real rig's first share is normally accepted, which lifts it.
+
+### Fixed
+
+- Chart axes no longer show float noise in tick labels on Node 22 (`10 ** -5` is not exact there). CI now also runs on Node
+  22.15.0, the oldest version that `engines` allows.
+- A settings request to node-admin over 100 kB is refused as "413 Payload Too Large" as soon as it passes the limit, counted in bytes;
+  before, it was gathered first, counted in characters, and answered with a generic error.
+
 ## [0.7.0] - 2026-10-24
 
 A new look for the dashboard, with nothing taken away: colour themes and a colour of your own, a Connect page, an effort chart on

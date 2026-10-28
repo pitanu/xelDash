@@ -55,6 +55,13 @@ export function publicModeWarnings(env) {
   if (!["127.0.0.1", "localhost", "::1", ""].includes(apiBind)) {
     warnings.push(`XELDASH_API_BIND_IP is ${apiBind}: anyone who reaches the API's port directly can ask for the operator's view, IP addresses included. Keep it 127.0.0.1; visitors use the dashboard.`);
   }
+  // The public dashboard is meant to be reached through HTTPS (the public-https profile, or your own proxy on this computer). Published
+  // past it, visitors skip HTTPS, and where connections arrive from the Docker network (Docker Desktop, IPv6 through Docker's proxy)
+  // the per-visitor limits, which trust X-Forwarded-For from that network, can be dodged with a made-up header.
+  const webBind = (env.WEB_BIND_IP ?? "127.0.0.1").trim().toLowerCase();
+  if (!["127.0.0.1", "localhost", "::1", ""].includes(webBind)) {
+    warnings.push(`XELDASH_WEB_BIND_IP is ${webBind}: the dashboard's own port is reachable past the HTTPS proxy, where visitors skip HTTPS and, on some setups, can dodge the per-visitor limits with a made-up X-Forwarded-For header. Keep it 127.0.0.1; the proxy reaches the dashboard anyway.`);
+  }
   if ((env.XELIS_DEFAULT_ADDRESS ?? "").trim()) {
     warnings.push("XELIS_DEFAULT_ADDRESS is ignored in public mode: every miner must log in with its own address.");
   }

@@ -26,10 +26,10 @@ test("IPv4-mapped addresses are normalised", () => {
 
 test("settings come from the environment and are checked", () => {
   assert.deepEqual(ipGuardConfigFromEnv({}), { ...DEFAULT_IP_GUARD, exemptIps: [], allowedNetworks: "private",
-    explicit: { maxConnectionsPerIp: false, maxConnections: false, sharesPerIpPerSecond: false } });
+    explicit: { maxConnectionsPerIp: false, maxConnections: false, sharesPerIpPerSecond: false, connectionsPerIpPerSecond: false, unprovenChecksPerMinute: false } });
   const c = ipGuardConfigFromEnv({ STRATUM_MAX_CONNECTIONS_PER_IP: "3", STRATUM_BAN_EXEMPT_IPS: "10.0.0.1, ::ffff:10.0.0.2", XELDASH_ALLOWED_NETWORKS: "private,tailscale" });
   assert.equal(c.maxConnectionsPerIp, 3);
-  assert.deepEqual(c.explicit, { maxConnectionsPerIp: true, maxConnections: false, sharesPerIpPerSecond: false }, "an empty or missing setting is not explicit");
+  assert.deepEqual(c.explicit, { maxConnectionsPerIp: true, maxConnections: false, sharesPerIpPerSecond: false, connectionsPerIpPerSecond: false, unprovenChecksPerMinute: false }, "an empty or missing setting is not explicit");
   assert.equal(ipGuardConfigFromEnv({ STRATUM_SHARES_PER_IP_PER_SECOND: "500" }).sharesPerIpPerSecond, 500);
   assert.throws(() => ipGuardConfigFromEnv({ STRATUM_SHARES_PER_IP_PER_SECOND: "-1" }), /STRATUM_SHARES_PER_IP_PER_SECOND/);
   assert.equal(ipGuardConfigFromEnv({ STRATUM_MAX_CONNECTIONS_PER_IP: "" }).explicit?.maxConnectionsPerIp, false);
@@ -163,4 +163,52 @@ test("raw connections are refused at accept when banned or too many from one add
   assert.ok(banned.destroyed || await closedSoon(banned), "a banned address is refused at once");
   for (const s of [...kept, again]) s.destroy();
   await new Promise((r) => server.close(r));
+});
+
+test("new connections per IP address: a burst as large as its connection limit, then the rate; exempt addresses and 0 have no limit", () => {
+  const guard = new IpGuard({ ...DEFAULT_IP_GUARD, maxConnectionsPerIp: 5, connectionsPerIpPerSecond: 2, exemptIps: ["10.0.0.9"] });
+  /** Connect and close at once, as a client reconnecting in a loop does. */
+  const attempt = (/** @type {string} */ ip, /** @type {number} */ now) => {
+    const refused = guard.connect(ip, now);
+    if (!refused) guard.disconnect(ip);
+    return refused;
+  };
+  for (let i = 0; i < 5; i++) assert.equal(attempt("10.0.0.1", 0), null, `burst ${i}`);
+  assert.equal(attempt("10.0.0.1", 0), "connecting too often");
+  assert.equal(attempt("10.0.0.2", 0), null, "another address has its own");
+  assert.equal(attempt("10.0.0.1", 500), null, "half a second refills one at 2 a second");
+  assert.equal(attempt("10.0.0.1", 500), "connecting too often");
+  for (let i = 0; i < 50; i++) assert.equal(attempt("10.0.0.9", 0), null, "exempt");
+  const off = new IpGuard({ ...DEFAULT_IP_GUARD });
+  for (let i = 0; i < 500; i++) assert.equal(off.connect("10.0.0.1", 0) ?? off.disconnect("10.0.0.1"), undefined, "no limit by default");
+  guard.prune(61_000);
+  assert.equal(guard.connectBuckets.size, 0, "full buckets are forgotten");
+  assert.equal(ipGuardConfigFromEnv({ STRATUM_CONNECTIONS_PER_IP_PER_SECOND: "20" }).connectionsPerIpPerSecond, 20);
+  assert.equal(ipGuardConfigFromEnv({}).explicit?.connectionsPerIpPerSecond, false);
+  assert.throws(() => ipGuardConfigFromEnv({ STRATUM_CONNECTIONS_PER_IP_PER_SECOND: "-1" }), /0 \(no limit\) or a positive/);
+});
+
+test("until an IP address has a share accepted, its shares are checked only a few a minute; one accepted share lifts it", () => {
+  const guard = new IpGuard({ ...DEFAULT_IP_GUARD, unprovenChecksPerMinute: 6, exemptIps: ["10.0.0.9"] });
+  for (let i = 0; i < 6; i++) assert.ok(guard.allowShare("10.0.0.1", 0), `check ${i}`);
+  assert.ok(!guard.allowShare("10.0.0.1", 0), "over the allowance: answered without a hash");
+  assert.ok(!guard.proven("10.0.0.1", 0));
+  assert.ok(guard.allowShare("10.0.0.1", 10_000), "ten seconds refill one at 6 a minute");
+  assert.ok(!guard.allowShare("10.0.0.1", 10_000));
+  // Its connections' checked shares were all invalid: still on probation, and the invalid ones still count toward a ban.
+  for (let i = 0; i < 7; i++) guard.record("10.0.0.1", false, 10_000);
+  assert.ok(!guard.allowShare("10.0.0.1", 10_000));
+  // A real rig: its first checked share is accepted.
+  guard.record("10.0.0.2", true, 0);
+  assert.ok(guard.proven("10.0.0.2", 0));
+  for (let i = 0; i < 500; i++) assert.ok(guard.allowShare("10.0.0.2", 0), "proven: no probation (the per-second limit still applies when set)");
+  // The proof lasts for the ban window; after it the next accepted share proves the address again.
+  assert.ok(!guard.proven("10.0.0.2", DEFAULT_IP_GUARD.invalidWindowSeconds * 1000));
+  for (let i = 0; i < 50; i++) assert.ok(guard.allowShare("10.0.0.9", 0), "exempt");
+  const off = new IpGuard({ ...DEFAULT_IP_GUARD });
+  for (let i = 0; i < 500; i++) assert.ok(off.allowShare("10.0.0.1", 0), "no limit by default");
+  guard.prune(120_000);
+  assert.equal(guard.unprovenBuckets.size, 0);
+  assert.equal(ipGuardConfigFromEnv({ STRATUM_UNPROVEN_CHECKS_PER_MINUTE: "30" }).unprovenChecksPerMinute, 30);
+  assert.throws(() => ipGuardConfigFromEnv({ STRATUM_UNPROVEN_CHECKS_PER_MINUTE: "x" }), /0 \(no limit\) or a positive/);
 });
