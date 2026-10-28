@@ -422,6 +422,9 @@ community to notice a bad or tampered release. node-admin logs a warning at star
 - **Shares:** at most 300 shares checked a second per IP address (`STRATUM_SHARES_PER_IP_PER_SECOND`; a farm of 600 rigs sends about
   120). A share over the limit is answered "too many shares" without being checked. A difficulty a miner asks for in its password
   (`d=...`) is where its difficulty starts and the lowest it goes, but the server still raises it for a rig that sends shares too fast.
+  Until an IP address has had a share accepted (in the current 5-minute window), its shares are checked at most 30 a minute across all
+  its connections (`STRATUM_UNPROVEN_CHECKS_PER_MINUTE`): each check is a hash, and connections that never mine could otherwise keep
+  the hash threads busy. A real rig's first share is normally accepted, which lifts the limit at once.
   On every server, a share for a job the connection was never given counts as invalid (towards a ban), and late shares are
   recorded at most 30 a minute per connection.
 - **The database:** at most 1,000 new worker names an hour per IP address (`STRATUM_NEW_WORKERS_PER_IP_PER_HOUR`; rigs logging in

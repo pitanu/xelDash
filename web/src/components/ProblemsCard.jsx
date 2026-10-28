@@ -43,6 +43,8 @@ export function explainProblem(p, network) {
       return { what: `${from} tried to use two different wallet addresses on one connection.`, fix: "Use one address per mining program." };
     case "too_many_workers":
       return { what: `${from} tried to log in too many workers on one connection.`, fix: "Use a separate connection for each computer." };
+    case "unproven_shares":
+      return { what: `${from} sent many shares, none of them accepted, and some were not checked.`, fix: "Until one share from an address is accepted, this server checks only a few a minute. Check the mining program is set up for XELIS (algorithm xelishashv3) with the right pool address and your own wallet address; its first good share lifts the limit." };
     case "too_many_shares":
       return { what: `${from} sent more shares than this server checks for one IP address, and some were not checked.`, fix: "Remove d= from the mining programs' password so the server can choose their difficulty, or raise STRATUM_SHARES_PER_IP_PER_SECOND for a very large farm." };
     case "too_many_addresses":

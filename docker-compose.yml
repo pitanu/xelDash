@@ -325,6 +325,9 @@ services:
       # New connections a second per IP address, after a burst of the per-IP connection limit. Empty: 20 on a public server, no
       # limit otherwise; 0: no limit.
       STRATUM_CONNECTIONS_PER_IP_PER_SECOND: ${STRATUM_CONNECTIONS_PER_IP_PER_SECOND:-}
+      # Shares checked a minute for an IP address until one of its shares is accepted. Empty: 30 on a public server, no limit
+      # otherwise; 0: no limit.
+      STRATUM_UNPROVEN_CHECKS_PER_MINUTE: ${STRATUM_UNPROVEN_CHECKS_PER_MINUTE:-}
       STRATUM_MESSAGES_PER_SECOND: ${STRATUM_MESSAGES_PER_SECOND:-20}
       STRATUM_MESSAGE_BURST: ${STRATUM_MESSAGE_BURST:-40}
       STRATUM_BAN_WINDOW_SECONDS: ${STRATUM_BAN_WINDOW_SECONDS:-300}

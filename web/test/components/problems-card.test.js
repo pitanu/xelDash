@@ -98,3 +98,10 @@ test("a client reconnecting too fast is told what usually causes it", async () =
   assert.match(view.text(), /opened new connections faster than this server allows/);
   assert.match(view.text(), /wrong pool address, port or password/);
 });
+
+test("shares held back until one is accepted are explained", async () => {
+  fakeApi({ "/api/v1/problems": { problems: [problem({ reason: "unproven_shares" })] } });
+  const view = await render(h(ProblemsCard, { network: "mainnet" }));
+  assert.match(view.text(), /none of them accepted, and some were not checked/);
+  assert.match(view.text(), /first good share lifts the limit/);
+});

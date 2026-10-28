@@ -575,7 +575,7 @@ export class StratumSession {
 
   /** The answer to a share over this IP address's share limit (public mode): not checked, not counted. */
   static get TOO_MANY_SHARES() {
-    return { code: STRATUM_ERRORS.UNKNOWN, message: "Too many shares from your IP address; let the server choose the difficulty (no d= in the password)" };
+    return { code: STRATUM_ERRORS.UNKNOWN, message: "Too many shares from your IP address for now; check the miner's settings, and let the server choose the difficulty (no d= in the password)" };
   }
 
   close() {

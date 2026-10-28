@@ -168,6 +168,8 @@ function applyModeLimits() {
   if (!ipGuardConfig.explicit?.sharesPerIpPerSecond) ipGuardConfig.sharesPerIpPerSecond = pub ? 300 : 0;
   // New connections per IP address: 20 a second after a burst of the per-IP connection limit (a whole farm reconnecting at once).
   if (!ipGuardConfig.explicit?.connectionsPerIpPerSecond) ipGuardConfig.connectionsPerIpPerSecond = pub ? 20 : 0;
+  // Shares checked a minute for an IP address before one of its shares is accepted (a real rig's first one usually is).
+  if (!ipGuardConfig.explicit?.unprovenChecksPerMinute) ipGuardConfig.unprovenChecksPerMinute = pub ? 30 : 0;
   const perSecond = nodeCallsSetting ?? (pub ? 100 : 0);
   nodeBudget.perSecond = perSecond;
   nodeBudget.burst = burstFor(perSecond);
@@ -177,7 +179,8 @@ function applyModeLimits() {
     console.info(`Public-server limits: ${perSecond || "no"} node calls a second, ${addressesPerIpSetting ?? 32} addresses, `
       + `${newWorkersPerIpSetting ?? 1000} new worker names an hour, `
       + `${ipGuardConfig.maxConnectionsPerIp} connections, ${ipGuardConfig.connectionsPerIpPerSecond || "unlimited"} new connections a second `
-      + `and ${ipGuardConfig.sharesPerIpPerSecond || "unlimited"} shares a second per IP address, `
+      + `and ${ipGuardConfig.sharesPerIpPerSecond || "unlimited"} shares a second per IP address `
+      + `(${ipGuardConfig.unprovenChecksPerMinute || "unlimited"} a minute until one is accepted), `
       + `${ipGuardConfig.maxConnections || "no limit to"} connections in all, `
       + `${idleSeconds() ? `idle connections closed after ${idleSeconds()} s` : "idle connections kept"}`);
     if (ipGuardConfig.explicit?.maxConnectionsPerIp && ipGuardConfig.maxConnectionsPerIp < 600) {
@@ -391,7 +394,8 @@ function newSession(socket, ip, onAuthorized = () => {}) {
     difficultyAsFloor: isPublic(),
     allowShare: () => {
       if (ipGuard.allowShare(ip)) return true;
-      reportProblem("login_problem", { ip, reason: "too_many_shares" });
+      const probation = (ipGuardConfig.unprovenChecksPerMinute ?? 0) > 0 && !ipGuard.proven(ip);
+      reportProblem("login_problem", { ip, reason: probation ? "unproven_shares" : "too_many_shares" });
       return false;
     },
     onProblem: (problem) => reportProblem("login_problem", { ip, ...problem }),
