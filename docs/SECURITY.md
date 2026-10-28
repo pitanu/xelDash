@@ -206,7 +206,10 @@ The first two are solved by the optional `proxy` service (HTTPS and a login); se
   it on; `XELDASH_PRICE=off`), node.xelis.io (snapshots when asked, and the official node
   fallback when on). Browsers only ever talk to the dashboard.
 - **node-admin and the daemon run as root** inside their containers, because they own the
-  node's data volume.
+  node's data volume. Like the API, Stratum and the migration, they have every Linux capability taken away, so root there can
+  change only its own files; the API, Stratum, the migration and node-admin also cannot write anywhere but their volumes and a
+  memory-only `/tmp`. The nginx and HAProxy containers keep only what they need to hand their work to an ordinary user. No
+  container can gain privileges once started (`no-new-privileges`), the address manager below aside.
 - **The cluster's address manager is the one privileged container.** It exists only on Linux servers that set up a
   cluster, and runs on the host network with `NET_ADMIN`, `NET_BROADCAST` and `NET_RAW` so it can add the shared
   address to the network card. It has no Docker access, and mounts only the config volume.

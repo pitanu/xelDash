@@ -40,6 +40,26 @@ test("every Compose file in the project is covered above", () => {
   assert.deepEqual(files.filter((f) => !covered.has(f)), [], "add new Compose files to SETS");
 });
 
+test("every container is started without a way to gain privileges, and ours with only the capabilities they need", { skip }, () => {
+  // keepalived claims the cluster's address on the computer's own network card; it needs root's network capabilities.
+  const exempt = new Set(["keepalived"]);
+  for (const [files, env] of Object.entries(SETS)) {
+    const r = spawnSync("docker", ["compose", "--profile", "*", "config", "--format", "json"], {
+      cwd: root, encoding: "utf8", env: { ...process.env, ...env, COMPOSE_FILE: files, COMPOSE_PATH_SEPARATOR: ":" },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    for (const [name, service] of Object.entries(JSON.parse(r.stdout).services)) {
+      if (exempt.has(name)) continue;
+      assert.deepEqual(service.security_opt, ["no-new-privileges:true"], `${files}: ${name}`);
+      if (["api", "migrate", "stratum", "node-admin"].includes(name)) {
+        assert.deepEqual(service.cap_drop, ["ALL"], `${files}: ${name} drops every capability`);
+        assert.equal(service.cap_add, undefined, `${files}: ${name} adds none back`);
+        assert.equal(service.read_only, true, `${files}: ${name} writes only to its volumes`);
+      }
+    }
+  }
+});
+
 test("the Connect page's address: XELDASH_CONNECT_HOST, or the old XELDASH_PUBLIC_HOST from an older .env", { skip }, () => {
   const connectHost = (/** @type {Record<string, string>} */ vars) => {
     const r = spawnSync("docker", ["compose", "config", "--format", "json"], {

@@ -14,9 +14,16 @@ x-logging: &logging
     max-size: ${XELDASH_LOG_MAX_SIZE:-10m}
     max-file: "${XELDASH_LOG_FILES:-5}"
 
+# No program in a container can gain privileges it was not started with (a setuid binary, say). Every container has this.
+x-no-new-privileges: &no-new-privileges
+  - no-new-privileges:true
+
 services:
   daemon:
     logging: *logging
+    security_opt: *no-new-privileges
+    # Root, and the owner of its data volume; no capabilities beyond that.
+    cap_drop: [ALL]
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/daemon:${XELDASH_VERSION:-local}
     build:
       context: docker/daemon
@@ -49,6 +56,11 @@ services:
   # It has no database here, so it only logs what it would record as events.
   node-admin:
     logging: *logging
+    security_opt: *no-new-privileges
+    # Root, as the files on the nodes' volumes are root's; owning them is all it needs. Nothing written outside its volumes.
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/node-admin:${XELDASH_VERSION:-local}
     build:
       context: .
@@ -80,6 +92,11 @@ services:
 
   stratum:
     logging: *logging
+    security_opt: *no-new-privileges
+    # A normal user: no capabilities, and nothing written outside its volumes.
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/stratum:${XELDASH_VERSION:-local}
     build:
       context: .
@@ -128,6 +145,10 @@ services:
   # The standby's web page: the main server's dashboard, or an "offline" page that says mining continues.
   web:
     logging: *logging
+    security_opt: *no-new-privileges
+    # nginx starts as root, hands its workers to the nginx user and gives it its cache folders.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETGID, SETUID]
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/standby-web:${XELDASH_VERSION:-local}
     build:
       context: docker/standby-web

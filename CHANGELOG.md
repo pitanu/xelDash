@@ -35,6 +35,10 @@ breaking changes; they are marked **Breaking**.
   `.env` keep working. **Breaking** if you open the dashboard under a domain of your own (not through the `proxy` profile): add
   it to the new `XELDASH_ALLOWED_HOSTS` (`any` turns the check off).
 
+- Containers run with less: none can gain privileges once started (`no-new-privileges`); the API, Stratum, the migration,
+  node-admin and the nodes have every Linux capability dropped; and the API, Stratum, the migration and node-admin have a read-only
+  filesystem besides their volumes. nginx and HAProxy keep only the capabilities to hand their work to their own users.
+
 - A public server warns at start when the dashboard's own port is published past the HTTPS proxy (`XELDASH_WEB_BIND_IP` not
   127.0.0.1), as it already did for the API's port: visitors could skip HTTPS there, and on some setups dodge the per-visitor limits.
 
