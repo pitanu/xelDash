@@ -69,6 +69,10 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # A signed statement of how each image was built (GitHub artifact attestations, keyless through Sigstore): id-token to sign it as
+      # this workflow, attestations to store it. Anyone can check an image with: gh attestation verify oci://IMAGE --owner pitanu
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
@@ -117,7 +121,8 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
@@ -125,8 +130,17 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # BuildKit's own record of the build and a list of what is in the image (SBOM), attached to the image itself.
+          provenance: mode=max
+          sbom: true
           cache-from: type=gha,scope=release-${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=release-${{ matrix.image }}
+      - name: Attest the image (where and how it was built, signed)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/xeldash/${{ matrix.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
 
   # The last step, on purpose: `xeldash update` and the dashboard's "new version" notice look at published releases, not tags, so
   # nobody is offered a version before all of its images exist. If anything above fails, the tag stays unannounced.
@@ -147,4 +161,21 @@ jobs:
           fi
           flags=""
           case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes $flags
+          # Each image's digest, and how to check that it was built here (the attestation from the images job).
+          version="${GITHUB_REF_NAME#v}"
+          owner="$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          {
+            echo "## Images"
+            echo
+            echo "Each image is signed with a build attestation. Check one with \`gh attestation verify oci://IMAGE --owner $GITHUB_REPOSITORY_OWNER\`."
+            echo
+            echo "| Image | Digest |"
+            echo "|---|---|"
+            for image in api stratum web node-admin daemon keepalived standby-web frontdoor; do
+              ref="ghcr.io/$owner/xeldash/$image:$version"
+              # A digest that cannot be read must not stop the release: the notes say so instead.
+              digest="$(docker buildx imagetools inspect "$ref" --format '{{ .Manifest.Digest }}' 2>/dev/null || echo "not read")"
+              echo "| \`$ref\` | \`$digest\` |"
+            done
+          } > images.md
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes --notes-file images.md $flags

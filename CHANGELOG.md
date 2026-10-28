@@ -13,9 +13,13 @@ breaking changes; they are marked **Breaking**.
   time, its hashrate while on, blocks its work was expected to find against blocks found, and an estimate for running around the
   clock. A strip shows each day's hours in your own time zone, with a table view. A minute counts as on when a share came in, and
   gaps of up to 3 minutes count too. From the minute stats already kept (90 days by default): no database change.
+- Each address on the Miners page says how much of the last day it was on, and a worker's 24-hour hashrate is labelled as the
+  average over the whole day it is (the On-time card has the hashrate while on).
 
 ### Security
 
+- Release images are signed: each carries a build attestation (GitHub artifact attestations, through Sigstore), BuildKit's provenance
+  and an SBOM, and the release notes list every image's digest. Check one with `gh attestation verify oci://IMAGE --owner pitanu`.
 - Idle connections can no longer fill a server. When the per-IP or total connection limit is reached, the connection quiet the
   longest that has never had a share accepted (and has been quiet for at least 2 minutes) is closed to make room, rather than the
   new miner being refused. On a public server, a connection with no share for 30 minutes (15 if it never sent one) is closed
