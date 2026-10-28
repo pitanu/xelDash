@@ -58,6 +58,11 @@ Leave it unset if you do not need these features.
 - **Daemon settings** are validated against the daemon's own option list and parser, and rolled
   back if the node does not stay up with them. Secret values are never sent to the browser.
   Peers must be `IP:port`; options the daemon refuses together are refused on save.
+- **xelDash's own images are signed.** Every release image on ghcr.io carries a build attestation (GitHub artifact attestations,
+  signed through Sigstore with this repository's release workflow as the signer), BuildKit's record of the build, and a list of what
+  is inside it (SBOM). The release notes list each image's digest. To check an image before running it:
+  `gh attestation verify oci://ghcr.io/pitanu/xeldash/api:0.8.0 --owner pitanu` (any image and version). `xeldash update` does not
+  check this itself yet; it pulls the images by version.
 - **Daemon releases** are downloaded only from the XELIS repository's own GitHub release
   files. Each archive must match the release's `checksums.txt` and GitHub's digest, and
   `xelis_daemon` inside it the archive's own checksum list. A node that does not stay up on

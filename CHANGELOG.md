@@ -16,6 +16,8 @@ breaking changes; they are marked **Breaking**.
 
 ### Security
 
+- Release images are signed: each carries a build attestation (GitHub artifact attestations, through Sigstore), BuildKit's provenance
+  and an SBOM, and the release notes list every image's digest. Check one with `gh attestation verify oci://IMAGE --owner pitanu`.
 - Idle connections can no longer fill a server. When the per-IP or total connection limit is reached, the connection quiet the
   longest that has never had a share accepted (and has been quiet for at least 2 minutes) is closed to make room, rather than the
   new miner being refused. On a public server, a connection with no share for 30 minutes (15 if it never sent one) is closed
