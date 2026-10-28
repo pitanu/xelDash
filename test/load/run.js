@@ -13,6 +13,10 @@
 //   LOAD_PUBLIC=1 npm run load         as a public server (XELDASH_PUBLIC_MODE): its node-call budget and connection limits apply
 //   LOAD_ADDRESSES_PER_IP=n, LOAD_SHARES_PER_IP=n, LOAD_NEW_WORKERS_PER_IP=n   raise a public server's per-IP limits: every simulated rig comes from one IP
 //                                      address, so with them they stand for rigs spread over many addresses
+//   LOAD_ATTACK=idle|invalid|churn     an attack beside the honest rigs (test/load/attack.js), from LOAD_ATTACKERS containers (5), each its own IP
+//                                      address with LOAD_ATTACK_CONNECTIONS connections (100), started LOAD_ATTACK_LEAD seconds before the rigs
+//                                      (150 for idle, so its connections have sat quiet long enough to be closed for newcomers; 20 otherwise)
+//   LOAD_MAX_CONNECTIONS=n             STRATUM_MAX_CONNECTIONS for the run (with idle: a limit the attackers can fill)
 //
 // Needs Docker and about 15 minutes. Results are printed as a table; they depend on the computer it runs on, so read them as an
 // order of magnitude and say what hardware they came from.
@@ -43,6 +47,12 @@ const ADDRESSES_FILE = process.env.LOAD_ADDRESSES_FILE ?? "";
 const ADDRESSES_PER_IP = process.env.LOAD_ADDRESSES_PER_IP ?? "";
 const SHARES_PER_IP = process.env.LOAD_SHARES_PER_IP ?? "";
 const NEW_WORKERS_PER_IP = process.env.LOAD_NEW_WORKERS_PER_IP ?? "";
+const ATTACK = process.env.LOAD_ATTACK ?? "";
+const ATTACKERS = Number(process.env.LOAD_ATTACKERS ?? "5");
+const ATTACK_CONNECTIONS = process.env.LOAD_ATTACK_CONNECTIONS ?? "100";
+const ATTACK_LEAD = Number(process.env.LOAD_ATTACK_LEAD ?? (ATTACK === "idle" ? "150" : "20"));
+const MAX_CONNECTIONS = process.env.LOAD_MAX_CONNECTIONS ?? "";
+const attackerNames = Array.from({ length: ATTACK ? ATTACKERS : 0 }, (_, i) => `load-attack-${i}`);
 const SERVICES = ["stratum", "daemon", "postgres", "api", "web"];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -133,16 +143,19 @@ async function main() {
     "XELDASH_STRATUM_PORT=33333", "XELDASH_STRATUM_TLS_PORT=33334", "XELDASH_GETWORK_PORT=38090", "XELIS_P2P_PORT=32125",
     "XELDASH_VERSION_CHECK=off", "XELDASH_PRICE=off",
     // Every simulated rig comes from one address, and mines at share difficulty 1 so that a share costs the server what a real one does.
-    "STRATUM_START_DIFFICULTY=1", "STRATUM_MIN_DIFFICULTY=1", "STRATUM_MAX_CONNECTIONS_PER_IP=100000",
+    // LOAD_MAX_CONNECTIONS_PER_IP lowers it (the burst of new connections an address may open at once is the same number).
+    "STRATUM_START_DIFFICULTY=1", "STRATUM_MIN_DIFFICULTY=1", `STRATUM_MAX_CONNECTIONS_PER_IP=${process.env.LOAD_MAX_CONNECTIONS_PER_IP ?? "100000"}`,
     `XELIS_DEFAULT_ADDRESS=${ADDRESS}`,
     ...(PUBLIC ? ["XELDASH_PUBLIC_MODE=true", "XELDASH_ALLOWED_NETWORKS=any"] : []),
     ...(ADDRESSES_PER_IP ? [`STRATUM_MAX_ADDRESSES_PER_IP=${ADDRESSES_PER_IP}`] : []),
     ...(SHARES_PER_IP ? [`STRATUM_SHARES_PER_IP_PER_SECOND=${SHARES_PER_IP}`] : []),
     ...(NEW_WORKERS_PER_IP ? [`STRATUM_NEW_WORKERS_PER_IP_PER_HOUR=${NEW_WORKERS_PER_IP}`] : []),
+    ...(MAX_CONNECTIONS ? [`STRATUM_MAX_CONNECTIONS=${MAX_CONNECTIONS}`] : []),
     "",
   ].join("\n"));
   console.log(`Computer: ${cpus().length} threads (${cpus()[0].model.trim()}), ${(totalmem() / 2 ** 30).toFixed(1)} GiB memory, ${process.platform}`);
   console.log(`Stages: ${STAGES} rigs, ${HOLD} s each, one share per rig every ${SHARE_SECONDS} s${CHAIN ? ", with a miner producing blocks in the background" : ""}`);
+  if (ATTACK) console.log(`Attack: ${ATTACK} from ${ATTACKERS} addresses, ${ATTACK_CONNECTIONS} connections each, ${ATTACK_LEAD} s before the rigs${PUBLIC ? " (public server)" : ""}`);
 
   compose(["down", "-v", "--remove-orphans"], { allowFail: true });
   console.log("Starting the stack (builds the images the first time)...");
@@ -167,6 +180,16 @@ async function main() {
     await sleep(5_000);
   }
   await sleep(5_000);
+
+  if (ATTACK) {
+    console.log(`Starting the attack (${ATTACK})...`);
+    for (const name of attackerNames) {
+      docker(["rm", "-f", name], { allowFail: true });
+      docker(["run", "-d", "--name", name, "--network", `${PROJECT}_node`, "-v", `${join(root, "test/load")}:/load:ro`, "ghcr.io/pitanu/xeldash/stratum:local",
+        "node", "/load/attack.js", ATTACK, "stratum", "3333", ADDRESS, ATTACK_CONNECTIONS]);
+    }
+    await sleep(ATTACK_LEAD * 1000);
+  }
 
   const sampling_ = sampler();
   const idle = samples.length;
@@ -223,6 +246,16 @@ async function main() {
     console.log(`| ${r.label === "idle" ? "0 (idle)" : r.rigs} | ${fmt(r.stratumCpuAvg)} / ${fmt(r.stratumCpuMax)} | ${fmt(r.stratumMb)} | ${fmt(r.daemonCpuAvg)} | ${fmt(r.postgresCpuAvg)} | ${fmt(r.apiCpuAvg)} | ${fmt(r.overviewAvg)} / ${fmt(r.overviewP95)} | ${fmt(r.sharesPerSecond, 1)} |`);
   }
   for (const r of rows) if (r.reasons && Object.keys(r.reasons).length) console.log(`\nRefused at ${r.rigs} rigs: ${JSON.stringify(r.reasons)}`);
+  if (ATTACK) {
+    // What each attacker got, from its last line of counts.
+    console.log("\n| attacker | open now | opened | closed by the server | refused at connect | logged in | login refused | shares sent | answered | refusals |");
+    console.log("|---|---:|---:|---:|---:|---:|---:|---:|---:|---|");
+    for (const name of attackerNames) {
+      const last = docker(["logs", "--tail", "1", name], { allowFail: true }).text.trim().split("\n").filter((l) => l.startsWith("{")).at(-1);
+      const c = last ? JSON.parse(last) : null;
+      console.log(c ? `| ${name} | ${c.open} | ${c.opened} | ${c.closedByServer} | ${c.connectFailed} | ${c.loggedIn} | ${c.loginRefused} | ${c.submitted} | ${c.answered} | ${JSON.stringify(c.refused)} |` : `| ${name} | - |`);
+    }
+  }
   const stratumLogs = compose(["logs", "stratum", "--tail", "400"], { allowFail: true }).text;
   // Why connections and logins were turned away, from the whole log (a flood of refusals would push everything else out of the
   // tail above).
@@ -230,8 +263,9 @@ async function main() {
   /** @type {Record<string, number>} */
   const refusals = {};
   for (const line of fullLog.split("\n")) {
-    const m = /Refusing (?:Stratum|getwork) connection from \S+: (.+)$/.exec(line);
-    if (m) refusals[m[1].trim()] = (refusals[m[1].trim()] ?? 0) + 1;
+    // Logged at most once a minute per address and reason, with how many more there were in between (refusal-log.js).
+    const m = /Refusing (?:Stratum|getwork) connection from \S+: (.+?)(?: \(and (\d+) more in the last \d+ s\))?$/.exec(line);
+    if (m) refusals[m[1].trim()] = (refusals[m[1].trim()] ?? 0) + 1 + Number(m[2] ?? 0);
   }
   console.log(`\nConnections refused by Stratum: ${Object.keys(refusals).length ? JSON.stringify(refusals) : "none"}`);
   const warnings = [...new Set(stratumLogs.split("\n").filter((l) => /warn|error|fail|Banning|Closing|limit/i.test(l)).map((l) => l.replace(/^.*?\| /, "").slice(0, 160)))].slice(0, 8);
@@ -256,7 +290,7 @@ try {
   if (process.env.LOAD_KEEP === "1") {
     console.log(`\nLeft the stack running (project ${PROJECT}). Remove it with: docker compose -p ${PROJECT} down -v`);
   } else {
-    for (const name of ["load-rigs", "load-chain", "load-boot"]) docker(["rm", "-f", name], { allowFail: true });
+    for (const name of ["load-rigs", "load-chain", "load-boot", ...attackerNames]) docker(["rm", "-f", name], { allowFail: true });
     compose(["down", "-v", "--remove-orphans"], { allowFail: true });
     rmSync(join(envFile, ".."), { recursive: true, force: true });
   }
