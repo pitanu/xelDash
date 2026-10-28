@@ -18,6 +18,12 @@ breaking changes; they are marked **Breaking**.
   connections from one IP address are limited to 20 a second after a burst of 1,000 (`STRATUM_CONNECTIONS_PER_IP_PER_SECOND`), so a
   farm can still reconnect at once after a restart; the Connection problems card explains the new refusal.
 
+- The dashboard and the API answer only to host names that belong to them, so another website can no longer point its own domain
+  at your dashboard (DNS rebinding) and read it through your browser: it gets "421 Misdirected Request". Addresses, names without a
+  dot, local names (`.local`, `.lan`, `.home`, `.home.arpa`, `.internal`, `.localhost`, `.ts.net`) and the names already in
+  `.env` keep working. **Breaking** if you open the dashboard under a domain of your own (not through the `proxy` profile): add
+  it to the new `XELDASH_ALLOWED_HOSTS` (`any` turns the check off).
+
 ### Fixed
 
 - Chart axes no longer show float noise in tick labels on Node 22 (`10 ** -5` is not exact there). CI now also runs on Node

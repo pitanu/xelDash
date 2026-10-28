@@ -3,13 +3,14 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import net from "node:net";
 import { startLiveUpdates } from "../src/live.js";
+import { hostAllowed, hostRulesFromEnv } from "../src/allowed-hosts.js";
 
 const quiet = { info() {}, warn() {} };
 
 /** The live-update endpoint on a real HTTP server, with a database that cannot be reached (the endpoint then just retries). */
-async function start() {
+async function start(options = {}) {
   const server = createServer((request, response) => response.writeHead(404).end());
-  const live = startLiveUpdates({ server, pool: { connect: async () => { throw new Error("no database"); } }, logger: quiet });
+  const live = startLiveUpdates({ server, pool: { connect: async () => { throw new Error("no database"); } }, logger: quiet, ...options });
   server.unref();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   return { port: server.address().port, close: async () => { await live.stop(); server.close(); } };
@@ -24,8 +25,10 @@ function upgradeStatus(port, path, headers = {}) {
     socket.on("data", (d) => { text += d; if (text.includes("\r\n")) done(); });
     socket.on("error", () => {});
     socket.on("close", done);
-    const lines = [`GET ${path} HTTP/1.1`, "Host: 127.0.0.1", "Connection: Upgrade", "Upgrade: websocket", "Sec-WebSocket-Version: 13", "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
-      ...Object.entries(headers).map(([k, v]) => `${k}: ${v}`), "", ""];
+    // The test's own Host replaces the default (Node keeps the first of two).
+    const all = { Host: "127.0.0.1", ...headers };
+    const lines = [`GET ${path} HTTP/1.1`, "Connection: Upgrade", "Upgrade: websocket", "Sec-WebSocket-Version: 13", "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+      ...Object.entries(all).map(([k, v]) => `${k}: ${v}`), "", ""];
     socket.write(lines.join("\r\n"));
     setTimeout(done, 2000);
   });
@@ -98,4 +101,13 @@ test("a public viewer gets only block news; the operator gets every event", asyn
   operator.ws.close();
   await live.stop();
   server.close();
+});
+
+test("a page from another website pointed at this address (DNS rebinding) is refused, though its origin matches its Host", async () => {
+  const rules = hostRulesFromEnv({});
+  const s = await start({ allowHost: (/** @type {import("node:http").IncomingMessage} */ request) => hostAllowed(request.headers.host, rules) });
+  // The rebinding page: Origin and Host are both the other website's, so the same-origin check alone lets it in.
+  assert.equal(await upgradeStatus(s.port, "/api/v1/live", { Host: "evil.example:8088", Origin: "http://evil.example:8088" }), "421");
+  assert.notEqual(await upgradeStatus(s.port, "/api/v1/live", { Host: "192.168.1.20:8088", Origin: "http://192.168.1.20:8088" }), "421");
+  await s.close();
 });

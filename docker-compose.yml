@@ -220,6 +220,9 @@ services:
       # Read only to warn about risky public-mode settings at startup.
       XELDASH_PUBLIC_DOMAIN: ${XELDASH_PUBLIC_DOMAIN:-}
       XELDASH_ALLOWED_NETWORKS: ${XELDASH_ALLOWED_NETWORKS:-private}
+      # With XELDASH_PUBLIC_DOMAIN and CONNECT_HOST: the host names the API answers to (src/allowed-hosts.js).
+      XELDASH_PROXY_HOST: ${XELDASH_PROXY_HOST:-}
+      XELDASH_ALLOWED_HOSTS: ${XELDASH_ALLOWED_HOSTS:-}
       # XEL price from CoinGecko, for viewers who switch it on; "off" disables it for everyone.
       XELDASH_PRICE: ${XELDASH_PRICE:-on}
       # What the dashboard's "Connect a miner" page shows: the published ports and this machine's
@@ -384,6 +387,11 @@ services:
     logging: *logging
     environment:
       XELDASH_ALLOWED_NETWORKS: ${XELDASH_ALLOWED_NETWORKS:-private}
+      # Host names the dashboard answers to besides addresses and local names (DNS rebinding; docker/web/42-allowed-hosts.sh).
+      XELDASH_CONNECT_HOST: ${XELDASH_CONNECT_HOST:-${XELDASH_PUBLIC_HOST:-}}
+      XELDASH_PUBLIC_DOMAIN: ${XELDASH_PUBLIC_DOMAIN:-}
+      XELDASH_PROXY_HOST: ${XELDASH_PROXY_HOST:-}
+      XELDASH_ALLOWED_HOSTS: ${XELDASH_ALLOWED_HOSTS:-}
       # In public mode this is the public view: no node administration, and no IP addresses from the API.
       XELDASH_PUBLIC_MODE: ${XELDASH_PUBLIC_MODE:-false}
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/web:${XELDASH_VERSION:-local}
@@ -420,6 +428,11 @@ services:
       XELDASH_WEB_VIEW: admin
       # Your own network only, whatever XELDASH_ALLOWED_NETWORKS says for the public site.
       XELDASH_ALLOWED_NETWORKS: private
+      # Host names the dashboard answers to besides addresses and local names (DNS rebinding; docker/web/42-allowed-hosts.sh).
+      XELDASH_CONNECT_HOST: ${XELDASH_CONNECT_HOST:-${XELDASH_PUBLIC_HOST:-}}
+      XELDASH_PUBLIC_DOMAIN: ${XELDASH_PUBLIC_DOMAIN:-}
+      XELDASH_PROXY_HOST: ${XELDASH_PROXY_HOST:-}
+      XELDASH_ALLOWED_HOSTS: ${XELDASH_ALLOWED_HOSTS:-}
     restart: unless-stopped
     depends_on:
       api:

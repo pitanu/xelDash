@@ -13,4 +13,5 @@ COPY web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY web/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --chmod=755 docker/web/40-allowed-networks.sh /docker-entrypoint.d/40-allowed-networks.sh
 COPY --chmod=755 docker/web/41-view.sh /docker-entrypoint.d/41-view.sh
+COPY --chmod=755 docker/web/42-allowed-hosts.sh /docker-entrypoint.d/42-allowed-hosts.sh
 COPY --from=build /web/dist /usr/share/nginx/html

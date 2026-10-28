@@ -273,12 +273,19 @@ computer, so on Windows and macOS this cannot block the internet by itself: run
 `xeldash firewall` (Windows, asks for administrator rights) and never forward the ports on your
 router. See [SECURITY.md](SECURITY.md). For a server open to everyone, see [Public mode](#public-mode).
 
+The dashboard also checks the name it is opened under, so another website cannot point its own domain at your dashboard and read
+it through your browser (DNS rebinding): it answers addresses (`http://192.168.1.20:8088`), names without a dot (`localhost`, the
+computer's own name), local names (`.local`, `.lan`, `.home`, `.home.arpa`, `.internal`, `.localhost`, `.ts.net`), and
+`XELDASH_CONNECT_HOST`, `XELDASH_PUBLIC_DOMAIN` and `XELDASH_PROXY_HOST`. Opened under any other name, it answers "421
+Misdirected Request". To use another name of your own, add it to `XELDASH_ALLOWED_HOSTS` (comma separated; `*.example.org` for
+every name under it; `any` turns the check off).
+
 ## HTTPS and a login
 
 By default the dashboard has no login and no HTTPS, which is fine on a trusted LAN or when you
 only open it on the xelDash machine itself. Otherwise, turn on the optional `proxy` service:
 Caddy in front of the dashboard with HTTPS, a username and password, and a check that only
-answers your chosen host name (which also blocks DNS-rebinding attacks).
+answers your chosen host name.
 
 1. Make a password hash:
    `docker run --rm caddy:2.11-alpine caddy hash-password --plaintext 'your-password'`
