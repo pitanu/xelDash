@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SMOOTHING, monotonePath, smooth } from "../src/components/chart-math.js";
+import { SMOOTHING, monotonePath, pow10, smooth } from "../src/components/chart-math.js";
 
 /** Every number in an SVG path, as [x, y] pairs in order. @param {string} d */
 const pairs = (d) => [...d.matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
@@ -90,4 +90,10 @@ test("a run of zeros stays flat at zero, and a peak is not exaggerated", () => {
 test("repeated x positions do not break the path", () => {
   const d = monotonePath([0, 0, 10, 20], [5, 6, 8, 9]);
   assert.doesNotMatch(d, /NaN|Infinity/);
+});
+
+test("powers of ten are exact for negative exponents too, on every engine", () => {
+  // Literals are the nearest doubles; 10 ** -5 is not on Node 22.
+  assert.deepEqual([-5, -4, -3, -2, -1, 0, 1, 2, 3].map(pow10), [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100, 1000]);
+  assert.equal(String(pow10(-5)), "0.00001", "no float noise in a label");
 });

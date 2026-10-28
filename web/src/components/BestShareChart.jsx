@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { formatBestShare, formatTime } from "../format.js";
+import { pow10 } from "./chart-math.js";
 import { Card } from "./ui.jsx";
 
 const HEIGHT = 220;
@@ -28,7 +29,7 @@ export function bestShareScale(values) {
   const high = Math.max(1, ...values);
   const from = Math.floor(Math.log10(low));
   const to = Math.ceil(Math.log10(high));
-  return { from, to, ticks: Array.from({ length: to - from + 1 }, (_, k) => 10 ** (from + k)) };
+  return { from, to, ticks: Array.from({ length: to - from + 1 }, (_, k) => pow10(from + k)) };
 }
 
 /**

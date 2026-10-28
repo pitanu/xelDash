@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePolled } from "../api.js";
 import { useCoin } from "../coin.js";
 import { formatXel } from "../format.js";
+import { pow10 } from "./chart-math.js";
 import { Segmented } from "./ui.jsx";
 import { useReplayKey } from "../motion.js";
 
@@ -16,7 +17,7 @@ const ATOMIC = 1e8;
 function niceTicks(max, count) {
   if (max <= 0) return [0];
   const raw = max / count;
-  const power = 10 ** Math.floor(Math.log10(raw));
+  const power = pow10(Math.floor(Math.log10(raw)));
   const step = [1, 2, 5, 10].map((m) => m * power).find((s) => s >= raw) ?? raw;
   const ticks = [];
   for (let v = 0; v <= max + step * 0.001; v += step) ticks.push(v);

@@ -1,4 +1,13 @@
-// Smoothing and curve helpers for the hashrate chart.
+// Smoothing and curve helpers for the hashrate chart, and axis helpers for every chart.
+
+/**
+ * 10 to the power n, exact for negative n too: `10 ** -5` is 0.000009999999999999999 on some JavaScript engines (Node 22 among
+ * them), which shows up as noise in tick labels. "1e-5" is parsed as the nearest double, everywhere.
+ * @param {number} n a whole number
+ */
+export function pow10(n) {
+  return Number(`1e${n}`);
+}
 
 /** Smoothing levels offered on the chart, with the kernel width as a share of the range. */
 export const SMOOTHING = /** @type {const} */ ([
