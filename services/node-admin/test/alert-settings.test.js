@@ -13,7 +13,7 @@ async function settings(env = {}) {
   return { s: new AlertSettings({ configDir: dir, env }), dir, done: () => rm(dir, { recursive: true, force: true }) };
 }
 
-test("the starting values come from .env, with every alert type on by default", async () => {
+test("the starting values come from .env, with every alert type on by default but the opt-in ones", async () => {
   const { s, done } = await settings({ ALERT_DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1/abcdWXYZ", ALERT_EVENTS: "block_found,nonsense", ALERT_WORKER_OFFLINE_MINUTES: "30" });
   const status = await s.status();
   assert.deepEqual(status.discord, { set: true, end: "WXYZ" });
@@ -21,8 +21,12 @@ test("the starting values come from .env, with every alert type on by default", 
   assert.equal(status.workerOfflineMinutes, 30);
   assert.equal(status.webhook.set, false);
   const fresh = await settings({});
-  assert.deepEqual((await fresh.s.status()).events, (await fresh.s.status()).allEvents);
-  await done(); await fresh.done();
+  const all = (await fresh.s.status()).allEvents;
+  assert.deepEqual((await fresh.s.status()).events, all.filter((e) => e !== "worker_unusual"), "worker_unusual only when chosen");
+  assert.ok(all.includes("worker_unusual"), "but it can be chosen");
+  const chosen = await settings({ ALERT_EVENTS: "worker_unusual" });
+  assert.deepEqual((await chosen.s.status()).events, ["worker_unusual"]);
+  await done(); await fresh.done(); await chosen.done();
 });
 
 test("a secret is never given back, only that it is set and its last four characters", async () => {
