@@ -38,7 +38,9 @@ Leave it unset if you do not need these features.
   connection, and a 15-minute ban after 50 or more invalid submissions or failed logins in 5 minutes, when over half of that
   client's submissions in that time were invalid.
   At most 32 workers per connection; worker names may not contain control characters.
-  Malformed requests are refused without affecting other miners.
+  Malformed requests are refused without affecting other miners. When a connection limit is reached, a connection that has never
+  had a share accepted and has been quiet for 2 minutes makes room for the new one, and on a public server connections with no share
+  for 30 minutes are closed, so idle logins cannot keep miners out.
 - **Browsers cannot reach getwork**, and the live-update WebSocket only accepts the
   dashboard's own origin, so other websites cannot use a visitor's browser against them.
 - **Dashboard headers.** A strict Content-Security-Policy (scripts, styles and connections

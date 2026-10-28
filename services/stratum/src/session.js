@@ -130,6 +130,14 @@ export class StratumSession {
     this.refreshQueued = false;
     this.forceClean = false;
     this.vardiff = new Vardiff(vardiff);
+    // How busy this connection is, for closing idle ones and choosing which to drop when the server is full (idle-connections.js):
+    // when it opened, when a logged-in worker last sent a share (good, bad or late), and whether any share was ever accepted.
+    this.openedAt = Date.now();
+    /** @type {number | null} */
+    this.lastShareAt = null;
+    /** The connection's address, set by the server (a front door's PROXY line, getwork's own). @type {string | null} */
+    this.ip = null;
+    this.hadAcceptedShare = false;
   }
 
   /** @param {string} line */
@@ -591,6 +599,7 @@ export class StratumSession {
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, "Worker is not authorized"));
       return;
     }
+    this.lastShareAt = Date.now();
     if (!this.submitShare) {
       this.send(errorResponse(request.id, STRATUM_ERRORS.STALE_JOB, "No active mining job"));
       return;
@@ -638,7 +647,10 @@ export class StratumSession {
       }
       return result;
     }
-    if (result?.accepted === true) this.onSubmission(true);
+    if (result?.accepted === true) {
+      this.hadAcceptedShare = true;
+      this.onSubmission(true);
+    }
     return result ?? {};
   }
 
@@ -661,6 +673,7 @@ export class StratumSession {
       this.onSubmission(false);
       return { error: { code: STRATUM_ERRORS.UNAUTHORIZED, message: "Worker is not authorized" } };
     }
+    this.lastShareAt = Date.now();
     if (typeof minerWorkHex !== "string" || !/^[0-9a-f]{224}$/i.test(minerWorkHex)) {
       this.onSubmission(false);
       return { error: { code: -32602, message: "MinerWork must be 112 bytes of hexadecimal" } };

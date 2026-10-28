@@ -7,6 +7,18 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Security
+
+- Idle connections can no longer fill a server. When the per-IP or total connection limit is reached, the connection quiet the
+  longest that has never had a share accepted (and has been quiet for at least 2 minutes) is closed to make room, rather than the
+  new miner being refused. On a public server, a connection with no share for 30 minutes (15 if it never sent one) is closed
+  (`STRATUM_IDLE_SECONDS`; off elsewhere unless set). Stratum connections use TCP keepalive, so a rig that vanished is noticed.
+
+### Fixed
+
+- Chart axes no longer show float noise in tick labels on Node 22 (`10 ** -5` is not exact there). CI now also runs on Node
+  22.15.0, the oldest version that `engines` allows.
+
 ## [0.7.0] - 2026-10-24
 
 A new look for the dashboard, with nothing taken away: colour themes and a colour of your own, a Connect page, an effort chart on

@@ -20,6 +20,7 @@ import { MiningJobProvider } from "./job-provider.js";
 import { NodeBudget, burstFor } from "./node-budget.js";
 import { NodePool, rpcUrlsFromEnv } from "./node-pool.js";
 import { LineFramer } from "./line-framer.js";
+import { ConnectionPlaces, idleConnections } from "./idle-connections.js";
 import { StratumSession } from "./session.js";
 import { tlsConfigFromEnv, watchTlsCertificate } from "./tls-config.js";
 import { createShareSubmitter } from "./share-submitter.js";
@@ -151,6 +152,10 @@ function optionalSetting(name) {
 const nodeCallsSetting = optionalSetting("STRATUM_NODE_CALLS_PER_SECOND");
 const addressesPerIpSetting = optionalSetting("STRATUM_MAX_ADDRESSES_PER_IP");
 const newWorkersPerIpSetting = optionalSetting("STRATUM_NEW_WORKERS_PER_IP_PER_HOUR");
+// Close a connection with no share for this long (half of it if it has never sent one): on public servers by default, so idle
+// logins cannot hold places real miners need (idle-connections.js). 0 turns it off.
+const idleSecondsSetting = optionalSetting("STRATUM_IDLE_SECONDS");
+const idleSeconds = () => idleSecondsSetting ?? (isPublic() ? 1800 : 0);
 const nodeBudget = new NodeBudget({ perSecond: 0 });
 /** @type {boolean | null} */
 let limitsForPublic = null;
@@ -170,7 +175,8 @@ function applyModeLimits() {
     console.info(`Public-server limits: ${perSecond || "no"} node calls a second, ${addressesPerIpSetting ?? 32} addresses, `
       + `${newWorkersPerIpSetting ?? 1000} new worker names an hour, `
       + `${ipGuardConfig.maxConnectionsPerIp} connections and ${ipGuardConfig.sharesPerIpPerSecond || "unlimited"} shares a second per IP address, `
-      + `${ipGuardConfig.maxConnections || "no limit to"} connections in all`);
+      + `${ipGuardConfig.maxConnections || "no limit to"} connections in all, `
+      + `${idleSeconds() ? `idle connections closed after ${idleSeconds()} s` : "idle connections kept"}`);
     if (ipGuardConfig.explicit?.maxConnectionsPerIp && ipGuardConfig.maxConnectionsPerIp < 600) {
       console.warn(`STRATUM_MAX_CONNECTIONS_PER_IP is ${ipGuardConfig.maxConnectionsPerIp}: a farm behind one IP address can connect only `
         + "that many rigs. Leave it empty for the public default (1000).");
@@ -220,6 +226,13 @@ const submitShare = metrics.enabled
   : checkShare;
 /** @type {Map<{ remoteAddress?: string, destroy: () => void }, StratumSession>} */
 const sessions = new Map();
+// Idle connections are closed every 30 s; one line says how many.
+setInterval(() => {
+  const idle = idleConnections(sessions, idleSeconds() * 1000);
+  if (idle.length === 0) return;
+  console.warn(`Closing ${idle.length} Stratum connection${idle.length === 1 ? "" : "s"} with no share for ${idleSeconds()} s (or half that, never one)`);
+  for (const socket of idle) socket.destroy();
+}, 30_000).unref();
 // Why a connection or login was turned away, recorded for the dashboard's connection help. The
 // same problem from the same address is recorded at most once every ten minutes, so a stuck
 // miner retrying every few seconds cannot fill the events table.
@@ -270,6 +283,11 @@ const ipGuard = new IpGuard(ipGuardConfig, {
   .then((bans) => ipGuard.loadBans(bans))
   .catch((error) => console.warn("Failed to load bans:", error instanceof Error ? error.message : String(error)));
 setInterval(() => ipGuard.prune(), 60_000).unref();
+
+// Places for connections: idle logins make way for real miners when a limit is reached (idle-connections.js).
+const places = new ConnectionPlaces(ipGuard, sessions, {
+  onEvict: (evicted, forIp, reason) => console.warn(`Closing a connection from ${evicted} that has not mined, to make room for one from ${forIp} (${reason})`),
+});
 
 // Hourly: roll minute stats into hourly rows, then delete raw shares and minute stats past
 // retention. Stratum owns this because it is the service that writes those tables.
@@ -357,7 +375,7 @@ function warnIfMasked(ip) {
  */
 function newSession(socket, ip, onAuthorized = () => {}) {
   warnIfMasked(ip);
-  return new StratumSession({
+  const session = new StratumSession({
     socket,
     // The connection's real address (a front door's PROXY line, getwork's own), for the per-IP address limit.
     authorizeAddress: (input) => authorizeAddress({ ...input, ip }),
@@ -394,6 +412,8 @@ function newSession(socket, ip, onAuthorized = () => {}) {
     },
     canMine: () => (nodes.ready ? null : nodes.reason),
   });
+  session.ip = ip;
+  return session;
 }
 
 /**
@@ -403,14 +423,14 @@ function newSession(socket, ip, onAuthorized = () => {}) {
  */
 function handleConnection(socket) {
   const ip = normalizeIp(socket.remoteAddress);
-  const refused = ipGuard.connect(ip);
+  const refused = places.admit(ip);
   if (refused) {
     console.warn(`Refusing Stratum connection from ${ip}: ${refused}`);
     reportProblem("connection_refused", { ip, reason: refused });
     socket.destroy();
     return;
   }
-  socket.once("close", () => ipGuard.disconnect(ip));
+  socket.once("close", () => places.release(socket, ip));
   const limiter = new MessageRateLimiter(ipGuardConfig);
   const framer = new LineFramer();
   const handshakeTimer = setTimeout(() => {
@@ -429,6 +449,8 @@ function handleConnection(socket) {
   let queuedRequests = 0;
 
   socket.setNoDelay(true);
+  // A rig that lost power or its network without closing the connection is noticed, instead of holding its place.
+  socket.setKeepAlive(true, 30_000);
   socket.on("data", (chunk) => {
     try {
       const lines = framer.push(chunk, maxQueuedRequests - queuedRequests);
@@ -589,6 +611,7 @@ if (!Number.isSafeInteger(getworkPort) || getworkPort < 1 || getworkPort > 65535
 }
 const getwork = getworkEnabled
   ? startGetworkServer({ host, port: getworkPort, ipGuard, rateLimit: ipGuardConfig, sessions, createSession: newSession,
+    admit: (ip) => places.admit(ip), release: (socket, ip) => places.release(socket, ip),
     onRefused: (ip, reason) => reportProblem("connection_refused", { ip, reason }), proxyTrust })
   : null;
 

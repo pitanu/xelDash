@@ -494,3 +494,22 @@ test("a login with something not shaped like an address is refused before the ad
   assert.deepEqual(h.events.submissions, [false, false, false, false], "each counts as a failed login");
   assert.ok(h.events.problems.every((p) => p.reason === "invalid_address"));
 });
+
+test("a connection's activity, for closing idle ones: shares from a logged-in worker, good or bad, and whether one was accepted", async () => {
+  const h = harness();
+  assert.equal(h.session.lastShareAt, null);
+  assert.equal(h.session.hadAcceptedShare, false);
+  await login(h);
+  assert.equal(h.session.lastShareAt, null, "logging in is not mining");
+  const job = [...h.session.jobs.values()][0];
+  await submit(h, ["nobody", job.jobId, NONCE], 60);
+  assert.equal(h.session.lastShareAt, null, "a share from a worker that is not logged in does not count");
+  h.state.shareResult = { error: { code: STRATUM_ERRORS.LOW_DIFFICULTY, message: "Low difficulty share" } };
+  await submit(h, ["rig1", job.jobId, NONCE], 61);
+  assert.ok(h.session.lastShareAt !== null, "a refused share is still activity");
+  assert.equal(h.session.hadAcceptedShare, false);
+  h.state.shareResult = { accepted: true };
+  await submit(h, ["rig1", job.jobId, "fedcba9876543210"], 62);
+  assert.equal(h.session.hadAcceptedShare, true);
+  h.session.close();
+});

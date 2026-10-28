@@ -404,6 +404,11 @@ community to notice a bad or tampered release. node-admin logs a warning at star
   in all (`STRATUM_MAX_CONNECTIONS`), and at most 32 different addresses per IP address (`STRATUM_MAX_ADDRESSES_PER_IP`): made-up
   addresses are what an attack on the node would need, and a connection that keeps trying them is banned like one sending bad shares.
   The usual per-connection message limits and bans apply as well.
+- **Idle connections:** a connection that sends no share for 30 minutes is closed, and one that has never sent a share after 15
+  (`STRATUM_IDLE_SECONDS`, 1800 on a public server, off otherwise; 0 turns it off), so logins that only sit there cannot hold the
+  places real miners need. On every server, when the per-IP or total limit is reached, the connection quiet the longest that has
+  never had a share accepted, and has been quiet for at least 2 minutes, is closed to make room for the new one; a connection that
+  has mined is never closed for it, and nor is a rig still finding its first share.
 - **Shares:** at most 300 shares checked a second per IP address (`STRATUM_SHARES_PER_IP_PER_SECOND`; a farm of 600 rigs sends about
   120). A share over the limit is answered "too many shares" without being checked. A difficulty a miner asks for in its password
   (`d=...`) is where its difficulty starts and the lowest it goes, but the server still raises it for a rig that sends shares too fast.

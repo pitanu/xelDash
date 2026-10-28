@@ -111,11 +111,14 @@ class GetworkSocket {
  *   rateLimit: { messagesPerSecond: number, messageBurst: number },
  *   sessions: Map<any, StratumSession>,
  *   createSession: (socket: GetworkSocket, ip: string) => StratumSession,
+ *   admit?: (ip: string) => string | null, release?: (socket: GetworkSocket, ip: string) => void,
  *   onRefused?: (ip: string, reason: string) => void,
  *   proxyTrust?: { trusts: (ip: string) => boolean } | null,
  *   logger?: Pick<Console, "info" | "warn"> }} options
  */
-export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, createSession, onRefused = () => {}, proxyTrust = null, logger = console }) {
+export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, createSession, onRefused = () => {}, proxyTrust = null, logger = console,
+  // Counting a connection and giving its place back; the server's own make room for new miners when a limit is reached.
+  admit = (ip) => ipGuard.connect(ip), release = (_socket, ip) => ipGuard.disconnect(ip) }) {
   // A miner sends its upgrade request at once: connections that have not within 10 s are closed (checked every 2 s).
   const server = createServer({ headersTimeout: 10_000, requestTimeout: 10_000, connectionsCheckingInterval: 2_000 }, (_, response) => {
     response.writeHead(426, { "content-type": "text/plain" }).end("Connect with a getwork WebSocket client");
@@ -150,7 +153,7 @@ export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, c
       return;
     }
     const { address, worker } = target;
-    const refused = ipGuard.connect(ip);
+    const refused = admit(ip);
     if (refused) {
       logger.warn?.(`Refusing getwork connection from ${ip}: ${refused}`);
       onRefused(ip, refused);
@@ -182,7 +185,7 @@ export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, c
       clearInterval(heartbeat);
       session.close();
       sessions.delete(socket);
-      ipGuard.disconnect(ip);
+      release(socket, ip);
     });
     ws.on("error", () => ws.terminate());
 
