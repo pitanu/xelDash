@@ -7,6 +7,13 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-29
+
+Hardening against attacks on a public server, measured with attack tests (docs/REQUIREMENTS.md "Under attack"), signed release
+images, tighter containers, and on-time: how long each rig mined and what that time produced. **Breaking** only if you open the
+dashboard under a domain of your own without the `proxy` profile: add it to `XELDASH_ALLOWED_HOSTS` (see Security). No database
+migration, so going back to 0.7.0 still works.
+
 ### Dashboard
 
 - On-time, on each miner and worker page: how long the address or rig mined over 24 hours, 7, 30 or 90 days and its share of that
