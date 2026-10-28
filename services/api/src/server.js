@@ -9,6 +9,7 @@ import { getBlockEfforts, getLuck, getMedianBlockEffort, getRewardsHistory } fro
 import { bestShareEnabled, getBestShare } from "./best-share.js";
 import { callAnyNode, fallbackUrl, rpcUrlsFromEnv } from "./nodes.js";
 import { getConnectInfo } from "./connect.js";
+import { ACTIVITY_RANGES, getActivity } from "./activity.js";
 import { CURRENCIES, getPrice } from "./price.js";
 import { coinSymbol } from "./coin.js";
 import { atomicToXel, toCsv } from "./csv.js";
@@ -323,6 +324,17 @@ async function route(request, response, publicView, sendJson) {
 
     if (pathname === "/api/v1/miners") {
       sendJson(response, 200, { miners: await listMiners(pool) });
+      return;
+    }
+
+    // When an address (or one of its workers) was mining, and what that time produced: see activity.js.
+    if (pathname === "/api/v1/activity") {
+      const range = searchParams.get("range") ?? "7d";
+      if (address === null || !Object.hasOwn(ACTIVITY_RANGES, range)) {
+        sendJson(response, 400, { error: address === null ? "address_required" : "invalid_range", ranges: Object.keys(ACTIVITY_RANGES) });
+        return;
+      }
+      sendJson(response, 200, await getActivity(pool, { address, worker, range }));
       return;
     }
 
