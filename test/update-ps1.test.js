@@ -5,7 +5,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const LAUNCHER = fileURLToPath(new URL("../xeldash.ps1", import.meta.url));
@@ -103,7 +103,10 @@ test("Windows: when the backup before it cannot be taken, the update changes not
   assert.equal(skipped.status, 0, skipped.text);
   assert.match(skipped.text, /No backup before this update/);
   assert.match(readFileSync(join(dir, ".env"), "utf8"), /^XELDASH_VERSION=9\.9\.9\s*$/m);
+  // The update replaced the compose file with one without services, so "down" alone leaves the project's network behind (and
+  // Docker runs out of networks after enough runs): remove it by the project's name, the folder's.
   spawnSync("docker", ["compose", "down"], { cwd: dir });
+  spawnSync("docker", ["network", "rm", `${basename(dir).toLowerCase()}_default`]);
   github.close();
   rmSync(dir, { recursive: true, force: true });
 });
