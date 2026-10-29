@@ -73,14 +73,16 @@ for (const publicMode of [true, false]) {
 
 test("a public server sends no alerts about individual workers, even when they are selected", async () => {
   const hook = await webhook();
-  for (const publicMode of [true, false]) {
-    const { pool, counts } = fakePool({});
-    const config = alertConfigFromEnv({ ALERT_WEBHOOK_URL: hook.url, ALERT_EVENTS: "worker_offline", XELDASH_PUBLIC_MODE: String(publicMode) });
-    const alerts = startAlerts({ pool, config, logger: quiet });
-    await until(() => counts.workerQueries > 0);
-    await new Promise((r) => setTimeout(r, 50));
-    alerts?.stop();
-    assert.equal(counts.workerQueries > 0, !publicMode, publicMode ? "the worker check does not even run" : "the worker check runs");
+  for (const kind of ["worker_offline", "worker_unusual", "worker_rejects"]) {
+    for (const publicMode of [true, false]) {
+      const { pool, counts } = fakePool({});
+      const config = alertConfigFromEnv({ ALERT_WEBHOOK_URL: hook.url, ALERT_EVENTS: kind, XELDASH_PUBLIC_MODE: String(publicMode) });
+      const alerts = startAlerts({ pool, config, logger: quiet });
+      await until(() => counts.workerQueries > 0);
+      await new Promise((r) => setTimeout(r, 50));
+      alerts?.stop();
+      assert.equal(counts.workerQueries > 0, !publicMode, `${kind}: ${publicMode ? "the worker check does not even run" : "the worker check runs"}`);
+    }
   }
   hook.close();
 });

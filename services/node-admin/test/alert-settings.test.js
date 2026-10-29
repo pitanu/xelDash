@@ -22,8 +22,9 @@ test("the starting values come from .env, with every alert type on by default bu
   assert.equal(status.webhook.set, false);
   const fresh = await settings({});
   const all = (await fresh.s.status()).allEvents;
-  assert.deepEqual((await fresh.s.status()).events, all.filter((e) => e !== "worker_unusual"), "worker_unusual only when chosen");
-  assert.ok(all.includes("worker_unusual"), "but it can be chosen");
+  const optIn = ["worker_unusual", "worker_rejects"];
+  assert.deepEqual((await fresh.s.status()).events, all.filter((e) => !optIn.includes(e)), "the opt-in kinds only when chosen");
+  for (const kind of optIn) assert.ok(all.includes(kind), `but ${kind} can be chosen`);
   const chosen = await settings({ ALERT_EVENTS: "worker_unusual" });
   assert.deepEqual((await chosen.s.status()).events, ["worker_unusual"]);
   await done(); await fresh.done(); await chosen.done();

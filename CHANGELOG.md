@@ -7,6 +7,12 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Alerts
+
+- A new alert, off unless you choose it (`worker_rejects`, or "A worker has many rejected shares" in Settings): a worker with at
+  least 20 rejected shares, and 10% or more of its shares, over 15 minutes, with the reasons; and a message when it is below 5%
+  again. Webhooks get the counts and `reasons` (docs/OPERATIONS.md).
+
 ### Dashboard
 
 - On-time as a spreadsheet: "Download as CSV" on the On-time card gives each stretch the address or rig was mining in the range

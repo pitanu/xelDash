@@ -138,8 +138,55 @@ test("worker_unusual alone: quiet for a rig that is often off at this time, and 
   }
 });
 
-test("worker_unusual is sent only when chosen: not part of the default of every kind", () => {
+/**
+ * A worker's last 15 minutes at each check, in turn (accepted, rejected), then the last one again; and its reject reasons.
+ * @param {[number, number][]} checks
+ */
+function rejectPool(checks) {
+  let n = 0;
+  const pool = {
+    query: async (/** @type {string} */ sql) => {
+      if (/FROM worker_rejects_1m/.test(sql)) return { rows: [{ reason: "stale", count: 25 }, { reason: "low_difficulty", count: 5 }] };
+      if (/HAVING sum\(s\.accepted\)/.test(sql)) {
+        const [accepted, rejected] = checks[Math.min(n++, checks.length - 1)];
+        return { rows: [{ address: ADDRESS, id: 7, name: "rig1", accepted, rejected }] };
+      }
+      return { rows: [] };
+    },
+  };
+  return /** @type {import("pg").Pool} */ (/** @type {unknown} */ (pool));
+}
+
+test("a worker's rejected shares: an alert with the reasons when there are many, and one when they are few again", async () => {
+  const hook = await webhook();
+  // Normal, then 30 of 130 rejected (23%), then 6 of 106 (5.7%, still above the 5% to clear), then 2 of 102.
+  const alerts = startAlerts({ pool: rejectPool([[100, 1], [100, 30], [100, 6], [100, 2]]),
+    config: alertConfigFromEnv({ ALERT_WEBHOOK_URL: hook.url, ALERT_EVENTS: "worker_rejects" }), logger: quiet, workerCheckMs: 50 });
+  await until(() => hook.received.length >= 2, 8_000);
+  alerts?.stop();
+  hook.close();
+  assert.deepEqual(hook.received.map((b) => b.event), ["worker_rejects", "worker_rejects_ok"]);
+  assert.deepEqual(fields(hook.received[0]), ["accepted", "address", "minutes", "percent", "reasons", "rejected", "worker"]);
+  assert.deepEqual(fields(hook.received[1]), ["accepted", "address", "minutes", "percent", "rejected", "worker"]);
+  assert.equal(hook.received[0].percent, 23.1);
+  assert.deepEqual(hook.received[0].reasons, { stale: 25, low_difficulty: 5 });
+  assert.match(hook.received[0].text, /rig1 .* 30 of 130 shares rejected \(23\.1%\) in the last 15 minutes: 25 stale \(work for an old block\), 5 below the share difficulty/);
+  assert.equal(hook.received[1].percent, 2);
+});
+
+test("a few rejected shares are not an alert: fewer than 20, or under 10%", async () => {
+  const hook = await webhook();
+  const alerts = startAlerts({ pool: rejectPool([[10, 0], [10, 15], [400, 30]]),
+    config: alertConfigFromEnv({ ALERT_WEBHOOK_URL: hook.url, ALERT_EVENTS: "worker_rejects" }), logger: quiet, workerCheckMs: 50 });
+  await until(() => false, 1_000);
+  alerts?.stop();
+  hook.close();
+  assert.deepEqual(hook.received, [], "15 of 25 is 60% but only 15; 30 of 430 is 7%");
+});
+
+test("worker_unusual and worker_rejects are sent only when chosen: not part of the default of every kind", () => {
   assert.equal(alertConfigFromEnv({}).events.has("worker_unusual"), false);
+  assert.equal(alertConfigFromEnv({}).events.has("worker_rejects"), false);
   assert.equal(alertConfigFromEnv({}).events.has("worker_offline"), true);
   assert.equal(alertConfigFromEnv({ ALERT_EVENTS: "worker_unusual" }).events.has("worker_unusual"), true);
 });
