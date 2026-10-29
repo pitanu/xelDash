@@ -6,10 +6,19 @@ map $http_upgrade $connection_upgrade {
   ""      close;
 }
 
+# The host names this page answers to, by the dashboard's rules (docker/web/42-allowed-hosts.sh): $xeldash_host_ok is 0 for any
+# other, such as a website's own domain pointed at this address (DNS rebinding).
+include /etc/nginx/snippets/allowed-hosts.conf;
+
 server {
   listen 8080;
   server_name _;
   server_tokens off;
+
+  # Only under a name that belongs here: another website's domain gets nothing, the offline page and this server's status included.
+  if ($xeldash_host_ok = 0) {
+    return 421;
+  }
 
   set $primary "${PRIMARY_URL}";
   set $standby_status "${STANDBY_STATUS_URL}";

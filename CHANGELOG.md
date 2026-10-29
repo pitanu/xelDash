@@ -42,6 +42,18 @@ breaking changes; they are marked **Breaking**.
 - `.env.example` is grouped into sections, with the four settings to fill in before the first start at the top. No setting or
   default changed, and an existing `.env` is not touched.
 
+### Security
+
+- The second server's and the front door's own web page (the offline page and its status) answers only to the host names the
+  dashboard does, and gives any other "421 Misdirected Request" (DNS rebinding). It reads the same `.env` names
+  (`XELDASH_CONNECT_HOST`, `XELDASH_PUBLIC_DOMAIN`, `XELDASH_PROXY_HOST`, `XELDASH_ALLOWED_HOSTS`); opened by address, nothing
+  changes. The dashboard it shows through was already checked by the main server.
+
+### Tests
+
+- Each database test file runs in an empty database of its own, dropped afterwards. CI also runs the tests on Windows and macOS,
+  which found that the launcher tests could not load the launcher under macOS's bash 3.2 (the launcher itself was fine).
+
 ## [0.8.0] - 2026-10-29
 
 Hardening against attacks on a public server, measured with attack tests (docs/REQUIREMENTS.md "Under attack"), signed release

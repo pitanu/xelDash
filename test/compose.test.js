@@ -60,6 +60,34 @@ test("every container is started without a way to gain privileges, and ours with
   }
 });
 
+test("the nodes publish only their P2P port; their RPC (8080) stays inside Docker's network", { skip }, () => {
+  for (const [files, env] of Object.entries(SETS)) {
+    const r = spawnSync("docker", ["compose", "--profile", "*", "config", "--format", "json"], {
+      cwd: root, encoding: "utf8", env: { ...process.env, ...env, COMPOSE_FILE: files, COMPOSE_PATH_SEPARATOR: ":" },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    for (const [name, service] of Object.entries(JSON.parse(r.stdout).services)) {
+      if (!["daemon", "daemon2"].includes(name)) continue;
+      const published = (service.ports ?? []).map((/** @type {any} */ p) => p.target);
+      assert.deepEqual(published.filter((port) => port !== 2125), [], `${files}: ${name} publishes ${published.join(", ")}`);
+    }
+  }
+});
+
+test("the standby page answers to the same host names as the dashboard", { skip }, () => {
+  const names = ["XELDASH_CONNECT_HOST", "XELDASH_PUBLIC_DOMAIN", "XELDASH_PROXY_HOST", "XELDASH_ALLOWED_HOSTS"];
+  for (const files of ["docker-compose.standby.yml", "docker-compose.frontdoor.yml"]) {
+    const r = spawnSync("docker", ["compose", "config", "--format", "json"], {
+      cwd: root, encoding: "utf8", env: { ...process.env, ...SETS[files], COMPOSE_FILE: files, XELDASH_CONNECT_HOST: "dash.example.org", XELDASH_ALLOWED_HOSTS: "*.example.net" },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    const environment = JSON.parse(r.stdout).services.web.environment;
+    assert.deepEqual(names.filter((n) => !(n in environment)), [], files);
+    assert.equal(environment.XELDASH_CONNECT_HOST, "dash.example.org", files);
+    assert.equal(environment.XELDASH_ALLOWED_HOSTS, "*.example.net", files);
+  }
+});
+
 test("the Connect page's address: XELDASH_CONNECT_HOST, or the old XELDASH_PUBLIC_HOST from an older .env", { skip }, () => {
   const connectHost = (/** @type {Record<string, string>} */ vars) => {
     const r = spawnSync("docker", ["compose", "config", "--format", "json"], {
