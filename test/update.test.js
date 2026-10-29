@@ -23,9 +23,9 @@ function bash(script, { files = {} } = {}) {
     cd '${toPosix(dir)}'
     say() { printf '%s\\n' "$*"; }; warn() { printf 'WARN: %s\\n' "$*"; }; die() { printf 'DIE: %s\\n' "$*"; exit 1; }
     L='${toPosix(LAUNCHER)}'
-    for fn in get_env set_env release_version use_release_version version_newer newest_tag; do
-      eval "$(sed -n "/^$fn() [{]/,/^[}]/p" "$L")"
-    done
+    # The pattern is in a variable: macOS's bash 3.2 brace-expands "{/,/^}" written inside "$(...)" (see launcher.test.js).
+    load() { local p="/^$1() {/,/^}/p"; eval "$(sed -n "$p" "$L")"; }
+    for fn in get_env set_env release_version use_release_version version_newer newest_tag; do load "$fn"; done
   `;
   const r = spawnSync("bash", ["-c", prelude + script], { encoding: "utf8" });
   const dotenv = existsSync(join(dir, ".env")) ? readFileSync(join(dir, ".env"), "utf8") : "";
