@@ -7,6 +7,11 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Operations
+
+- `.env.example` is grouped into sections, with the four settings to fill in before the first start at the top. No setting or
+  default changed, and an existing `.env` is not touched.
+
 ## [0.8.0] - 2026-10-29
 
 Hardening against attacks on a public server, measured with attack tests (docs/REQUIREMENTS.md "Under attack"), signed release
