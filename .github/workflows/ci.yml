@@ -77,6 +77,27 @@ jobs:
       - run: npm ci
       - run: npm test
 
+  # The launchers on the systems they are for: the Linux runner skips the PowerShell launcher's tests, and both launchers have only
+  # been run on one Windows PC otherwise. Windows runs the update end to end (its Docker runs Windows containers; the test's
+  # Compose files have no services). macOS has no Docker on GitHub's runners, so there the full bash update is skipped and the
+  # rest of the bash launcher is tested. The database tests are skipped on both.
+  launcher:
+    name: Tests on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "26"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm test
+
   images:
     name: Build ${{ matrix.image }} image
     runs-on: ubuntu-latest
