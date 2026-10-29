@@ -151,11 +151,17 @@ services:
     cap_add: [CHOWN, SETGID, SETUID]
     image: ${XELDASH_IMAGE_REGISTRY:-ghcr.io/pitanu/xeldash}/standby-web:${XELDASH_VERSION:-local}
     build:
-      context: docker/standby-web
+      context: .
+      dockerfile: docker/standby-web/Dockerfile
     restart: unless-stopped
     environment:
       PRIMARY_URL: ${XELDASH_PRIMARY_URL:?Run xeldash cluster join}
       STANDBY_STATUS_URL: http://stratum:8096
+      # The host names it answers to, as for the dashboard (docker/web/42-allowed-hosts.sh).
+      XELDASH_CONNECT_HOST: ${XELDASH_CONNECT_HOST:-${XELDASH_PUBLIC_HOST:-}}
+      XELDASH_PUBLIC_DOMAIN: ${XELDASH_PUBLIC_DOMAIN:-}
+      XELDASH_PROXY_HOST: ${XELDASH_PROXY_HOST:-}
+      XELDASH_ALLOWED_HOSTS: ${XELDASH_ALLOWED_HOSTS:-}
     ports:
       - "${XELDASH_WEB_BIND_IP:-0.0.0.0}:${XELDASH_WEB_PORT:-8088}:8080"
     depends_on:

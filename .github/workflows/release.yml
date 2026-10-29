@@ -97,7 +97,7 @@ jobs:
             context: docker/keepalived
             dockerfile: docker/keepalived/Dockerfile
           - image: standby-web
-            context: docker/standby-web
+            context: .
             dockerfile: docker/standby-web/Dockerfile
           - image: frontdoor
             context: docker/frontdoor
