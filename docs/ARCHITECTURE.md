@@ -211,7 +211,7 @@ calls to the node in all (`node-budget.js`). The limits and their defaults are i
   applied before first paint by `web/public/theme-init.js`; tabs along the bottom below 960 px; a web app manifest and icons, with
   no service worker; live updates over `/api/v1/live` with polling as the fallback.
 - REST endpoints (all `GET`; `address` must be a valid `xel:`/`xet:` address; `worker` needs
-  `address`): `/api/v1/overview`, `/api/v1/status`, `/api/v1/hashrate`, `/api/v1/activity`, `/api/v1/miners`,
+  `address`): `/api/v1/overview`, `/api/v1/status`, `/api/v1/hashrate`, `/api/v1/activity`, `/api/v1/activity.csv`, `/api/v1/miners`,
   `/api/v1/miners/{address}`, `/api/v1/miners/{address}/workers/{name}`, `/api/v1/blocks`,
   `/api/v1/blocks.csv`, `/api/v1/events`, `/api/v1/rewards`, `/api/v1/uptime`, `/api/v1/version`, `/api/v1/problems`, `/api/v1/price`, `/api/v1/connect`, `/api/v1/front-door`, `/api/v1/mining-health`. `POST /api/v1/ingest` (and its `/ping`) is not for the dashboard: it is where a standby server sends its records, behind the cluster secret. The overview, miner and blocks responses include effort
   and luck. node-admin serves `/api/v1/node/*` (see services/node-admin/README.md).

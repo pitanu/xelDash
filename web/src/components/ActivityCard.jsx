@@ -103,6 +103,9 @@ export default function ActivityCard({ address, worker }) {
             <button type="button" onClick={() => setShowTable((v) => !v)} className="ml-auto text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">
               {showTable ? "Hide table" : "Show as table"}
             </button>
+            <a href={`/api/v1/activity.csv?${query}`} download className="text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">
+              Download as CSV
+            </a>
           </div>
           {showTable && (
             <div className="mt-2 max-h-64 overflow-auto rounded-lg border border-line">

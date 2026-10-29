@@ -7,6 +7,11 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Dashboard
+
+- On-time as a spreadsheet: "Download as CSV" on the On-time card gives each stretch the address or rig was mining in the range
+  shown, with its length, hashrate while on and expected blocks (`/api/v1/activity.csv`).
+
 ### Operations
 
 - `.env.example` is grouped into sections, with the four settings to fill in before the first start at the top. No setting or

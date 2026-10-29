@@ -16,9 +16,10 @@ const MAX_STRETCHES = 5_000;
  * Time on, hashrate while on, and work against expectation, for one address or one of its workers.
  * The period starts at the range's start, or where the minute stats begin if that is later (a new install, or a shorter
  * RETENTION_MINUTE_STATS_DAYS), so time before anything was tracked does not count as off.
- * @param {PgPool} pool @param {{ address: string, worker?: string | null, range?: string, now?: Date }} filter
+ * With `work`, each stretch also carries the work its shares proved and the blocks that work was expected to find (for the CSV).
+ * @param {PgPool} pool @param {{ address: string, worker?: string | null, range?: string, now?: Date, work?: boolean }} filter
  */
-export async function getActivity(pool, { address, worker = null, range = "7d", now = new Date() }) {
+export async function getActivity(pool, { address, worker = null, range = "7d", now = new Date(), work = false }) {
   const rangeMinutes = ACTIVITY_RANGES[range];
   if (!rangeMinutes) throw new RangeError(`range must be one of ${Object.keys(ACTIVITY_RANGES).join(", ")}`);
   // Whole minutes: the current one is still filling.
@@ -57,8 +58,8 @@ export async function getActivity(pool, { address, worker = null, range = "7d", 
             COALESCE((SELECT sum(extract(epoch FROM end_at - start_at)) FROM stretches), 0)::text AS on_seconds,
             COALESCE((SELECT sum(difficulty) FROM stretches), 0)::text AS difficulty,
             COALESCE((SELECT sum(effort) FROM stretches), 0)::text AS effort,
-            COALESCE((SELECT json_agg(json_build_array(start_at, end_at) ORDER BY start_at)
-                      FROM (SELECT start_at, end_at FROM stretches ORDER BY start_at DESC LIMIT ${MAX_STRETCHES}) latest), '[]') AS stretches`,
+            COALESCE((SELECT json_agg(json_build_array(start_at, end_at, difficulty::text, effort::text) ORDER BY start_at)
+                      FROM (SELECT * FROM stretches ORDER BY start_at DESC LIMIT ${MAX_STRETCHES}) latest), '[]') AS stretches`,
     [address, worker, rangeFrom, to, `${BRIDGE_MINUTES + 1} minutes`],
   );
   const row = result.rows[0];
@@ -85,6 +86,12 @@ export async function getActivity(pool, { address, worker = null, range = "7d", 
     luck: expectedBlocks > 0 ? foundBlocks / expectedBlocks : null,
     bridgeMinutes: BRIDGE_MINUTES,
     /** The stretches it was on, oldest first, as [start, end] ISO times (UTC). */
-    stretches: /** @type {[string, string][]} */ (row.stretches).map(([start, end]) => [new Date(start).toISOString(), new Date(end).toISOString()]),
+    stretches: /** @type {[string, string][]} */ (row.stretches.map((/** @type {string[]} */ [start, end]) => [new Date(start).toISOString(), new Date(end).toISOString()])),
+    ...(work ? {
+      /** Per stretch, in the same order: the share difficulty summed (hashes) and the blocks that work was expected to find. */
+      stretchWork: /** @type {{ difficulty: number, expectedBlocks: number }[]} */ (row.stretches.map((/** @type {string[]} */ [, , difficulty, effort]) => ({
+        difficulty: Number(difficulty), expectedBlocks: Number(effort),
+      }))),
+    } : {}),
   };
 }

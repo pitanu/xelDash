@@ -44,6 +44,8 @@ test("a rig's time on, its speed while on, and blocks from that work; the strip 
   await settle();
   assert.equal(view.container.querySelectorAll("[role=img] .grid-cols-24").length, 2, "a day's range shows yesterday and today");
   assert.match(view.text(), /25% of 24 h/);
+  const csv = getByText(view.container, "Download as CSV", "a");
+  assert.equal(csv.getAttribute("href"), `/api/v1/activity.csv?address=${encodeURIComponent(ADDRESS)}&worker=rig1&range=24h`, "the rig and range shown");
 });
 
 test("an address with no work yet: dashes, not zeros that look measured", async () => {

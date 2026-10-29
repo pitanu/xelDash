@@ -370,6 +370,33 @@ async function route(request, response, publicView, sendJson) {
       return;
     }
 
+    if (pathname === "/api/v1/activity.csv") {
+      // Each stretch an address or worker was mining in the range (the latest 5,000), with what it produced.
+      const range = searchParams.get("range") ?? "7d";
+      if (address === null || !Object.hasOwn(ACTIVITY_RANGES, range)) {
+        sendJson(response, 400, { error: address === null ? "address_required" : "invalid_range", ranges: Object.keys(ACTIVITY_RANGES) });
+        return;
+      }
+      const activity = await getActivity(pool, { address, worker, range, work: true });
+      const body = toCsv([
+        ["started_at_utc", "ended_at_utc", "minutes", "hashrate_hs", "expected_blocks"],
+        ...activity.stretches.map(([start, end], i) => {
+          const minutes = Math.round((Date.parse(end) - Date.parse(start)) / 60_000);
+          const work = activity.stretchWork?.[i];
+          return [start, end, minutes, work ? (work.difficulty / (minutes * 60)).toFixed(2) : "", work ? work.expectedBlocks.toFixed(6) : ""];
+        }),
+      ]);
+      response.writeHead(200, {
+        "content-type": "text/csv; charset=utf-8",
+        "content-disposition": `attachment; filename="xeldash-activity${worker ? "-worker" : ""}-${range}.csv"`,
+        "content-length": Buffer.byteLength(body),
+        "cache-control": "no-store",
+        "x-content-type-options": "nosniff",
+      });
+      response.end(body);
+      return;
+    }
+
     if (pathname === "/api/v1/blocks.csv") {
       // Every block on record (up to 100 000), for a spreadsheet or tax records.
       const [list, efforts] = await Promise.all([

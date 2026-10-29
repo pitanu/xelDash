@@ -76,7 +76,7 @@ test("the public cache reads the path as the router does: ingest is never cached
   const { publicCacheKey } = await import("../src/public-cache.js");
   const get = (url) => publicCacheKey(/** @type {any} */ ({ method: "GET", url }));
   assert.equal(get("/api/v1/overview?x=1"), "/api/v1/overview?x=1");
-  for (const url of ["/api/v1/ingest/alerts", "/api/v1/./ingest/alerts", "/api/v1/miners/../ingest/ping", "/api/v1/live", "/api/v1/blocks.csv"]) {
+  for (const url of ["/api/v1/ingest/alerts", "/api/v1/./ingest/alerts", "/api/v1/miners/../ingest/ping", "/api/v1/live", "/api/v1/blocks.csv", "/api/v1/activity.csv?address=x"]) {
     assert.equal(get(url), null, url);
   }
   assert.equal(get("/api/v1/./overview"), "/api/v1/overview", "one key for one route");

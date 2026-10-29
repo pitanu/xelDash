@@ -100,6 +100,24 @@ test("an address combines its rigs; blocks found count against the work, rejecte
   assert.equal(one.foundBlocks, 0, "the blocks were rig1's");
 });
 
+test("for the CSV, each stretch also has the work its shares proved and the blocks it was expected to find", { skip }, async () => {
+  const a = address();
+  const { workerId } = await ensureWorker(pool, { address: a, name: "rig" });
+  // Two stretches: 30 minutes, then 20 minutes at twice the difficulty.
+  await minutes(workerId, run(120, 30), { difficulty: 600, effort: 0.001 });
+  await minutes(workerId, run(60, 20), { difficulty: 1200, effort: 0.002 });
+  const plain = await getActivity(pool, { address: a, range: "24h", now: NOW });
+  assert.equal(plain.stretchWork, undefined, "the JSON answer is unchanged");
+  assert.deepEqual(plain.stretches.map((s) => s.length), [2, 2]);
+  const r = await getActivity(pool, { address: a, range: "24h", now: NOW, work: true });
+  assert.deepEqual(r.stretches, plain.stretches);
+  assert.equal(r.stretchWork?.length, 2);
+  assert.equal(r.stretchWork[0].difficulty, 30 * 600);
+  assert.equal(r.stretchWork[1].difficulty, 20 * 1200);
+  assert.ok(Math.abs(r.stretchWork[0].expectedBlocks - 0.03) < 1e-9);
+  assert.ok(Math.abs(r.stretchWork[1].expectedBlocks - 0.04) < 1e-9);
+});
+
 test("a rig with no work: nothing on, no hashrate and no luck rather than zeros that look measured", { skip }, async () => {
   const r = await getActivity(pool, { address: address(), range: "30d", now: NOW });
   assert.equal(r.onMinutes, 0);
