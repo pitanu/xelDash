@@ -75,7 +75,8 @@ should fail without the fix. They check logic and the pieces that are easy to ge
 computers, a Raspberry Pi, a real miner) is in [docs/COMMUNITY-TESTING.md](docs/COMMUNITY-TESTING.md).
 
 Service and dashboard code is JavaScript with JSDoc types checked by TypeScript (`npm run typecheck`, in the root and in `web/`).
-The hash addon is Rust (`packages/xelis-hash`); it is built inside the Stratum image.
+`npm run lint` (ESLint, from the root, for the whole project) looks for mistakes such as unused or undefined names; it has no
+style rules, so it never asks for code to be reformatted. The hash addon is Rust (`packages/xelis-hash`); it is built inside the Stratum image.
 
 ## Pull requests
 
@@ -85,7 +86,7 @@ The hash addon is Rust (`packages/xelis-hash`); it is built inside the Stratum i
   user would notice. Mark breaking changes **Breaking**.
 - Commit messages: a short, plain summary line in the imperative ("Add worker page"), with
   a body only when the reason is not obvious.
-- CI must pass: typecheck (both), dashboard build, tests (both `npm test`), Compose validation and image builds. Add a test with a fix or a new behaviour.
+- CI must pass: typecheck (both), lint, dashboard build, tests (both `npm test`), Compose validation and image builds. Add a test with a fix or a new behaviour.
 - Database changes go in a new numbered file in `packages/db/migrations/`. Never edit a
   migration that has been released.
 

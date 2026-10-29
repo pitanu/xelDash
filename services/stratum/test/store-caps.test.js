@@ -8,7 +8,6 @@ import { DurableStore } from "../src/store.js";
 const check = (name, ok, extra = "") => assert.ok(ok, extra ? `${name} (${extra})` : name);
 const down = () => { const e = new Error("connect ECONNREFUSED"); e.code = "ECONNREFUSED"; return e; };
 test("the journal is capped by kind so a flood cannot fill the disk", async () => {
-const calls = [];
 const db = {
   ensureWorker: async () => { throw down(); }, recordShare: async () => { throw down(); }, recordShares: async () => { throw down(); },
   recordBlock: async () => { throw down(); },

@@ -19,7 +19,7 @@ const CHECK_FAILING_MS = 5_000;
 export default function OfflineNotice() {
   const [reach, setReach] = useState(/** @type {Reach} */ ("ok"));
   const [since, setSince] = useState(/** @type {number | null} */ (null));
-  const live = useLive().status;
+  const dropped = useLive().status === "offline";
 
   useEffect(() => {
     let cancelled = false;
@@ -52,7 +52,7 @@ export default function OfflineNotice() {
       clearInterval(timer);
     };
     // A dropped live connection is the first sign of trouble: check at once instead of at the next turn.
-  }, [live === "offline"]);
+  }, [dropped]);
 
   if (reach === "ok") return null;
   const database = reach === "database";

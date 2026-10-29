@@ -10,6 +10,7 @@
   "scripts": {
     "db:migrate": "npm run migrate --workspace @xeldash/db",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "e2e": "node test/e2e/run.js",
     "e2e:upgrade": "node test/e2e/run.js upgrade",
     "load": "node test/load/run.js",
@@ -19,9 +20,13 @@
     "node": ">=22.15"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.5",
     "@types/pg": "^8.15.4",
     "@types/ws": "^8.18.2",
+    "eslint": "^10.13.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
     "typescript": "^7.0.2"
   }
 }

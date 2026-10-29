@@ -4,6 +4,8 @@ import { SMOOTHING, monotonePath, pow10, smooth } from "./chart-math.js";
 import { Segmented } from "./ui.jsx";
 import { useReplayKey } from "../motion.js";
 
+// One empty list while loading, so the memos below are not redone on every render.
+const NO_POINTS = /** @type {never[]} */ ([]);
 const HEIGHT = 240;
 const SMOOTHING_KEY = "xeldash.chartSmoothing";
 
@@ -51,7 +53,7 @@ function useWidth(ref) {
  *   range: string, onRangeChange: (range: string) => void }} props
  */
 export default function HashrateChart({ points: loaded, dimmed = false, range, onRangeChange }) {
-  const points = loaded ?? [];
+  const points = loaded ?? NO_POINTS;
   const frame = useRef(null);
   const width = useWidth(frame);
   const [active, setActive] = useState(/** @type {number | null} */ (null));
