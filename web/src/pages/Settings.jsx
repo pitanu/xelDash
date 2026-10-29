@@ -5,6 +5,7 @@ import BackupCard from "../components/BackupCard.jsx";
 import BlockSoundSetting from "../components/BlockSoundSetting.jsx";
 import DaemonSettings from "../components/DaemonSettings.jsx";
 import MotionSetting from "../components/MotionSetting.jsx";
+import NotificationSetting from "../components/NotificationSetting.jsx";
 import MiningFallback from "../components/MiningFallback.jsx";
 import PriceSetting from "../components/PriceSetting.jsx";
 import SupportCard from "../components/SupportCard.jsx";
@@ -36,6 +37,7 @@ function VisitorSettings() {
       <Appearance />
       <MotionSetting />
       <BlockSoundSetting visitor />
+      <NotificationSetting visitor />
     </div>
   );
 }
@@ -95,6 +97,7 @@ function OperatorSettings() {
       <section className="card pad">
         <h2 className="mb-1 text-base font-semibold text-ink">Notifications and display</h2>
         <BlockSoundSetting row />
+        <NotificationSetting row />
         <SettingBlock row title="Alerts" subtitle="Discord, Telegram or a webhook: blocks found, mining paused, workers offline, node updates, low disk."
           aside={<button type="button" className="btn" onClick={() => document.getElementById("alerts")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Set up alerts</button>} />
         <PriceSetting row />

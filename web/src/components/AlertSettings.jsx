@@ -1,21 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card } from "./ui.jsx";
 import { useServerMode } from "../server-mode.js";
-
-const EVENT_LABELS = /** @type {Record<string, string>} */ ({
-  block_found: "A block is found",
-  block_rejected: "The node rejects a block",
-  block_side: "A block of yours is a side block (still paid once final)",
-  block_final: "A block becomes final (paid or orphaned)",
-  mining_paused: "Mining pauses or moves to another node",
-  worker_offline: "A worker stops sending shares",
-  worker_unusual: "A worker stops at a time of day it usually mines (quiet for rigs on a schedule)",
-  worker_rejects: "A worker has many rejected shares (10% or more over 15 minutes)",
-  node_update: "A node is updated",
-  node_peers: "A node loses its connection to other nodes (mainnet, testnet)",
-  disk_low: "The disk is running low on space",
-  cluster: "A server takes over the shared address (redundancy)",
-});
+import { ALERT_KIND_LABELS } from "../alert-kinds.js";
 
 /**
  * @typedef {{ set: boolean, end: string | null }} SecretState
@@ -166,7 +152,7 @@ export default function AlertSettings({ token, onUnauthorized }) {
                 <label key={event} className="flex items-center gap-2 text-sm text-ink-2">
                   <input type="checkbox" checked={events.includes(event)} disabled={disabled}
                     onChange={(e) => setEvents(e.target.checked ? [...events, event] : events.filter((x) => x !== event))} />
-                  {EVENT_LABELS[event] ?? event}
+                  {ALERT_KIND_LABELS[event] ?? event}
                 </label>
               ))}
             </div>

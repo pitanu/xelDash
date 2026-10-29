@@ -7,6 +7,13 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Notifications
+
+- Browser notifications, per browser and off until you choose: Settings, "Browser notifications", tick any kind of alert (blocks,
+  mining paused, workers offline or at an unusual time, rejected shares, node updates, low disk, failover) and allow them when the
+  browser asks. They show while the dashboard is open in the background, and need no Discord, Telegram or webhook. A public
+  server's visitors can be told when a block is found. Alerts reach only the operator's dashboards (docs/OPERATIONS.md).
+
 ### Alerts
 
 - A new alert, off unless you choose it (`worker_rejects`, or "A worker has many rejected shares" in Settings): a worker with at

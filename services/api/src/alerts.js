@@ -132,9 +132,9 @@ export async function usualDaysOn(pool, workerId, lastShare, minutes) {
  * Runs alerts and restarts them when the settings file changes, so a change made on the
  * dashboard applies within seconds without restarting the API.
  * @param {{ pool: import("pg").Pool, env: Partial<Record<string, string | undefined>>, file: string,
- *   logger?: Pick<Console, "info" | "warn">, intervalMs?: number }} options
+ *   logger?: Pick<Console, "info" | "warn">, intervalMs?: number, relay?: AlertRelay | null }} options
  */
-export function watchAlerts({ pool, env, file, logger = console, intervalMs = 10_000 }) {
+export function watchAlerts({ pool, env, file, logger = console, intervalMs = 10_000, relay = null }) {
   /** @type {ReturnType<typeof startAlerts>} */
   let current = null;
   let signature = "";
@@ -150,7 +150,7 @@ export function watchAlerts({ pool, env, file, logger = console, intervalMs = 10
     try {
       const config = await loadAlertConfig(env, file);
       current?.stop();
-      current = startAlerts({ pool, config, logger });
+      current = startAlerts({ pool, config, logger, relay });
     } catch (error) {
       logger.warn?.(`Alert settings not applied: ${message(error)}`);
     }
@@ -229,13 +229,28 @@ async function postJson(url, body) {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 
+/** The kind (as chosen in ALERT_EVENTS) each alert belongs to, where its name differs. */
+const KIND_OF = /** @type {Record<string, string>} */ ({
+  mining_resumed: "mining_paused", node_switched: "mining_paused", node_no_peers: "node_peers", node_peers_back: "node_peers",
+  cluster_active: "cluster", cluster_standby: "cluster", cluster_fault: "cluster", worker_rejects_ok: "worker_rejects", worker_online: "worker_offline",
+});
+/** @param {string} event */
+export const alertKind = (event) => KIND_OF[event] ?? event;
+
 /**
- * Block, mining-state and worker-offline alerts to Discord, Telegram and/or a JSON webhook.
- * Block and state alerts follow service_events via the live channel; worker offline is a
- * once-a-minute check of per-minute stats. Returns null when no channel is configured.
- * @param {{ pool: import("pg").Pool, config: AlertConfig, logger?: Pick<Console, "info" | "warn">, workerCheckMs?: number }} options
+ * Where alerts go besides the configured channels: the operator's open dashboards, each of which shows the kinds its browser chose
+ * (web/src/notifications.js). `active` says whether any is open; while one is, every kind is worked out, chosen in .env or not.
+ * @typedef {{ active: () => boolean, push: (alert: Alert & { kind: string, sentAt: string }) => void }} AlertRelay
  */
-export function startAlerts({ pool, config, logger = console, workerCheckMs = 60_000 }) {
+
+/**
+ * Block, mining-state and worker alerts to Discord, Telegram and/or a JSON webhook, and to the operator's open dashboards (relay).
+ * Block and state alerts follow service_events via the live channel; worker alerts are a once-a-minute check of per-minute stats.
+ * Returns null when there is no channel and no relay.
+ * @param {{ pool: import("pg").Pool, config: AlertConfig, logger?: Pick<Console, "info" | "warn">, workerCheckMs?: number,
+ *   relay?: AlertRelay | null }} options
+ */
+export function startAlerts({ pool, config, logger = console, workerCheckMs = 60_000, relay = null }) {
   /** @type {ChannelQueue[]} */
   const channels = [];
   if (config.discordWebhookUrl) {
@@ -257,14 +272,20 @@ export function startAlerts({ pool, config, logger = console, workerCheckMs = 60
       event: alert.event, text, ...alert.data, sentAt: new Date().toISOString(),
     }), logger));
   }
-  if (channels.length === 0) return null;
-  logger.info?.(`Alerts enabled: ${channels.map((c) => c.name).join(", ")} (${[...config.events].join(", ")})`);
+  if (channels.length === 0 && !relay) return null;
+  if (channels.length > 0) logger.info?.(`Alerts enabled: ${channels.map((c) => c.name).join(", ")} (${[...config.events].join(", ")})`);
 
   const explorer = (/** @type {string | undefined} */ hash) => (config.explorerUrl && hash ? `\n${config.explorerUrl}/block/${hash}` : "");
   const link = (/** @type {string} */ path) => (config.dashboardUrl ? `\n${config.dashboardUrl.replace(/\/$/, "")}/#${path}` : "");
-  /** @param {Alert} alert */
-  const send = (alert) => {
-    for (const channel of channels) channel.push(alert);
+  /** Whether to work out alerts of this kind: chosen for the channels, or a dashboard is open to show them. @param {string} kind */
+  const wants = (kind) => (channels.length > 0 && config.events.has(kind)) || (relay?.active() ?? false);
+  /**
+   * To the channels when its kind is chosen there (or `toChannels` says otherwise), and to the open dashboards.
+   * @param {Alert} alert @param {boolean} [toChannels]
+   */
+  const send = (alert, toChannels = config.events.has(alertKind(alert.event))) => {
+    if (toChannels) for (const channel of channels) channel.push(alert);
+    if (relay?.active()) relay.push({ ...alert, kind: alertKind(alert.event), sentAt: new Date().toISOString() });
   };
 
   // Blocks become final whenever the stable height moves, which can be many at once (after a
@@ -314,34 +335,34 @@ export function startAlerts({ pool, config, logger = console, workerCheckMs = 60
     const row = (await pool.query("SELECT payload FROM service_events WHERE id = $1", [id])).rows[0];
     if (!row) return;
     const p = row.payload ?? {};
-    if (type === "block_submitted" && config.events.has("block_found")) {
+    if (type === "block_submitted" && wants("block_found")) {
       const block = (await pool.query(
         `SELECT m.address FROM blocks b LEFT JOIN miners m ON m.id = b.miner_id WHERE b.hash = $1`, [p.hash],
       )).rows[0];
       const who = [p.workerName, block?.address ? shortAddress(block.address) : null].filter(Boolean).join(" · ");
       send({ event: "block_found", data: { ...p, address: block?.address ?? null },
         text: `Block found at height ${p.height}${who ? ` by ${who}` : ""}. Waiting for it to become final.${explorer(p.hash)}${link("/blocks")}` });
-    } else if (type === "block_rejected" && config.events.has("block_rejected")) {
+    } else if (type === "block_rejected" && wants("block_rejected")) {
       send({ event: "block_rejected", data: p,
         text: `The node rejected a block candidate at height ${p.height}${p.workerName ? ` from ${p.workerName}` : ""}: ${p.error}` });
-    } else if (type === "block_side" && config.events.has("block_side")) {
+    } else if (type === "block_side" && wants("block_side")) {
       send({ event: "block_side", data: p,
         text: `Your block at height ${p.height} is a side block for now: another block was found at the same height. Side blocks are still paid once they are final, in the amount the node credits.${link("/blocks")}` });
-    } else if (type === "block_final" && config.events.has("block_final")) {
+    } else if (type === "block_final" && wants("block_final")) {
       queueFinal(p);
-    } else if ((type === "node_syncing" || type === "node_unreachable") && config.events.has("mining_paused")) {
+    } else if ((type === "node_syncing" || type === "node_unreachable") && wants("mining_paused")) {
       send({ event: "mining_paused", data: { ...p, reason: type.replace("node_", "") },
         text: type === "node_syncing"
           ? `Mining paused: the node is syncing (topoheight ${p.topoheight} of ${p.networkTopoheight}). Miners were disconnected and will reconnect when it catches up.`
           : "Mining paused: the node is not responding. Miners were disconnected and will reconnect when it is back." });
-    } else if (type === "node_switched" && config.events.has("mining_paused")) {
+    } else if (type === "node_switched" && wants("mining_paused")) {
       // The node mining left is still ready when a higher-priority node recovered (failback).
       const state = p.nodes?.[p.from];
       send({ event: "node_switched", data: p,
         text: state === "ready"
           ? `Mining moved back to node ${p.to}, the preferred node. Miners got fresh work.`
           : `Mining switched from node ${p.from} to ${p.to}: ${p.from} ${state === "syncing" ? "is syncing" : "is not responding"}. Miners got fresh work and keep mining.` });
-    } else if (type.startsWith("node_update_") && config.events.has("node_update")) {
+    } else if (type.startsWith("node_update_") && wants("node_update")) {
       const version = p.target === "image" ? "the image's version" : p.target;
       const why = TRIGGERS[p.trigger] ?? "";
       send({ event: "node_update", data: { ...p, outcome: type.slice("node_update_".length) },
@@ -350,7 +371,7 @@ export function startAlerts({ pool, config, logger = console, workerCheckMs = 60
           : type === "node_update_done"
             ? `${p.switched?.length ? p.switched.join(" and ") : "The nodes"} now run${p.switched?.length === 1 ? "s" : ""} ${version}${why}.`
             : `Switching ${p.node} to ${version} failed${why}: ${p.error}. Later nodes were left as they were.${link("/nodes")}` });
-    } else if (type.startsWith("cluster_") && config.events.has("cluster")) {
+    } else if (type.startsWith("cluster_") && wants("cluster")) {
       const who = p.server ? ` (${p.server})` : "";
       // On a public server the shared address (an address on the operator's network) is left out of the alert.
       const shared = config.publicMode ? "the shared address" : `the shared address ${p.vip}`;
@@ -361,21 +382,21 @@ export function startAlerts({ pool, config, logger = console, workerCheckMs = 60
           ? `This server${who} cannot mine, so it gave up ${shared} to the other server. Check its node.`
           : `This server${who} is standing by again. The other server holds the shared address.`;
       send({ event: type, data: config.publicMode ? withoutAddress : p, text: `${text}${link("/health")}` });
-    } else if (type === "disk_low" && config.events.has("disk_low")) {
+    } else if (type === "disk_low" && wants("disk_low")) {
       const gb = (/** @type {number} */ bytes) => Math.round(bytes / 1e9);
       send({ event: "disk_low", data: p,
         text: p.level === "critical"
           ? `Disk almost full: ${gb(p.freeBytes)} GB free of ${gb(p.totalBytes)} GB. The node stops when it is full. Free some space now (the Nodes page lists old copies you can delete).${link("/nodes")}`
           : `Disk space is low: ${gb(p.freeBytes)} GB free of ${gb(p.totalBytes)} GB. The chain keeps growing, and the node stops when the disk is full.${link("/nodes")}` });
-    } else if (type === "chain_copy_failed" && config.events.has("node_update")) {
+    } else if (type === "chain_copy_failed" && wants("node_update")) {
       send({ event: "node_update", data: { ...p, outcome: "copy_failed" }, text: `Copying chain data from ${p.from} to ${p.to} failed: ${p.error}${link("/nodes")}` });
-    } else if (type === "node_no_peers" && config.events.has("node_peers")) {
+    } else if (type === "node_no_peers" && wants("node_peers")) {
       const minutes = Math.max(1, Math.round((Date.now() - Date.parse(p.peerlessSince)) / 60_000));
       send({ event: "node_no_peers", data: p,
         text: `Node ${p.node} has had no peers for ${minutes} minutes. It cannot tell whether it is behind, and a block found on it would reach no one. Check this computer's internet connection, and that the P2P port (2125) is not blocked.${link("/health")}` });
-    } else if (type === "node_peers_back" && config.events.has("node_peers")) {
+    } else if (type === "node_peers_back" && wants("node_peers")) {
       send({ event: "node_peers_back", data: p, text: `Node ${p.node} is connected to other nodes again.` });
-    } else if (type === "node_ready" && config.events.has("mining_paused")) {
+    } else if (type === "node_ready" && wants("mining_paused")) {
       send({ event: "mining_resumed", data: p, text: "Mining resumed: the node is ready again." });
     }
   }
@@ -391,7 +412,7 @@ export function startAlerts({ pool, config, logger = console, workerCheckMs = 60
   let firstPass = true;
   async function checkWorkers() {
     // On a public server the workers are other people's rigs: no alerts about them, whatever is selected.
-    if (config.publicMode || !(config.events.has("worker_offline") || config.events.has("worker_unusual"))) return;
+    if (config.publicMode || !(wants("worker_offline") || wants("worker_unusual"))) return;
     const result = await pool.query(
       `SELECT m.address, w.id, w.name, max(s.bucket) AS last_share
        FROM worker_stats_1m s
@@ -412,17 +433,19 @@ export function startAlerts({ pool, config, logger = console, workerCheckMs = 60
       const path = `/miner/${row.address}/worker/${encodeURIComponent(row.name)}`;
       const data = { address: row.address, worker: row.name };
       if (isOnline) {
-        const announced = unusualSent.delete(key);
-        if (config.events.has("worker_offline") || announced) {
-          send({ event: "worker_online", data, text: `Worker ${row.name} (${shortAddress(row.address)}) is sending shares again.${link(path)}` });
+        // The channels hear of the return when they heard of the silence: worker_offline, or a worker_unusual alert they got.
+        const announced = unusualSent.delete(key) && config.events.has("worker_unusual");
+        if (wants("worker_offline") || announced) {
+          send({ event: "worker_online", data, text: `Worker ${row.name} (${shortAddress(row.address)}) is sending shares again.${link(path)}` },
+            config.events.has("worker_offline") || announced);
         }
         continue;
       }
-      if (config.events.has("worker_offline")) {
+      if (wants("worker_offline")) {
         send({ event: "worker_offline", data: { ...data, lastShare: row.last_share.toISOString() },
           text: `Worker ${row.name} (${shortAddress(row.address)}) has sent no accepted shares for ${silentFor}.${link(path)}` });
       }
-      if (config.events.has("worker_unusual")) {
+      if (wants("worker_unusual")) {
         const daysOn = await usualDaysOn(pool, row.id, row.last_share, config.workerOfflineMinutes);
         if (daysOn >= USUAL_MIN_DAYS) {
           unusualSent.add(key);
@@ -439,7 +462,7 @@ export function startAlerts({ pool, config, logger = console, workerCheckMs = 60
   const rejecting = new Map();
   let firstRejectPass = true;
   async function checkRejects() {
-    if (config.publicMode || !config.events.has("worker_rejects")) return;
+    if (config.publicMode || !wants("worker_rejects")) return;
     const result = await pool.query(
       `SELECT m.address, w.id, w.name, sum(s.accepted)::int AS accepted, sum(s.rejected)::int AS rejected
        FROM worker_stats_1m s
