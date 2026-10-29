@@ -9,8 +9,10 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { testDatabase } from "../../../packages/db/test/test-database.js";
 
-const url = process.env.TEST_DATABASE_URL;
+const database = await testDatabase();
+const url = database?.url;
 const skip = url ? false : "set TEST_DATABASE_URL to run the database tests";
 const hex = (n) => randomBytes(n).toString("hex");
 
@@ -54,6 +56,7 @@ test.before(async () => {
 test.after(async () => {
   await new Promise((resolve) => (server ? server.close(() => resolve(undefined)) : resolve(undefined)));
   await pool?.end();
+  await database?.drop();
 });
 
 const ROUTES = () => [

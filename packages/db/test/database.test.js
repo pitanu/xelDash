@@ -1,7 +1,7 @@
-// Tests that need a real PostgreSQL. Set TEST_DATABASE_URL to an empty, disposable database, for example:
+// Tests that need a real PostgreSQL. Set TEST_DATABASE_URL to a server the tests may create databases on, for example:
 //   docker run -d --name xeldash-test-db -e POSTGRES_PASSWORD=test -p 55432:5432 postgres:17-alpine
 //   TEST_DATABASE_URL=postgres://postgres:test@127.0.0.1:55432/postgres npm test
-// Without it these tests are skipped. They add rows with random addresses and do not clean up.
+// Without it these tests are skipped. Each test file gets an empty database of its own and drops it afterwards (test-database.js).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -9,8 +9,10 @@ import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPool, ensureWorker, finalizeBlock, ingestRecords, listSubmittedBlocks, recordBan, recordBlock, recordShare, recordShares, recordServiceEvent, listActiveBans } from "../src/index.js";
+import { testDatabase } from "./test-database.js";
 
-const url = process.env.TEST_DATABASE_URL;
+const database = await testDatabase();
+const url = database?.url;
 const skip = url ? false : "set TEST_DATABASE_URL to run the database tests";
 const hex = (n) => randomBytes(n).toString("hex");
 const address = () => `xet:${hex(20)}`;
@@ -188,7 +190,10 @@ test("ingest: progress is kept per sender", { skip }, async () => {
   assert.deepEqual([a.applied, b.applied], [1, 1]);
 });
 
-test.after(async () => { await pool?.end(); });
+test.after(async () => {
+  await pool?.end();
+  await database?.drop();
+});
 
 test("retention: records that arrive late (a replayed journal) are still rolled into the hourly stats", { skip }, async () => {
   const { runRetention } = await import("../src/index.js");

@@ -8,8 +8,10 @@ import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { createPool, ensureWorker } from "@xeldash/db";
 import { usualDaysOn } from "../src/alerts.js";
+import { testDatabase } from "../../../packages/db/test/test-database.js";
 
-const url = process.env.TEST_DATABASE_URL;
+const database = await testDatabase();
+const url = database?.url;
 const skip = url ? false : "set TEST_DATABASE_URL to run the database tests";
 const MIN = 60_000;
 const DAY = 1440 * MIN;
@@ -21,7 +23,10 @@ test.before(async () => {
   execFileSync(process.execPath, [script], { env: { ...process.env, DATABASE_URL: url }, encoding: "utf8" });
   pool = createPool(url);
 });
-test.after(async () => { await pool?.end(); });
+test.after(async () => {
+  await pool?.end();
+  await database?.drop();
+});
 
 /** A worker with an accepted share in each minute from `from` to `to` minutes before now, on each of the given days back. */
 async function worker(/** @type {number[]} */ days, /** @type {number} */ from, /** @type {number} */ to) {

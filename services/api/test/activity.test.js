@@ -8,8 +8,10 @@ import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { createPool, ensureWorker, recordBlock } from "@xeldash/db";
 import { getActivity } from "../src/activity.js";
+import { testDatabase } from "../../../packages/db/test/test-database.js";
 
-const url = process.env.TEST_DATABASE_URL;
+const database = await testDatabase();
+const url = database?.url;
 const skip = url ? false : "set TEST_DATABASE_URL to run the database tests";
 const hex = (n) => randomBytes(n).toString("hex");
 const address = () => `xet:${hex(20)}`;
@@ -27,7 +29,10 @@ test.before(async () => {
   const anchor = await ensureWorker(pool, { address: address(), name: "anchor" });
   await minutes(anchor.workerId, [new Date(NOW.getTime() - 100 * 1440 * MIN)]);
 });
-test.after(async () => { await pool?.end(); });
+test.after(async () => {
+  await pool?.end();
+  await database?.drop();
+});
 
 /**
  * One minute row per time given: a share's worth of work in each.
