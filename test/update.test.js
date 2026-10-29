@@ -24,7 +24,7 @@ function bash(script, { files = {} } = {}) {
     say() { printf '%s\\n' "$*"; }; warn() { printf 'WARN: %s\\n' "$*"; }; die() { printf 'DIE: %s\\n' "$*"; exit 1; }
     L='${toPosix(LAUNCHER)}'
     for fn in get_env set_env release_version use_release_version version_newer newest_tag; do
-      eval "$(sed -n "/^$fn() {/,/^}/p" "$L")"
+      eval "$(sed -n "/^$fn() [{]/,/^}/p" "$L")"
     done
   `;
   const r = spawnSync("bash", ["-c", prelude + script], { encoding: "utf8" });
