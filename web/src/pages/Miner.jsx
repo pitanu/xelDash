@@ -38,8 +38,10 @@ export default function Miner({ address, back = true }) {
     return <p className="text-sm text-ink-2">No miner with address <span className="break-all text-ink">{address}</span> has connected.</p>;
   }
   const m = miner.data;
-  const hashrate5m = m?.workers.reduce((/** @type {number} */ sum, /** @type {{ hashrate5m: string }} */ w) => sum + Number(w.hashrate5m), 0);
-  const hashrate1h = m?.workers.reduce((/** @type {number} */ sum, /** @type {{ hashrate1h: string }} */ w) => sum + Number(w.hashrate1h), 0);
+  // With worker names kept private (a public server's choice), the server sends the totals instead of the list.
+  const hidden = m?.workersHidden ? m.workerTotals : null;
+  const hashrate5m = hidden ? Number(hidden.hashrate5m) : m?.workers.reduce((/** @type {number} */ sum, /** @type {{ hashrate5m: string }} */ w) => sum + Number(w.hashrate5m), 0);
+  const hashrate1h = hidden ? Number(hidden.hashrate1h) : m?.workers.reduce((/** @type {number} */ sum, /** @type {{ hashrate1h: string }} */ w) => sum + Number(w.hashrate1h), 0);
   const blockList = blocks.data?.blocks ?? [];
   const expectedBlocks = hashrate1h && overview.data?.node?.miner_reward
     ? dailyEarnings(hashrate1h, overview.data.network.difficulty, overview.data.node.miner_reward).blocks : null;
@@ -87,7 +89,7 @@ export default function Miner({ address, back = true }) {
 
       <BestShareCard best={m?.bestShare} points={history.data?.points ?? null} dimmed={history.loading} />
 
-      <WorkersCard address={address} workers={m?.workers} onChanged={miner.reload} />
+      <WorkersCard address={address} workers={m?.workers} onChanged={miner.reload} hidden={hidden} />
       <Card title="Blocks"
         action={<a href={`/api/v1/blocks.csv?address=${encoded}`} download className="inline-flex min-h-6 items-center text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">Download all as CSV</a>}>{blocks.data && <BlocksTable blocks={blockList} showMiner={false} />}</Card>
     </div>

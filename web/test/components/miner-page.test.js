@@ -49,6 +49,25 @@ test("a miner's figures: hashrate of all its rigs, blocks expected and found, lu
   assert.ok(view.container.querySelector(`a[href="/api/v1/blocks.csv?address=${encodeURIComponent(A)}"]`), "all its blocks as CSV");
 });
 
+test("a server that keeps worker names private: the address's totals and how many rigs, no names and no worker links", async () => {
+  fakeApi({
+    [`/api/v1/miners/${encodeURIComponent(A)}`]: { address: A, firstSeen: hoursAgo(500), lastSeen: hoursAgo(0.01), workers: [], workersHidden: true,
+      workerTotals: { count: 2, hashrate5m: "8000.000", hashrate1h: "8000.000", accepted1h: "200", rejected1h: "2" }, luck: null, bestShare: null },
+    "/api/v1/hashrate": { bucketSeconds: 900, points: [] },
+    "/api/v1/blocks": { blocks: [{ ...block("main-chain", 1), worker: undefined }], totals: { reward: "30000000", byStatus: {} } },
+    "/api/v1/rewards": { range: "90d", points: [] },
+    "/api/v1/activity": { range: "7d", periodMinutes: 10080, onMinutes: 0, dutyCycle: 0, averageOnMinutesPerDay: 0,
+      hashrateWhileOn: null, expectedBlocks: 0, foundBlocks: 0, luck: null, bridgeMinutes: 3, stretches: [] },
+    "/api/v1/overview": { network: { difficulty: "250000000" }, node: { miner_reward: "30000000", network: "mainnet" } },
+  });
+  const view = await render(h(Miner, { address: A }));
+  await settle();
+  const text = view.text();
+  assert.match(text, /Hashrate, last hour8 KH\/s/, "from the totals");
+  assert.match(text, /2 workers\. This server keeps worker names private/);
+  assert.equal(view.container.querySelector('a[href*="/worker/"]'), null, "no link to a worker's page");
+});
+
 test("an address that never connected is said plainly", async () => {
   fakeApi({ [`/api/v1/miners/${encodeURIComponent(A)}`]: { status: 404, body: { error: "not_found" } } });
   const view = await render(h(Miner, { address: A }));

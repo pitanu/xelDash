@@ -6,10 +6,12 @@ import { useOperatorView } from "../server-mode.js";
 /**
  * A miner's workers. Workers without shares for 7 days drop off by themselves; "Remove workers"
  * hides one now (it comes back if it mines again). Removing needs the admin token.
- * `summary` sits between the title and the table (the Miners page puts the address's figures there).
- * @param {{ address: string, workers: any[] | undefined, onChanged: () => void, title?: React.ReactNode, subtitle?: string, summary?: React.ReactNode }} props
+ * `summary` sits between the title and the table (the Miners page puts the address's figures there). `hidden`: a public server that
+ * keeps worker names private (XELDASH_PUBLIC_HIDE_WORKERS) sends only how many there are, `count`.
+ * @param {{ address: string, workers: any[] | undefined, onChanged: () => void, title?: React.ReactNode, subtitle?: string, summary?: React.ReactNode,
+ *   hidden?: { count: number } | null }} props
  */
-export default function WorkersCard({ address, workers, onChanged, title = "Workers", subtitle = "Workers without shares for 7 days are left out.", summary }) {
+export default function WorkersCard({ address, workers, onChanged, title = "Workers", subtitle = "Workers without shares for 7 days are left out.", summary, hidden = null }) {
   // Removing workers is node administration: the operator's view only.
   const operator = useOperatorView();
   const admin = useAdminToken();
@@ -39,7 +41,9 @@ export default function WorkersCard({ address, workers, onChanged, title = "Work
       )}>
       {summary}
       {editing && !admin.token && <div className="mb-3"><AdminUnlock actionsEnabled admin={admin} /></div>}
-      {workers && <WorkersTable workers={workers} address={address} onRemove={editing && admin.token ? (name) => void remove(name) : undefined} />}
+      {hidden
+        ? <p className="text-sm text-ink-2">{hidden.count} worker{hidden.count === 1 ? "" : "s"}. This server keeps worker names private, so only the address's totals are shown.</p>
+        : workers && <WorkersTable workers={workers} address={address} onRemove={editing && admin.token ? (name) => void remove(name) : undefined} />}
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
     </Card>
   );

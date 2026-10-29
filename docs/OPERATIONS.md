@@ -421,8 +421,17 @@ there still need `XELDASH_ADMIN_TOKEN`.
 **Still public, as on any pool:** miner addresses (they are on the chain anyway), worker names, hashrates and blocks. The Health page
 names your nodes as written in `XELIS_RPC_URLS`, so use host names there rather than private IP addresses.
 
+**Hiding worker names** (`XELDASH_PUBLIC_HIDE_WORKERS=true`, off by default). Worker names are what miners call their rigs, often a
+computer's name or the owner's. With this on, visitors see an address's totals (hashrate, shares, blocks) and how many workers it
+has, never their names: worker pages and filters by worker answer 404, and blocks and the CSVs leave the worker out. Miners still
+log in as `address.worker`, and the operator's dashboard has the names as before.
+
 **Kept on the server:** the database still records miners' IP addresses, because the per-address limits and bans need them; they are
-in backups too. Treat backups and the operator's dashboard as private.
+in backups too. Treat backups and the operator's dashboard as private. To keep them for less time, set `RETENTION_IP_DAYS` (empty by
+default: kept as long as what they are in). With it, a worker not seen for that many days loses its last address, connection and
+login problems older than that lose theirs (the event stays), and bans that ended that long ago are deleted. A ban still in force
+keeps its address. The hourly cleanup applies it; backups made before keep what they had. Docker's own container logs also name
+addresses (refused connections, at most once a minute each) and are rotated by size (`XELDASH_LOG_MAX_SIZE`).
 
 **Alerts** go only where the operator sends them (set up on the operator's dashboard). On a public server there are no alerts about
 individual workers ("a worker stops sending shares" would be about other people's rigs), whatever is selected, and cluster alerts

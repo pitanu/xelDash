@@ -233,6 +233,40 @@ test("retention: old events and bans are deleted, recent ones and blocks stay", 
   await runRetention(pool, { rawShareDays: 7, minuteStatsDays: 90, eventDays: 365 });
 });
 
+test("retention: with RETENTION_IP_DAYS, IP addresses go after that many days; the rows they were in stay, and bans in force keep theirs", { skip }, async () => {
+  const { runRetention, retentionConfigFromEnv } = await import("../src/index.js");
+  const base = { rawShareDays: 7, minuteStatsDays: 90, eventDays: 365, unusedWorkerDays: 1 };
+  const ip = () => `10.57.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`;
+  const daysAgo = (/** @type {number} */ d) => new Date(Date.now() - d * 86_400_000);
+  // A worker that mined (so retention keeps it), seen 40 days ago, and one seen today.
+  const [oldIp, todayIp, eventIp, recentEventIp, endedBanIp, activeBanIp] = [ip(), ip(), ip(), ip(), ip(), ip()];
+  const away = await ensureWorker(pool, { address: address(), name: "away", ip: oldIp });
+  await recordShare(pool, { workerId: away.workerId, jobId: "j", nonce: "ip1", difficulty: "10", accepted: true, createdAt: daysAgo(40).toISOString() });
+  await pool.query("UPDATE workers SET last_seen = $2 WHERE id = $1", [away.workerId, daysAgo(40)]);
+  const here = await ensureWorker(pool, { address: address(), name: "here", ip: todayIp });
+  const marker = `ipret_${hex(4)}`;
+  await recordServiceEvent(pool, marker, { ip: eventIp, reason: "old" }, daysAgo(40).toISOString());
+  await recordServiceEvent(pool, marker, { ip: recentEventIp, reason: "new" });
+  await recordBan(pool, { ip: endedBanIp, reason: "ended", until: daysAgo(40) });
+  await recordBan(pool, { ip: activeBanIp, reason: "in force", until: new Date(Date.now() + 3_600_000) });
+
+  // Off by default: everything kept.
+  assert.equal(retentionConfigFromEnv({}).ipDays, null);
+  assert.equal(retentionConfigFromEnv({ RETENTION_IP_DAYS: "30" }).ipDays, 30);
+  assert.throws(() => retentionConfigFromEnv({ RETENTION_IP_DAYS: "0" }), /RETENTION_IP_DAYS/);
+  await runRetention(pool, base);
+  assert.equal((await pool.query("SELECT host(last_ip) AS ip FROM workers WHERE id = $1", [away.workerId])).rows[0].ip, oldIp);
+
+  const result = await runRetention(pool, { ...base, ipDays: 30 });
+  assert.ok(result.ips >= 3, JSON.stringify(result));
+  const workers = await pool.query("SELECT name, host(last_ip) AS ip FROM workers WHERE id = ANY($1) ORDER BY name", [[away.workerId, here.workerId]]);
+  assert.deepEqual(workers.rows, [{ name: "away", ip: null }, { name: "here", ip: todayIp }], "the worker stays, without its old address");
+  const events = await pool.query("SELECT payload FROM service_events WHERE type = $1 ORDER BY created_at", [marker]);
+  assert.deepEqual(events.rows.map((r) => r.payload), [{ reason: "old" }, { ip: recentEventIp, reason: "new" }], "the event stays, without its address");
+  const bans = await pool.query("SELECT host(ip) AS ip FROM bans WHERE host(ip) = ANY($1)", [[endedBanIp, activeBanIp]]);
+  assert.deepEqual(bans.rows.map((r) => r.ip), [activeBanIp], "a ban in force is kept, or it could not be enforced");
+});
+
 test("retention: workers that never mined are deleted once unused, with their address; any that ever mined stay", { skip }, async () => {
   const { runRetention } = await import("../src/index.js");
   const daysAgo = (d) => new Date(Date.now() - d * 86_400_000).toISOString();

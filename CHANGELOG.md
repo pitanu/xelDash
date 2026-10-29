@@ -51,6 +51,14 @@ breaking changes; they are marked **Breaking**.
 - Stratum's TLS port checks the connection rate (`STRATUM_CONNECTIONS_PER_IP_PER_SECOND`) as a connection arrives, before its TLS
   handshake: a client reconnecting in a loop no longer costs a handshake each time. Each connection is still charged once.
 
+### Privacy (public mode)
+
+- Worker names can be hidden from visitors, off unless chosen (`XELDASH_PUBLIC_HIDE_WORKERS=true`): an address's page then shows its
+  totals and how many workers it has, worker pages and filters by worker are not found, and blocks and CSVs leave the worker out.
+  The operator's dashboard keeps them.
+- How long miners' IP addresses are kept, off unless set (`RETENTION_IP_DAYS`): after that many days a worker not seen loses its
+  last address, older connection and login problems lose theirs, and ended bans are deleted. Bans in force keep their address.
+
 ### Tests
 
 - Each database test file runs in an empty database of its own, dropped afterwards. CI also runs the tests on Windows and macOS,

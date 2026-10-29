@@ -243,6 +243,8 @@ services:
       ALERT_DASHBOARD_URL: ${ALERT_DASHBOARD_URL:-}
       # Public mode: visitors get no IP addresses, no connection problems and no node administration (docs/OPERATIONS.md#public-mode).
       XELDASH_PUBLIC_MODE: ${XELDASH_PUBLIC_MODE:-false}
+      # In public mode, visitors also see no worker names, only each address's totals (off unless true).
+      XELDASH_PUBLIC_HIDE_WORKERS: ${XELDASH_PUBLIC_HIDE_WORKERS:-false}
       # Best share (docs/OPERATIONS.md#best-share): on unless set to off.
       XELDASH_BEST_SHARE: ${XELDASH_BEST_SHARE:-}
       # Read only to warn about risky public-mode settings at startup.
@@ -376,6 +378,8 @@ services:
       RETENTION_MINUTE_STATS_DAYS: ${RETENTION_MINUTE_STATS_DAYS:-90}
       RETENTION_EVENT_DAYS: ${RETENTION_EVENT_DAYS:-365}
       RETENTION_UNUSED_WORKER_DAYS: ${RETENTION_UNUSED_WORKER_DAYS:-1}
+      # Empty: IP addresses are kept as long as the rows they are in.
+      RETENTION_IP_DAYS: ${RETENTION_IP_DAYS:-}
       STRATUM_TLS_ENABLED: ${STRATUM_TLS_ENABLED:-false}
       STRATUM_TLS_PORT: 3334
       # Empty: /tls/cert.pem and /tls/key.pem (XELDASH_STRATUM_TLS_DIR). A public server with the public-https profile can use its

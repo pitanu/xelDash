@@ -1,5 +1,9 @@
 /** @typedef {import("pg").Pool} PgPool */
-/** @typedef {{ rawShareDays: number, minuteStatsDays: number, eventDays: number, unusedWorkerDays?: number }} RetentionConfig */
+/**
+ * ipDays: how long miners' IP addresses are kept (a worker's last address, the address in connection and login problems, expired
+ * bans); null keeps them as long as what they belong to (the default).
+ * @typedef {{ rawShareDays: number, minuteStatsDays: number, eventDays: number, unusedWorkerDays?: number, ipDays?: number | null }} RetentionConfig
+ */
 
 /** @type {RetentionConfig} */
 export const DEFAULT_RETENTION = Object.freeze({ rawShareDays: 7, minuteStatsDays: 90, eventDays: 365, unusedWorkerDays: 1 });
@@ -18,6 +22,8 @@ export function retentionConfigFromEnv(env) {
     minuteStatsDays: read("RETENTION_MINUTE_STATS_DAYS", DEFAULT_RETENTION.minuteStatsDays),
     eventDays: read("RETENTION_EVENT_DAYS", DEFAULT_RETENTION.eventDays),
     unusedWorkerDays: read("RETENTION_UNUSED_WORKER_DAYS", /** @type {number} */ (DEFAULT_RETENTION.unusedWorkerDays)),
+    // Off unless set: IP addresses are then kept as long as the rows they are in.
+    ipDays: env.RETENTION_IP_DAYS === undefined || env.RETENTION_IP_DAYS === "" ? null : read("RETENTION_IP_DAYS", 1),
   };
 }
 
@@ -135,5 +141,30 @@ export async function runRetention(pool, config) {
        LIMIT $2)`,
     unusedAge,
   );
-  return { rolledUp, shares, minuteStats, rejects, events, bans, unusedWorkers, unusedMiners };
+  // IP addresses kept no longer than ipDays (RETENTION_IP_DAYS; off by default): a worker not seen for that long loses its last
+  // address, older events lose the address in their payload (the event itself stays), and bans that ended that long ago go. A ban
+  // still in force keeps its address, or it could not be enforced.
+  let ips = 0;
+  if (config.ipDays) {
+    const ipAge = `${config.ipDays} days`;
+    ips += await deleteInBatches(
+      pool,
+      `UPDATE workers SET last_ip = NULL WHERE id IN (
+         SELECT id FROM workers WHERE last_ip IS NOT NULL AND last_seen < now() - $1::interval LIMIT $2)`,
+      ipAge,
+    );
+    ips += await deleteInBatches(
+      pool,
+      `UPDATE service_events SET payload = payload - 'ip' WHERE id IN (
+         SELECT id FROM service_events WHERE payload ? 'ip' AND created_at < now() - $1::interval LIMIT $2)`,
+      ipAge,
+    );
+    ips += await deleteInBatches(
+      pool,
+      `DELETE FROM bans WHERE id IN (
+         SELECT id FROM bans WHERE until IS NOT NULL AND until < now() - $1::interval LIMIT $2)`,
+      ipAge,
+    );
+  }
+  return { rolledUp, shares, minuteStats, rejects, events, bans, unusedWorkers, unusedMiners, ips };
 }

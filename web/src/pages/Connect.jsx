@@ -16,6 +16,11 @@ const ADDRESS = /^(xel|xet):[a-z0-9]{30,120}$/;
 function WorkerWatch({ address }) {
   const miner = usePolled(`/api/v1/miners/${encodeURIComponent(address)}`, { intervalMs: 10_000 });
   const workers = /** @type {{ name: string, lastSeen: string }[]} */ (miner.data?.workers ?? []);
+  // A server that keeps worker names private sends how many there are, not the list.
+  const hiddenCount = miner.data?.workersHidden ? Number(miner.data.workerTotals?.count ?? 0) : null;
+  if (hiddenCount !== null && hiddenCount > 0) {
+    return <HealthBadge level="good" label={`${hiddenCount} worker${hiddenCount === 1 ? "" : "s"} connected`} />;
+  }
   if (workers.length === 0) {
     return (
       <div className="flex items-center gap-2 rounded-[10px] bg-panel-2 px-3 py-2.5 text-[13px] text-ink-2">

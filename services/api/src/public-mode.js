@@ -36,6 +36,52 @@ export function scrubIps(value) {
 }
 
 /**
+ * Whether visitors of a public server see worker names (XELDASH_PUBLIC_HIDE_WORKERS=true hides them; off by default). Worker names
+ * are what miners call their rigs ("garage-pc", a hostname, a name): with this on, a visitor sees an address's totals and how many
+ * rigs it has, not what they are called. The operator's own view always has them.
+ * @param {Partial<Record<string, string | undefined>>} env
+ */
+export function hideWorkersFromEnv(env) {
+  return /^(1|true|yes|on)$/i.test((env.XELDASH_PUBLIC_HIDE_WORKERS ?? "").trim());
+}
+
+// Field names that hold a worker's name in the API's answers (blocks, best shares, problems).
+const WORKER_KEYS = new Set(["worker", "workerName"]);
+
+/**
+ * A copy of a JSON value without worker names, at any depth, for the public view with XELDASH_PUBLIC_HIDE_WORKERS: worker-name
+ * fields removed, and lists of workers emptied (the miner route sends their totals as workerTotals instead). Like scrubIps, it is
+ * applied to everything that view sends, so a route added later cannot leak a name by forgetting to.
+ * @template T @param {T} value @returns {T}
+ */
+export function scrubWorkers(value) {
+  if (Array.isArray(value)) return /** @type {T} */ (value.map(scrubWorkers));
+  if (value instanceof Date || value === null || typeof value !== "object") return value;
+  /** @type {Record<string, unknown>} */
+  const out = {};
+  for (const [key, inner] of Object.entries(value)) {
+    if (WORKER_KEYS.has(key)) continue;
+    out[key] = key === "workers" && Array.isArray(inner) ? [] : scrubWorkers(inner);
+  }
+  return /** @type {T} */ (out);
+}
+
+/**
+ * An address's workers as totals only: how many, and their hashrate and shares added up (what the miner page shows above its list).
+ * @param {{ hashrate5m: string, hashrate1h: string, accepted1h: string, rejected1h: string }[]} workers
+ */
+export function workerTotals(workers) {
+  const sum = (/** @type {"hashrate5m" | "hashrate1h" | "accepted1h" | "rejected1h"} */ key) => workers.reduce((t, w) => t + Number(w[key]), 0);
+  return {
+    count: workers.length,
+    hashrate5m: sum("hashrate5m").toFixed(3),
+    hashrate1h: sum("hashrate1h").toFixed(3),
+    accepted1h: String(sum("accepted1h")),
+    rejected1h: String(sum("rejected1h")),
+  };
+}
+
+/**
  * Settings that make a public server less safe or not work, logged at startup. Public mode still starts with them (the operator may
  * have a reason, such as their own reverse proxy).
  * @param {Partial<Record<string, string | undefined>>} env @returns {string[]}
