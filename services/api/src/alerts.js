@@ -5,13 +5,22 @@ const SEND_INTERVAL_MS = 1_000;
 const MAX_QUEUE = 20;
 const FINAL_BATCH_MS = 5_000;
 const XEL_DECIMALS = 8;
-const EVENT_TYPES = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "worker_unusual", "node_update", "node_peers", "disk_low", "cluster"];
+const EVENT_TYPES = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "worker_unusual", "worker_rejects", "node_update", "node_peers", "disk_low", "cluster"];
 // Kinds sent only when selected: an unset ALERT_EVENTS (every kind) leaves them out.
-const OPT_IN_EVENTS = new Set(["worker_unusual"]);
+const OPT_IN_EVENTS = new Set(["worker_unusual", "worker_rejects"]);
 const DEFAULT_EVENTS = EVENT_TYPES.filter((e) => !OPT_IN_EVENTS.has(e));
 // worker_unusual: a rig counts as usually on at a time of day when it mined through the same stretch on this many of the last 7 days.
 const USUAL_DAYS = 7;
 const USUAL_MIN_DAYS = 5;
+// worker_rejects: over the last REJECT_MINUTES, at least REJECT_MIN_COUNT rejected shares and REJECT_PERCENT of all; back to
+// normal below REJECT_OK_PERCENT (lower, so a rig near the line does not flap).
+const REJECT_MINUTES = 15;
+const REJECT_MIN_COUNT = 20;
+const REJECT_PERCENT = 10;
+const REJECT_OK_PERCENT = 5;
+const REJECT_REASONS = /** @type {Record<string, string>} */ ({
+  stale: "stale (work for an old block)", low_difficulty: "below the share difficulty", duplicate: "sent twice",
+});
 const EXPLORERS = /** @type {Record<string, string>} */ ({
   mainnet: "https://explorer.xelis.io",
   testnet: "https://testnet-explorer.xelis.io",
@@ -424,11 +433,57 @@ export function startAlerts({ pool, config, logger = console, workerCheckMs = 60
     }
     firstPass = false;
   }
+  // worker_rejects: each worker that sent shares in the last REJECT_MINUTES, and whether too many were rejected. As above, the first
+  // pass only records state.
+  /** @type {Map<string, boolean>} */
+  const rejecting = new Map();
+  let firstRejectPass = true;
+  async function checkRejects() {
+    if (config.publicMode || !config.events.has("worker_rejects")) return;
+    const result = await pool.query(
+      `SELECT m.address, w.id, w.name, sum(s.accepted)::int AS accepted, sum(s.rejected)::int AS rejected
+       FROM worker_stats_1m s
+       JOIN workers w ON w.id = s.worker_id
+       JOIN miners m ON m.id = w.miner_id
+       WHERE s.bucket >= date_trunc('minute', now()) - make_interval(mins => $1) AND s.bucket < date_trunc('minute', now())
+       GROUP BY m.address, w.id, w.name
+       HAVING sum(s.accepted) + sum(s.rejected) > 0`,
+      [REJECT_MINUTES],
+    );
+    for (const row of result.rows) {
+      const key = `${row.address}/${row.name}`;
+      const percent = (row.rejected / (row.accepted + row.rejected)) * 100;
+      const was = rejecting.get(key) ?? false;
+      const now = was ? percent >= REJECT_OK_PERCENT : row.rejected >= REJECT_MIN_COUNT && percent >= REJECT_PERCENT;
+      rejecting.set(key, now);
+      if (firstRejectPass || now === was) continue;
+      const path = `/miner/${row.address}/worker/${encodeURIComponent(row.name)}`;
+      const data = { address: row.address, worker: row.name, accepted: row.accepted, rejected: row.rejected, percent: Math.round(percent * 10) / 10, minutes: REJECT_MINUTES };
+      if (!now) {
+        send({ event: "worker_rejects_ok", data, text: `Worker ${row.name} (${shortAddress(row.address)}) is back to few rejected shares (${data.percent}% in the last ${REJECT_MINUTES} minutes).${link(path)}` });
+        continue;
+      }
+      const reasons = await pool.query(
+        `SELECT reason, sum(count)::int AS count FROM worker_rejects_1m
+         WHERE worker_id = $1 AND bucket >= date_trunc('minute', now()) - make_interval(mins => $2) AND bucket < date_trunc('minute', now())
+         GROUP BY reason ORDER BY sum(count) DESC`,
+        [row.id, REJECT_MINUTES],
+      );
+      const byReason = Object.fromEntries(reasons.rows.map((r) => [r.reason, r.count]));
+      const named = reasons.rows.slice(0, 3).map((r) => `${r.count} ${REJECT_REASONS[r.reason] ?? r.reason}`).join(", ");
+      send({ event: "worker_rejects", data: { ...data, reasons: byReason },
+        text: `Worker ${row.name} (${shortAddress(row.address)}) had ${row.rejected} of ${row.accepted + row.rejected} shares rejected (${data.percent}%) in the last ${REJECT_MINUTES} minutes${named ? `: ${named}` : ""}.${link(path)}` });
+    }
+    firstRejectPass = false;
+  }
+
   const workerTimer = setInterval(() => {
     checkWorkers().catch((error) => logger.warn?.(`Worker offline check failed: ${message(error)}`));
+    checkRejects().catch((error) => logger.warn?.(`Rejected share check failed: ${message(error)}`));
   }, workerCheckMs);
   workerTimer.unref();
   void checkWorkers().catch((error) => logger.warn?.(`Worker offline check failed: ${message(error)}`));
+  void checkRejects().catch((error) => logger.warn?.(`Rejected share check failed: ${message(error)}`));
 
   return {
     /** Feed a `xeldash_live` notification payload. @param {string} payload */

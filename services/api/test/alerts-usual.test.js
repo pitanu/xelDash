@@ -1,5 +1,6 @@
-// worker_unusual's question (usualDaysOn in src/alerts.js): on how many of the last 7 days was the rig mining through the stretch it
-// has now been silent for? Against a real PostgreSQL (see packages/db/test/database.test.js for how to start one).
+// Worker alerts against a real PostgreSQL (see packages/db/test/database.test.js for how to start one). worker_unusual's question
+// (usualDaysOn in src/alerts.js): on how many of the last 7 days was the rig mining through the stretch it has now been silent for?
+// And worker_rejects, from the minute stats to the webhook.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -52,4 +53,38 @@ test("only the days it was on count, and a day counts with at least half of the 
   assert.equal(await usualDaysOn(pool, await worker(WEEK, 60, 6), lastShare(), 10), 7, "on for the first 6 of the 11 minutes");
   assert.equal(await usualDaysOn(pool, await worker(WEEK, 60, 8), lastShare(), 10), 0, "on for only the first 4");
   assert.equal(await usualDaysOn(pool, await worker([8, 9, 10], 60, 0), lastShare(), 10), 0, "older than a week does not count");
+});
+
+test("worker_rejects against the database: a rig whose shares start being rejected gets an alert naming the reason", { skip, timeout: 30_000 }, async () => {
+  const { createServer } = await import("node:http");
+  const { alertConfigFromEnv, startAlerts } = await import("../src/alerts.js");
+  /** @type {any[]} */
+  const received = [];
+  const hook = createServer((request, response) => {
+    let body = "";
+    request.on("data", (c) => { body += c; });
+    request.on("end", () => { received.push(JSON.parse(body)); response.end("ok"); });
+  });
+  await new Promise((resolve) => hook.listen(0, "127.0.0.1", () => resolve(undefined)));
+  const hookUrl = `http://127.0.0.1:${/** @type {import("node:net").AddressInfo} */ (hook.address()).port}/`;
+
+  const name = `rejecting-${randomBytes(4).toString("hex")}`;
+  const { workerId } = await ensureWorker(pool, { address: `xet:${randomBytes(20).toString("hex")}`, name });
+  const now = Math.floor(Date.now() / MIN) * MIN;
+  const minute = (/** @type {number} */ ago) => new Date(now - ago * MIN);
+  await pool.query(`INSERT INTO worker_stats_1m (bucket, worker_id, accepted, rejected, sum_difficulty, sum_effort) VALUES ($1, $2, 50, 0, 600, 0.001)`, [minute(5), workerId]);
+  const alerts = startAlerts({ pool, config: alertConfigFromEnv({ ALERT_WEBHOOK_URL: hookUrl, ALERT_EVENTS: "worker_rejects" }), logger: { info() {}, warn() {} }, workerCheckMs: 300 });
+  // The first check only records the rig as fine; then 40 stale shares arrive.
+  await new Promise((r) => setTimeout(r, 500));
+  await pool.query(`INSERT INTO worker_stats_1m (bucket, worker_id, accepted, rejected, sum_difficulty, sum_effort) VALUES ($1, $2, 50, 40, 600, 0.001)`, [minute(3), workerId]);
+  await pool.query(`INSERT INTO worker_rejects_1m (worker_id, bucket, reason, count) VALUES ($1, $2, 'stale', 40)`, [workerId, minute(3)]);
+  for (let i = 0; i < 100 && !received.some((b) => b.worker === name); i++) await new Promise((r) => setTimeout(r, 50));
+  alerts?.stop();
+  hook.close();
+  const alert = received.find((b) => b.worker === name);
+  assert.ok(alert, "an alert for the rig");
+  assert.equal(alert.event, "worker_rejects");
+  assert.equal(alert.rejected, 40);
+  assert.equal(alert.accepted, 100);
+  assert.deepEqual(alert.reasons, { stale: 40 });
 });

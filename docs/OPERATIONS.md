@@ -16,7 +16,7 @@ The `.env` way, which gives the starting values (restart the API with `docker co
 | `ALERT_DISCORD_WEBHOOK_URL` | A Discord channel webhook URL |
 | `ALERT_TELEGRAM_BOT_TOKEN` and `ALERT_TELEGRAM_CHAT_ID` | A bot token from @BotFather and the chat to post in |
 | `ALERT_WEBHOOK_URL` | Receives `{ event, text, ...details, sentAt }` as a JSON POST (see [Webhook alerts](#webhook-alerts)) |
-| `ALERT_EVENTS` | Which alerts to send (default: all but `worker_unusual`, see below) |
+| `ALERT_EVENTS` | Which alerts to send (default: all but `worker_unusual` and `worker_rejects`, see below) |
 | `ALERT_WORKER_OFFLINE_MINUTES` | Minutes without an accepted share before a worker counts as offline (10) |
 | `ALERT_DASHBOARD_URL` | Adds dashboard links, for example `http://192.168.1.10:8088` |
 
@@ -53,6 +53,10 @@ Events:
   as at night only, stays quiet when it stops on time. A rig needs 5 days of history first, and its return is announced with
   `worker_online`. Choose it instead of `worker_offline`: with both, a rig that stops at its usual time gets both messages.
   Days are 24 hours, so for a week after a daylight-saving change the stretch is an hour off.
+- `worker_rejects` (off unless chosen): a worker had at least 20 rejected shares, and 10% or more of its shares, over the last
+  15 minutes, with the reasons (stale, below the share difficulty, sent twice); and `worker_rejects_ok` once that is below 5%. Stale
+  shares point at a slow connection or a miner slow to switch jobs; shares below the difficulty, at a miner setting (see the
+  Connection problems card). Checked every minute; after an API restart the first check only records state.
 - `node_update`: a node version switch started, finished or failed (including automatic and
   scheduled ones), and a failed chain copy.
 
@@ -88,9 +92,11 @@ numbers or strings of digits; rewards are in atomic units (100,000,000 to a XEL)
 | `worker_offline` | `address`, `worker`, `lastShare` |
 | `worker_unusual` | `address`, `worker`, `lastShare`, `daysOn` (days it was mining at this time), `days` (7, the days looked at) |
 | `worker_online` | `address`, `worker` |
+| `worker_rejects` | `address`, `worker`, `accepted`, `rejected`, `percent`, `minutes` (15, the window), `reasons` (rejected shares by reason: `stale`, `low_difficulty`, `duplicate`, ...) |
+| `worker_rejects_ok` | `address`, `worker`, `accepted`, `rejected`, `percent`, `minutes` |
 
 `ALERT_EVENTS` selects by kind: `node_peers` sends `node_no_peers` and `node_peers_back`, `cluster` the three `cluster_` events,
-`mining_paused` also `mining_resumed` and `node_switched`, and `worker_offline` and `worker_unusual` also `worker_online`.
+`mining_paused` also `mining_resumed` and `node_switched`, `worker_offline` and `worker_unusual` also `worker_online`, and `worker_rejects` also `worker_rejects_ok`.
 
 ## Best share
 
