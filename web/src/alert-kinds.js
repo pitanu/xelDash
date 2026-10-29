@@ -13,4 +13,6 @@ export const ALERT_KIND_LABELS = /** @type {Record<string, string>} */ ({
   node_peers: "A node loses its connection to other nodes (mainnet, testnet)",
   disk_low: "The disk is running low on space",
   cluster: "A server takes over the shared address (redundancy)",
+  report_weekly: "Weekly report, each Monday",
+  report_monthly: "Monthly report, on the 1st",
 });

@@ -6,7 +6,7 @@ import { ALERT_KIND_LABELS } from "../alert-kinds.js";
 /**
  * @typedef {{ set: boolean, end: string | null }} SecretState
  * @typedef {{ discord: SecretState, telegram: SecretState & { chatId: string | null }, webhook: SecretState,
- *   events: string[], allEvents: string[], workerOfflineMinutes: number, dashboardUrl: string | null }} AlertStatus
+ *   events: string[], allEvents: string[], reports?: string[], allReports?: string[], workerOfflineMinutes: number, dashboardUrl: string | null }} AlertStatus
  */
 
 const inputClass = "w-full rounded-md border border-line bg-page px-3 py-1.5 text-sm text-ink disabled:opacity-50";
@@ -40,6 +40,7 @@ export default function AlertSettings({ token, onUnauthorized }) {
   const [telegramChat, setTelegramChat] = useState("");
   const [webhook, setWebhook] = useState("");
   const [events, setEvents] = useState(/** @type {string[]} */ ([]));
+  const [reports, setReports] = useState(/** @type {string[]} */ ([]));
   const [minutes, setMinutes] = useState("10");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(/** @type {{ ok: boolean, text: string } | null} */ (null));
@@ -48,6 +49,7 @@ export default function AlertSettings({ token, onUnauthorized }) {
   const apply = useCallback((/** @type {AlertStatus} */ s) => {
     setStatus(s);
     setEvents(s.events);
+    setReports(s.reports ?? []);
     setMinutes(String(s.workerOfflineMinutes));
     setTelegramChat(s.telegram.chatId ?? "");
   }, []);
@@ -85,6 +87,7 @@ export default function AlertSettings({ token, onUnauthorized }) {
         telegramChatId: telegramToken.trim() === "-" ? "" : telegramChat.trim() === (status?.telegram.chatId ?? "") ? undefined : telegramChat.trim(),
         webhookUrl: change(webhook),
         events,
+        reports,
         workerOfflineMinutes: number,
       });
       apply(saved);
@@ -163,6 +166,25 @@ export default function AlertSettings({ token, onUnauthorized }) {
               minutes without a share
             </label>
           </fieldset>
+
+          {(status.allReports ?? []).length > 0 && (
+            <fieldset>
+              <legend className="text-sm font-medium text-ink">Reports</legend>
+              <p className="mt-0.5 text-xs text-ink-2">
+                A summary of the week (Monday to Sunday) or month just ended, in UTC: each rig's time on, hashrate while on, rejected shares,
+                blocks expected and found, and its electricity cost where its power draw is set.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
+                {(status.allReports ?? []).map((period) => (
+                  <label key={period} className="flex items-center gap-2 text-sm text-ink-2">
+                    <input type="checkbox" checked={reports.includes(period)} disabled={disabled}
+                      onChange={(e) => setReports(e.target.checked ? [...reports, period] : reports.filter((x) => x !== period))} />
+                    {ALERT_KIND_LABELS[`report_${period}`] ?? period}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
 
           <div className="flex flex-wrap items-center gap-3">
             <button type="submit" disabled={disabled}

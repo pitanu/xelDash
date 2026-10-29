@@ -23,6 +23,7 @@ function pathFor(alert) {
   if (alert.kind.startsWith("block_")) return "/blocks";
   if (alert.kind.startsWith("worker_") && d.address && d.worker) return `/miner/${d.address}/worker/${encodeURIComponent(d.worker)}`;
   if (alert.kind === "node_update" || alert.kind === "disk_low") return "/nodes";
+  if (alert.kind.startsWith("report_")) return "/miners";
   return "/health";
 }
 
@@ -38,8 +39,10 @@ function alertSource(kind) {
     label: ALERT_KIND_LABELS[kind] ?? kind,
     from(message) {
       if (message?.type !== "alert" || message.kind !== kind || typeof message.text !== "string") return null;
-      const [title, ...rest] = plain(message.text).split(/(?<=\.)\s+/);
-      return { title, body: rest.join(" "), path: pathFor(message), tag: `${message.event}:${message.sentAt}` };
+      // The first sentence of the first line is the title (a report's first line is its title); the rest is the body.
+      const [first, ...lines] = plain(message.text).split("\n");
+      const [title, ...rest] = first.split(/(?<=\.)\s+/);
+      return { title, body: [...rest, ...lines].join(" "), path: pathFor(message), tag: `${message.event}:${message.sentAt}` };
     },
   };
 }
