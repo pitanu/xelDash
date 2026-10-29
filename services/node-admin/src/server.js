@@ -7,6 +7,7 @@ import { ClusterWatch } from "./cluster.js";
 import { StandbyAlerts } from "./standby.js";
 import { DiskWatch } from "./disk-watch.js";
 import { AddressProblem, MiningAddress } from "./mining-address.js";
+import { PowerSettings, PowerSettingsProblem } from "./power.js";
 import { closeEvents, hideWorker, recordEvent } from "./events.js";
 import { Node } from "./nodes.js";
 import { Releases } from "./releases.js";
@@ -49,6 +50,7 @@ const fallback = new MiningFallback({ configDir, network, env: process.env, publ
 for (const node of nodes) await node.snapshots.init().catch((error) => console.warn(`${node.id}: ${message(error)}`));
 const miningAddress = new MiningAddress({ configDir, network, env: process.env });
 const alertSettings = new AlertSettings({ configDir, env: process.env });
+const power = new PowerSettings({ configDir, publicMode: () => envPublicMode });
 // The second server of a cluster has no database: it copies the main server's alert settings and sends its own failover alert.
 const standbyAlerts = process.env.XELDASH_PRIMARY_URL && process.env.XELDASH_CLUSTER_SECRET
   ? new StandbyAlerts({ alertSettings, primaryUrl: process.env.XELDASH_PRIMARY_URL, secret: process.env.XELDASH_CLUSTER_SECRET, serverName: process.env.XELDASH_SERVER_NAME,
@@ -157,6 +159,10 @@ const server = createServer(async (request, response) => {
       send(response, 200, { ...(await alertSettings.status()), actionsEnabled: Boolean(adminToken) });
       return;
     }
+    if (request.method === "GET" && path === "/power") {
+      send(response, 200, { ...(await power.status()), actionsEnabled: Boolean(adminToken) });
+      return;
+    }
     if (request.method === "GET" && path === "/mining-address") {
       send(response, 200, { ...(await miningAddress.status()), actionsEnabled: Boolean(adminToken) });
       return;
@@ -261,6 +267,16 @@ const server = createServer(async (request, response) => {
         send(response, 200, await alertSettings.set(body ?? {}));
       } catch (error) {
         if (!(error instanceof AlertSettingsProblem)) throw error;
+        send(response, 422, { error: error.message });
+      }
+      return;
+    }
+    if (request.method === "PUT" && (path === "/power" || path === "/power/worker")) {
+      const body = await readJson(request);
+      try {
+        send(response, 200, path === "/power" ? await power.setPrice(body ?? {}) : await power.setWorker(body ?? {}));
+      } catch (error) {
+        if (!(error instanceof PowerSettingsProblem)) throw error;
         send(response, 422, { error: error.message });
       }
       return;

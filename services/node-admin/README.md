@@ -37,6 +37,7 @@ streaming uploads without buffering. Reads are open; every change needs
 | (standby only) | With `XELDASH_PRIMARY_URL` and `XELDASH_CLUSTER_SECRET` set (the second server of a cluster), `src/standby.js` copies the main server's alert settings every minute and, when this server takes over the shared address while the main server cannot be reached, sends the failover alert itself |
 | `GET /cluster` | This server's role in a two-server cluster (`MASTER`, `BACKUP`, `FAULT`), from the address manager's role file; changes are recorded as events, which become alerts. `{ "configured": false }` without a cluster |
 | `GET /backup` | Admin token. Streams a `pg_dump` of the statistics database as a download (the same file `xeldash backup` writes) |
+| `GET /power`, `PUT /power`, `PUT /power/worker` | Electricity for cost and profit per rig: the price per kWh and its currency, and each worker's power draw in watts, kept in `power.json` on the config volume. Not on a public server |
 | `GET/PUT /alerts`, `POST /alerts/test` | Where alerts go (Discord, Telegram, webhook) and which ones, kept in `alerts.json` on the config volume, which the API watches. Secrets are shown only by their last four characters; the test sends one message to each place and says which arrived |
 | `GET/PUT /mining-address` | The address xelDash mines to when a miner sends none: checked by your node (network, typos, not integrated), kept on the config volume, read by Stratum |
 | `POST /token/check` | Check an admin token when it is entered |

@@ -3,6 +3,7 @@ import { usePolled } from "../api.js";
 import { EarningsText, dailyEarnings } from "../components/Earnings.jsx";
 import HashrateChart from "../components/HashrateChart.jsx";
 import ActivityCard from "../components/ActivityCard.jsx";
+import PowerCard from "../components/PowerCard.jsx";
 import { BestShareCard } from "../components/BestShareChart.jsx";
 import SharesChart from "../components/SharesChart.jsx";
 import LuckCard from "../components/LuckCard.jsx";
@@ -82,6 +83,7 @@ export default function Miner({ address, back = true }) {
       </Card>
 
       <ActivityCard address={address} />
+      <PowerCard address={address} />
 
       <BestShareCard best={m?.bestShare} points={history.data?.points ?? null} dimmed={history.loading} />
 
