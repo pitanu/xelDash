@@ -19,6 +19,7 @@ import Setup from "./pages/Setup.jsx";
 import Connect from "./pages/Connect.jsx";
 import { useServerMode } from "./server-mode.js";
 import { useThemeColor } from "./theme.js";
+import { startNotifications } from "./notifications.js";
 
 // Tab icons, drawn on a 20px grid (the phone's tab bar shows them above the names).
 const TAB_ICONS = /** @type {Record<string, string>} */ ({
@@ -145,6 +146,8 @@ export default function App() {
   const route = useHashRoute();
   const mode = useServerMode();
   const operator = mode.known && !mode.publicView;
+  // The browser notifications this browser chose (Settings), once it is known whose view this is.
+  useEffect(() => (mode.known ? startNotifications(mode.publicView) : undefined), [mode.known, mode.publicView]);
   // Until the mode is known, the operator's links stay hidden (they flash up for nobody on a public server).
   // Settings and Connect differ between the two views, so they wait for the view too.
   const nav = mode.publicView ? PUBLIC_NAV : operator ? NAV : NAV.filter(([href]) => !OPERATOR_PAGES.includes(href) && href !== "/settings" && href !== "/connect");

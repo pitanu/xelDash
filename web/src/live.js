@@ -46,6 +46,7 @@ function connect() {
     if (message.type === "block") update({ tip: state.tip + 1 });
     if (message.type === "event") update({ version: state.version + 1 });
     if (message.type === "event" && message.eventType === "block_submitted") for (const listener of blockListeners) listener();
+    for (const listener of messageListeners) listener(message);
   };
   socket.onclose = () => {
     update({ status: "offline" });
@@ -78,6 +79,17 @@ export function getLiveState() {
 
 /** @type {Set<() => void>} */
 const blockListeners = new Set();
+/** @type {Set<(message: any) => void>} */
+const messageListeners = new Set();
+
+/** Every message from the live feed, as sent (notifications.js reads the alerts in them). @param {(message: any) => void} listener */
+export function subscribeLiveMessages(listener) {
+  start();
+  messageListeners.add(listener);
+  return () => {
+    messageListeners.delete(listener);
+  };
+}
 
 /** Called when one of our miners finds a block (not for every block on the network). @param {() => void} listener */
 export function subscribeBlockFound(listener) {

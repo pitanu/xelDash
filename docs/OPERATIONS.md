@@ -69,6 +69,16 @@ and the next message says how many.
 The API log lists the enabled channels at startup ("Alerts enabled: ..."). Failed deliveries
 are logged and not retried.
 
+### Browser notifications
+
+Each browser can also show alerts as notifications on its own computer: Settings, "Browser notifications", tick the kinds you
+want and allow notifications when the browser asks. They are saved in that browser only, need no channel above, and cover every
+kind, whether or not `ALERT_EVENTS` chose it for the channels. They show while the dashboard is open in a tab you are not looking
+at (there is no background service, so a closed dashboard shows nothing), and clicking one opens the page it is about. Alerts reach
+only the operator's dashboards over the live connection; on a public server, visitors can be told of blocks found and nothing else.
+While any of your dashboards is open, the API works out every kind of alert for them (the worker checks are one small query a
+minute).
+
 ### Webhook alerts
 
 A webhook receives each alert as a JSON POST: `event` (below), `text` (the same message Discord and Telegram get), the alert's

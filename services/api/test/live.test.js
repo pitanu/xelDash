@@ -97,8 +97,16 @@ test("a public viewer gets only block news; the operator gets every event", asyn
   await new Promise((r) => setTimeout(r, 200));
   assert.deepEqual(visitor.got, ["hello", "block_submitted", "block"]);
   assert.deepEqual(operator.got, ["hello", "ip_banned", "block_submitted", "block", "backup_done"]);
-  visitor.ws.close();
+  // Alerts (for browser notifications) are the operator's alone, even one about a block.
+  assert.equal(live.hasOperators(), true);
+  live.sendToOperators({ kind: "block_found", event: "block_found", text: "Block 5 found" });
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal(visitor.got.includes("alert"), false, "a visitor gets no alerts");
+  assert.equal(operator.got.at(-1), "alert");
   operator.ws.close();
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal(live.hasOperators(), false, "only the visitor is left");
+  visitor.ws.close();
   await live.stop();
   server.close();
 });

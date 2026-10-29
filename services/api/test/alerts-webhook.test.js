@@ -99,7 +99,8 @@ function workerPool(daysOn) {
   const pool = {
     query: async (/** @type {string} */ sql) => {
       if (/generate_series/.test(sql)) return { rows: [{ days_on: daysOn }] };
-      if (/FROM worker_stats_1m/.test(sql)) {
+      // The offline check's query only (the rejected-share check reads the same table).
+      if (/max\(s\.bucket\) AS last_share/.test(sql)) {
         checks++;
         const lastShare = new Date(checks === 2 ? Date.now() - 60 * 60_000 : Date.now());
         return { rows: [{ address: ADDRESS, id: 7, name: "rig1", last_share: lastShare }] };
@@ -182,6 +183,43 @@ test("a few rejected shares are not an alert: fewer than 20, or under 10%", asyn
   alerts?.stop();
   hook.close();
   assert.deepEqual(hook.received, [], "15 of 25 is 60% but only 15; 30 of 430 is 7%");
+});
+
+test("with a dashboard open, every kind is relayed for its browser to choose from; the channels still get only theirs", async () => {
+  const hook = await webhook();
+  /** @type {any[]} */
+  const relayed = [];
+  let open = true;
+  const relay = { active: () => open, push: (/** @type {any} */ alert) => relayed.push(alert) };
+  // The webhook wants worker_offline only; the dashboard gets worker_unusual too, and its own kind on each.
+  const alerts = startAlerts({ pool: workerPool(6), config: alertConfigFromEnv({ ALERT_WEBHOOK_URL: hook.url, ALERT_EVENTS: "worker_offline" }),
+    logger: quiet, workerCheckMs: 50, relay });
+  await until(() => relayed.length >= 3 && hook.received.length >= 2, 8_000);
+  alerts?.stop();
+  hook.close();
+  assert.deepEqual(relayed.map((a) => [a.event, a.kind]), [["worker_offline", "worker_offline"], ["worker_unusual", "worker_unusual"], ["worker_online", "worker_offline"]]);
+  assert.ok(relayed.every((a) => typeof a.text === "string" && !Number.isNaN(Date.parse(a.sentAt))));
+  assert.deepEqual(hook.received.map((b) => b.event), ["worker_offline", "worker_online"], "not worker_unusual: the webhook did not choose it");
+  open = false;
+});
+
+test("with no channel, alerts still run for an open dashboard, and work out nothing while none is open", async () => {
+  /** @type {any[]} */
+  const relayed = [];
+  let open = false;
+  const pool = workerPool(6);
+  let queries = 0;
+  const counting = /** @type {any} */ ({ query: (/** @type {string} */ sql, /** @type {unknown[]} */ p) => { queries++; return pool.query(sql, p); } });
+  const alerts = startAlerts({ pool: counting, config: alertConfigFromEnv({}), logger: quiet, workerCheckMs: 50,
+    relay: { active: () => open, push: (/** @type {any} */ a) => relayed.push(a) } });
+  assert.ok(alerts, "running for the relay");
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(queries, 0, "no dashboard open: no worker checks");
+  open = true;
+  await until(() => relayed.length >= 1, 8_000);
+  alerts?.stop();
+  assert.ok(relayed.length >= 1);
+  assert.equal(startAlerts({ pool, config: alertConfigFromEnv({}), logger: quiet }), null, "no channel and no relay: nothing runs");
 });
 
 test("worker_unusual and worker_rejects are sent only when chosen: not part of the default of every kind", () => {

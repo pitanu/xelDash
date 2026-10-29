@@ -154,7 +154,17 @@ export function startLiveUpdates({ server, pool, onNotification = () => {}, logg
   }
   void listen();
 
+  /** Open connections with the operator's view (on a public server, the admin web; elsewhere, every one). */
+  const operators = () => [...wss.clients].filter((ws) => ws.readyState === ws.OPEN && !publicClients.has(ws));
+
   return {
+    /** Whether an operator's dashboard is open, to show alerts as browser notifications. */
+    hasOperators: () => operators().length > 0,
+    /** An alert, to the operator's dashboards only: never to a public visitor. @param {unknown} alert */
+    sendToOperators(alert) {
+      const payload = JSON.stringify({ type: "alert", ...(/** @type {object} */ (alert)) });
+      for (const ws of operators()) ws.send(payload);
+    },
     async stop() {
       stopped = true;
       clearInterval(heartbeat);

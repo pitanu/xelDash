@@ -512,9 +512,13 @@ if (isMain) await start();
 async function start() {
   for (const warning of publicModeWarnings(process.env)) console.warn(`Public mode: ${warning}`);
   if (publicMode) console.info("Public mode: visitors get no IP addresses, no connection problems and no node administration.");
-  const alerts = watchAlerts({ pool, env: process.env, file: join(process.env.CONFIG_DIR ?? "/config", "alerts.json") });
+  // Alerts also go to the operator's open dashboards, which show the kinds each browser chose as notifications.
+  /** @type {ReturnType<typeof startLiveUpdates> | null} */
+  let live = null;
+  const relay = { active: () => live?.hasOperators() ?? false, push: (/** @type {unknown} */ alert) => live?.sendToOperators(alert) };
+  const alerts = watchAlerts({ pool, env: process.env, file: join(process.env.CONFIG_DIR ?? "/config", "alerts.json"), relay });
   // A public server has many more visitors: 1000 live connections in all (each visitor's own few are limited by the web server).
-  const live = startLiveUpdates({ server, pool, onNotification: (payload) => alerts?.handleNotification(payload), maxClients: publicMode ? 1_000 : 100,
+  live = startLiveUpdates({ server, pool, onNotification: (payload) => alerts?.handleNotification(payload), maxClients: publicMode ? 1_000 : 100,
     isPublic: (request) => isPublicView(publicMode, request), allowHost: (request) => hostAllowed(request.headers.host, hostRules) });
 
   server.listen(port, host, () => {
@@ -524,7 +528,7 @@ async function start() {
   async function shutdown() {
     server.close();
     alerts?.stop();
-    await live.stop();
+    await live?.stop();
     await pool.end();
   }
 
