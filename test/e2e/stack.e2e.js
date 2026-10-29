@@ -11,7 +11,7 @@
 // Runs in its own Docker Compose project (xeldash-e2e) on its own ports, so it does not touch a stack that is already running.
 import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

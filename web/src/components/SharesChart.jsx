@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { formatInteger, formatTime } from "../format.js";
 import { pow10 } from "./chart-math.js";
 
+// One empty list while loading, so the memos below are not redone on every render.
+const NO_POINTS = /** @type {never[]} */ ([]);
 const HEIGHT = 200;
 const PAD = { top: 12, right: 16, bottom: 28, left: 52 };
 
@@ -24,7 +26,7 @@ function niceTicks(max, count) {
  * @param {{ points: { time: string, accepted: string, rejected: string, stale?: string }[] | null, dimmed?: boolean }} props
  */
 export default function SharesChart({ points: loaded, dimmed = false }) {
-  const points = loaded ?? [];
+  const points = loaded ?? NO_POINTS;
   const frame = useRef(/** @type {HTMLDivElement | null} */ (null));
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState(/** @type {number | null} */ (null));

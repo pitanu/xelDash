@@ -19,6 +19,7 @@ export const ADDRESS_SHAPE = /^xe[lt]:[a-z0-9]{10,120}$/i;
 // Each new worker costs a daemon lookup and a database row; one rig needs only a few.
 const MAX_WORKERS_PER_CONNECTION = 32;
 // Control characters (terminal escapes, bells, newlines) could spoof log lines and alerts.
+// eslint-disable-next-line no-control-regex -- matching them is the point
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/;
 const MAX_TRACKED_JOBS = 5;
 // After a new block, work on the previous jobs is still in flight on the miner (a GPU finishes

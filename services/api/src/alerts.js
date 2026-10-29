@@ -345,7 +345,7 @@ export function startAlerts({ pool, config, logger = console, workerCheckMs = 60
       const who = p.server ? ` (${p.server})` : "";
       // On a public server the shared address (an address on the operator's network) is left out of the alert.
       const shared = config.publicMode ? "the shared address" : `the shared address ${p.vip}`;
-      const { vip, ...withoutAddress } = p;
+      const { vip: _vip, ...withoutAddress } = p;
       const text = type === "cluster_active"
         ? `Failover: this server${who} now holds ${shared}. Your rigs are connected here and keep mining.`
         : type === "cluster_fault"

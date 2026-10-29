@@ -120,7 +120,7 @@ test("with an address saved, a miner connected and shares accepted, every step i
 
 test("the address field stays locked until the admin token is checked, and a wrong token says so", async () => {
   const calls = fakeApi(routes({
-    "POST /api/v1/node/token/check": ({ body }) => ({ status: 401, body: { error: "unauthorized" } }),
+    "POST /api/v1/node/token/check": () => ({ status: 401, body: { error: "unauthorized" } }),
   }));
   const view = await render(h(Setup));
   const field = /** @type {HTMLInputElement} */ (getByText(view.container, "Your XELIS address"));

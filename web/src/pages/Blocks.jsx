@@ -4,7 +4,7 @@ import EffortChart from "../components/EffortChart.jsx";
 import RewardsChart from "../components/RewardsChart.jsx";
 import RewardsSummary from "../components/RewardsSummary.jsx";
 import { BlocksTable, Card, Segmented } from "../components/ui.jsx";
-import { formatEffort, formatInteger, formatTime } from "../format.js";
+import { formatEffort, formatInteger } from "../format.js";
 
 // The table's status filter: everything, or one kind of block (orphaned and rejected together: neither is paid).
 const FILTERS = /** @type {const} */ ([["all", "All"], ["main-chain", "Main chain"], ["side", "Side"], ["submitted", "Pending"], ["lost", "Orphaned"]]);

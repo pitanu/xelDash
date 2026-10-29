@@ -13,6 +13,7 @@ const HEARTBEAT_MS = 30_000;
 /** @typedef {import("./session.js").StratumSession} StratumSession */
 
 // Control characters (terminal escapes, bells, newlines) could spoof log lines and alerts.
+// eslint-disable-next-line no-control-regex -- matching them is the point
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/;
 
 /**
