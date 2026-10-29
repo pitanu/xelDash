@@ -67,7 +67,7 @@ export function connectionToEvict(sessions, { ip, quietMs = EVICT_AFTER_QUIET_MS
  */
 export class ConnectionPlaces {
   /**
-   * @param {{ connect: (ip: string) => string | null, disconnect: (ip: string) => void }} guard
+   * @param {{ connect: (ip: string, now?: number, options?: { attempted?: boolean }) => string | null, disconnect: (ip: string) => void }} guard
    * @param {Map<{ destroy: () => void }, Activity>} sessions
    * @param {{ onEvict?: (evictedIp: string, forIp: string, reason: string) => void }} [hooks]
    */
@@ -81,11 +81,11 @@ export class ConnectionPlaces {
 
   /**
    * Count a new connection from this address, making room when the per-IP or total limit is reached. Returns why it is refused, or
-   * null.
-   * @param {string} ip @param {number} [now]
+   * null. `attempted`: its connection rate was charged when it was accepted (the TLS port).
+   * @param {string} ip @param {number} [now] @param {{ attempted?: boolean }} [options]
    */
-  admit(ip, now = Date.now()) {
-    const refused = this.guard.connect(ip);
+  admit(ip, now = Date.now(), options = {}) {
+    const refused = this.guard.connect(ip, undefined, options);
     if (refused !== "server full" && refused !== "too many connections") return refused;
     const victim = connectionToEvict(this.sessions, refused === "too many connections" ? { ip, now } : { now });
     const victimIp = victim ? this.sessions.get(victim)?.ip : null;
@@ -94,7 +94,8 @@ export class ConnectionPlaces {
     this.released.add(victim);
     this.guard.disconnect(victimIp);
     victim.destroy();
-    return this.guard.connect(ip);
+    // The first try was charged to the connection rate already.
+    return this.guard.connect(ip, undefined, { attempted: true });
   }
 
   /** Give a closed connection's place back, unless that was done when it was closed to make room. @param {object} socket @param {string} ip */
