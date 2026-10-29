@@ -17,10 +17,11 @@ const MAX_STRETCHES = 5_000;
  * The period starts at the range's start, or where the minute stats begin if that is later (a new install, or a shorter
  * RETENTION_MINUTE_STATS_DAYS), so time before anything was tracked does not count as off.
  * With `work`, each stretch also carries the work its shares proved and the blocks that work was expected to find (for the CSV).
- * @param {PgPool} pool @param {{ address: string, worker?: string | null, range?: string, now?: Date, work?: boolean }} filter
+ * `minutes` instead of a range: that many minutes up to `now` (a calendar month for the reports).
+ * @param {PgPool} pool @param {{ address: string, worker?: string | null, range?: string, now?: Date, work?: boolean, minutes?: number }} filter
  */
-export async function getActivity(pool, { address, worker = null, range = "7d", now = new Date(), work = false }) {
-  const rangeMinutes = ACTIVITY_RANGES[range];
+export async function getActivity(pool, { address, worker = null, range = "7d", now = new Date(), work = false, minutes }) {
+  const rangeMinutes = minutes ?? ACTIVITY_RANGES[range];
   if (!rangeMinutes) throw new RangeError(`range must be one of ${Object.keys(ACTIVITY_RANGES).join(", ")}`);
   // Whole minutes: the current one is still filling.
   const to = new Date(Math.floor(now.getTime() / 60_000) * 60_000);

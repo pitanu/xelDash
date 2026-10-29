@@ -17,6 +17,7 @@ The `.env` way, which gives the starting values (restart the API with `docker co
 | `ALERT_TELEGRAM_BOT_TOKEN` and `ALERT_TELEGRAM_CHAT_ID` | A bot token from @BotFather and the chat to post in |
 | `ALERT_WEBHOOK_URL` | Receives `{ event, text, ...details, sentAt }` as a JSON POST (see [Webhook alerts](#webhook-alerts)) |
 | `ALERT_EVENTS` | Which alerts to send (default: all but `worker_unusual` and `worker_rejects`, see below) |
+| `ALERT_REPORTS` | Reports to send: `weekly`, `monthly` or both (none by default, see [Reports](#reports)) |
 | `ALERT_WORKER_OFFLINE_MINUTES` | Minutes without an accepted share before a worker counts as offline (10) |
 | `ALERT_DASHBOARD_URL` | Adds dashboard links, for example `http://192.168.1.10:8088` |
 
@@ -69,6 +70,16 @@ and the next message says how many.
 The API log lists the enabled channels at startup ("Alerts enabled: ..."). Failed deliveries
 are logged and not retried.
 
+### Reports
+
+A weekly report (each Monday, for the week Monday to Sunday) and a monthly one (on the 1st, for the month before), in UTC, through
+the same channels; none unless chosen, in Settings ("Reports" under Where to send alerts) or `ALERT_REPORTS`. For each rig that
+mined: its time on and share of the period, hashrate while on, rejected shares, blocks expected against found, and, where its power
+draw is set ([Electricity](#electricity-cost-and-profit-per-rig)), the energy and its cost; with totals, the rewards found, and the
+profit on the expected reward at today's reward and XEL price. Up to 50 rigs (the busiest): as many as fit in a Discord message, all
+of them in the webhook's data. Each report is sent once and shows under Recent events; one more than a day late, because the API was
+not running, is skipped rather than sent days later. Not on a public server. Each report is also a kind of browser notification.
+
 ### Browser notifications
 
 Each browser can also show alerts as notifications on its own computer: Settings, "Browser notifications", tick the kinds you
@@ -102,6 +113,7 @@ numbers or strings of digits; rewards are in atomic units (100,000,000 to a XEL)
 | `worker_offline` | `address`, `worker`, `lastShare` |
 | `worker_unusual` | `address`, `worker`, `lastShare`, `daysOn` (days it was mining at this time), `days` (7, the days looked at) |
 | `worker_online` | `address`, `worker` |
+| `report_weekly`, `report_monthly` | `period`, `from`, `to` (ISO times, UTC), `currency` (the electricity's, or null), `rigs` (each: `address`, `worker`, `onMinutes`, `dutyCycle`, `hashrateWhileOn`, `accepted`, `rejected`, `rejectedPercent`, `expectedBlocks`, `foundBlocks`, `rewardAtomic`, `watts`, `kwh`, `cost`, `expectedValue`, `profit`), `totals` (`rigs`, `foundBlocks`, `expectedBlocks`, `rewardAtomic`, `kwh`, `cost`, `profit`) |
 | `worker_rejects` | `address`, `worker`, `accepted`, `rejected`, `percent`, `minutes` (15, the window), `reasons` (rejected shares by reason: `stale`, `low_difficulty`, `duplicate`, ...) |
 | `worker_rejects_ok` | `address`, `worker`, `accepted`, `rejected`, `percent`, `minutes` |
 

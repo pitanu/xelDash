@@ -122,3 +122,17 @@ test("the saved file is valid JSON on the volume", async () => {
   assert.deepEqual(JSON.parse(await readFile(s.file, "utf8")).events, ["cluster"]);
   await done();
 });
+
+test("the weekly and monthly reports: none unless chosen, from .env or the dashboard, checked, and copied to a standby", async () => {
+  const fresh = await settings({});
+  assert.deepEqual((await fresh.s.status()).reports, [], "off by default");
+  assert.deepEqual((await fresh.s.status()).allReports, ["weekly", "monthly"]);
+  const fromEnv = await settings({ ALERT_REPORTS: "monthly, yearly" });
+  assert.deepEqual((await fromEnv.s.status()).reports, ["monthly"], "unknown names are dropped");
+  await fresh.s.set({ reports: ["weekly", "monthly", "weekly"] });
+  assert.deepEqual((await fresh.s.status()).reports, ["weekly", "monthly"]);
+  await assert.rejects(fresh.s.set({ reports: ["daily"] }), /Unknown report/);
+  await fresh.s.importFrom({ reports: ["weekly", "nope"], events: ["cluster"] });
+  assert.deepEqual((await fresh.s.status()).reports, ["weekly"]);
+  await fresh.done(); await fromEnv.done();
+});

@@ -516,7 +516,13 @@ async function start() {
   /** @type {ReturnType<typeof startLiveUpdates> | null} */
   let live = null;
   const relay = { active: () => live?.hasOperators() ?? false, push: (/** @type {unknown} */ alert) => live?.sendToOperators(alert) };
-  const alerts = watchAlerts({ pool, env: process.env, file: join(process.env.CONFIG_DIR ?? "/config", "alerts.json"), relay });
+  // The reports' electricity (saved from the dashboard), today's reward per block, and the XEL price unless it is off here.
+  const reportSources = {
+    powerFile: join(process.env.CONFIG_DIR ?? "/config", "power.json"),
+    rewardAtomic: async () => Number((await daemonCall("get_info"))?.miner_reward) || null,
+    xelPrice: async (/** @type {string} */ currency) => (priceOff ? null : (await getPrice(currency))?.price ?? null),
+  };
+  const alerts = watchAlerts({ pool, env: process.env, file: join(process.env.CONFIG_DIR ?? "/config", "alerts.json"), relay, reportSources });
   // A public server has many more visitors: 1000 live connections in all (each visitor's own few are limited by the web server).
   live = startLiveUpdates({ server, pool, onNotification: (payload) => alerts?.handleNotification(payload), maxClients: publicMode ? 1_000 : 100,
     isPublic: (request) => isPublicView(publicMode, request), allowHost: (request) => hostAllowed(request.headers.host, hostRules) });

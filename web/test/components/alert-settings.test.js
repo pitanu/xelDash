@@ -99,3 +99,15 @@ test("without the admin token everything is read-only, and a refused token is re
   assert.equal(refused, 1);
   assert.equal(view.container.querySelector("[role=alert]")?.textContent, "unauthorized");
 });
+
+test("the weekly and monthly reports are chosen beside the alerts, and saved with them", async () => {
+  const calls = fakeApi({
+    "GET /api/v1/node/alerts": alerts({ reports: [], allReports: ["weekly", "monthly"] }),
+    "PUT /api/v1/node/alerts": ({ body }) => alerts({ ...body, allReports: ["weekly", "monthly"] }),
+  });
+  const view = await render(h(AlertSettings, { token: "t", onUnauthorized: () => {} }));
+  assert.match(view.text(), /Reports/);
+  await interact(() => getByText(view.container, "Monthly report, on the 1st", "label").querySelector("input")?.click());
+  await interact(() => getByText(view.container, "Save").click());
+  assert.deepEqual(lastSave(calls).reports, ["monthly"]);
+});

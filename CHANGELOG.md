@@ -7,6 +7,12 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Reports
+
+- Weekly and monthly reports, none unless chosen (Settings, "Reports", or `ALERT_REPORTS=weekly,monthly`): for the week or month just
+  ended, each rig's time on, hashrate while on, rejected shares, blocks expected and found, and its electricity cost where set, with
+  totals and the profit. Through Discord, Telegram or the webhook, and as a browser notification if chosen there.
+
 ### Electricity
 
 - Cost and profit per rig, off until set: a price per kWh in Settings and each rig's power draw on its page (admin token). Each rig's

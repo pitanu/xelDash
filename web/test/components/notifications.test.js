@@ -117,3 +117,15 @@ test("blocked in the browser: Settings says how to allow it, and nothing can be 
   assert.match(view.text(), /blocked for this site/);
   assert.equal(/** @type {HTMLFieldSetElement} */ (view.container.querySelector("fieldset")).disabled, true);
 });
+
+test("a report, when chosen: its first line is the title, the rest the body, and it opens the Miners page", () => {
+  FakeNotification.permission = "granted";
+  setChosenNotifications(["report_monthly"]);
+  const stop = startNotifications(false);
+  deliver(alert("report_weekly", "report_weekly", "Weekly report, 2026-10-19 to 2026-10-25 (UTC)\n2 rigs mined."));
+  deliver(alert("report_monthly", "report_monthly", "Monthly report, 2026-09-01 to 2026-09-30 (UTC)\n2 rigs mined: 1 block found of 0.8 expected.\n- rig1 (xel:abc): on 30 d 0 h"));
+  stop();
+  assert.equal(shown.length, 1, "the weekly one was not chosen");
+  assert.equal(shown[0].title, "Monthly report, 2026-09-01 to 2026-09-30 (UTC)");
+  assert.match(shown[0].options.body, /^2 rigs mined: 1 block found of 0\.8 expected\. - rig1/);
+});

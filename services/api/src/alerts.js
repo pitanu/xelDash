@@ -1,6 +1,8 @@
 import { readFile, stat } from "node:fs/promises";
+import { recordServiceEvent } from "@xeldash/db";
 import { coinSymbol } from "./coin.js";
 import { publicModeFromEnv } from "./public-mode.js";
+import { REPORT_PERIODS, buildReport, lastPeriod, readPower } from "./reports.js";
 const SEND_INTERVAL_MS = 1_000;
 const MAX_QUEUE = 20;
 const FINAL_BATCH_MS = 5_000;
@@ -47,7 +49,7 @@ function shortAddress(address) {
 
 /**
  * @typedef {{ discordWebhookUrl: string | null, telegramBotToken: string | null, telegramChatId: string | null,
- *   webhookUrl: string | null, events: Set<string>, workerOfflineMinutes: number, dashboardUrl: string | null,
+ *   webhookUrl: string | null, events: Set<string>, reports: Set<string>, workerOfflineMinutes: number, dashboardUrl: string | null,
  *   explorerUrl: string | null, coin: string, publicMode: boolean }} AlertConfig
  */
 
@@ -58,6 +60,11 @@ export function alertConfigFromEnv(env) {
   for (const event of events) {
     if (!EVENT_TYPES.includes(event)) throw new Error(`ALERT_EVENTS: unknown event "${event}"; use ${EVENT_TYPES.join(", ")}`);
   }
+  // The weekly and monthly reports: none unless chosen.
+  const reports = new Set((value("ALERT_REPORTS") ?? "").split(",").map((e) => e.trim()).filter(Boolean));
+  for (const period of reports) {
+    if (!(/** @type {readonly string[]} */ (REPORT_PERIODS)).includes(period)) throw new Error(`ALERT_REPORTS: unknown report "${period}"; use ${REPORT_PERIODS.join(", ")}`);
+  }
   const minutes = Number(value("ALERT_WORKER_OFFLINE_MINUTES") ?? "10");
   if (!Number.isSafeInteger(minutes) || minutes < 1) throw new Error("ALERT_WORKER_OFFLINE_MINUTES must be a positive integer");
   const config = {
@@ -66,6 +73,7 @@ export function alertConfigFromEnv(env) {
     telegramChatId: value("ALERT_TELEGRAM_CHAT_ID"),
     webhookUrl: value("ALERT_WEBHOOK_URL"),
     events,
+    reports,
     workerOfflineMinutes: minutes,
     dashboardUrl: value("ALERT_DASHBOARD_URL"),
     // The official block explorer for this network (devnet has none), for links to found blocks.
@@ -106,6 +114,7 @@ export async function loadAlertConfig(env, file) {
   });
   // An empty list means "nothing" here, not "everything" as it does in .env.
   if (Array.isArray(saved.events)) config.events = new Set(saved.events.filter((/** @type {string} */ e) => EVENT_TYPES.includes(e)));
+  if (Array.isArray(saved.reports)) config.reports = new Set(saved.reports.filter((/** @type {string} */ e) => (/** @type {readonly string[]} */ (REPORT_PERIODS)).includes(e)));
   return config;
 }
 
@@ -132,9 +141,9 @@ export async function usualDaysOn(pool, workerId, lastShare, minutes) {
  * Runs alerts and restarts them when the settings file changes, so a change made on the
  * dashboard applies within seconds without restarting the API.
  * @param {{ pool: import("pg").Pool, env: Partial<Record<string, string | undefined>>, file: string,
- *   logger?: Pick<Console, "info" | "warn">, intervalMs?: number, relay?: AlertRelay | null }} options
+ *   logger?: Pick<Console, "info" | "warn">, intervalMs?: number, relay?: AlertRelay | null, reportSources?: ReportSources }} options
  */
-export function watchAlerts({ pool, env, file, logger = console, intervalMs = 10_000, relay = null }) {
+export function watchAlerts({ pool, env, file, logger = console, intervalMs = 10_000, relay = null, reportSources }) {
   /** @type {ReturnType<typeof startAlerts>} */
   let current = null;
   let signature = "";
@@ -150,7 +159,7 @@ export function watchAlerts({ pool, env, file, logger = console, intervalMs = 10
     try {
       const config = await loadAlertConfig(env, file);
       current?.stop();
-      current = startAlerts({ pool, config, logger, relay });
+      current = startAlerts({ pool, config, logger, relay, reportSources });
     } catch (error) {
       logger.warn?.(`Alert settings not applied: ${message(error)}`);
     }
@@ -244,13 +253,20 @@ export const alertKind = (event) => KIND_OF[event] ?? event;
  */
 
 /**
+ * What the reports need from outside the database: the electricity settings file, the reward per block and the XEL price now (each
+ * null when unknown), and the clock (for tests).
+ * @typedef {{ powerFile?: string, rewardAtomic?: () => Promise<number | null>, xelPrice?: (currency: string) => Promise<number | null>,
+ *   now?: () => Date }} ReportSources
+ */
+
+/**
  * Block, mining-state and worker alerts to Discord, Telegram and/or a JSON webhook, and to the operator's open dashboards (relay).
  * Block and state alerts follow service_events via the live channel; worker alerts are a once-a-minute check of per-minute stats.
  * Returns null when there is no channel and no relay.
  * @param {{ pool: import("pg").Pool, config: AlertConfig, logger?: Pick<Console, "info" | "warn">, workerCheckMs?: number,
- *   relay?: AlertRelay | null }} options
+ *   relay?: AlertRelay | null, reportSources?: ReportSources, reportCheckMs?: number }} options
  */
-export function startAlerts({ pool, config, logger = console, workerCheckMs = 60_000, relay = null }) {
+export function startAlerts({ pool, config, logger = console, workerCheckMs = 60_000, relay = null, reportSources = {}, reportCheckMs = 10 * 60_000 }) {
   /** @type {ChannelQueue[]} */
   const channels = [];
   if (config.discordWebhookUrl) {
@@ -500,6 +516,37 @@ export function startAlerts({ pool, config, logger = console, workerCheckMs = 60
     firstRejectPass = false;
   }
 
+  // The weekly and monthly reports: each one once, when its period has ended, recorded as a report_sent event so a restart does not
+  // send it again. Not one that ended more than a day ago (an API that was down, a first start): that one is skipped, not sent late.
+  // Not on a public server: its rigs are other people's.
+  const clock = reportSources.now ?? (() => new Date());
+  async function checkReports() {
+    if (config.publicMode) return;
+    for (const period of REPORT_PERIODS) {
+      const toChannels = channels.length > 0 && config.reports.has(period);
+      if (!toChannels && !(relay?.active() ?? false)) continue;
+      const now = clock();
+      const due = lastPeriod(period, now);
+      if (now.getTime() - due.to.getTime() > 86_400_000) continue;
+      const sent = await pool.query("SELECT 1 FROM service_events WHERE type = 'report_sent' AND payload->>'key' = $1 LIMIT 1", [due.key]);
+      if (sent.rows.length > 0) continue;
+      await recordServiceEvent(pool, "report_sent", { key: due.key, period, from: due.from.toISOString().slice(0, 10), to: due.to.toISOString().slice(0, 10) });
+      const power = reportSources.powerFile ? await readPower(reportSources.powerFile) : { currency: null, pricePerKwh: null, watts: {} };
+      const [rewardAtomic, xelPrice] = await Promise.all([
+        reportSources.rewardAtomic?.().catch(() => null) ?? null,
+        power.currency ? reportSources.xelPrice?.(power.currency).catch(() => null) ?? null : null,
+      ]);
+      const report = await buildReport(pool, { period, from: due.from, to: due.to, power, rewardAtomic, xelPrice, coin: config.coin });
+      const { text, ...data } = report;
+      send({ event: `report_${period}`, data, text: `${text}${link("/miners")}` }, toChannels);
+    }
+  }
+  const reportTimer = setInterval(() => {
+    checkReports().catch((error) => logger.warn?.(`Report failed: ${message(error)}`));
+  }, reportCheckMs);
+  reportTimer.unref();
+  void checkReports().catch((error) => logger.warn?.(`Report failed: ${message(error)}`));
+
   const workerTimer = setInterval(() => {
     checkWorkers().catch((error) => logger.warn?.(`Worker offline check failed: ${message(error)}`));
     checkRejects().catch((error) => logger.warn?.(`Rejected share check failed: ${message(error)}`));
@@ -522,6 +569,7 @@ export function startAlerts({ pool, config, logger = console, workerCheckMs = 60
     },
     stop() {
       clearInterval(workerTimer);
+      clearInterval(reportTimer);
       if (finalTimer) clearTimeout(finalTimer);
     },
   };

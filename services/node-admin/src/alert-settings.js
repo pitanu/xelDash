@@ -8,6 +8,8 @@ import { join } from "node:path";
 const EVENTS = ["block_found", "block_rejected", "block_final", "block_side", "mining_paused", "worker_offline", "worker_unusual", "worker_rejects", "node_update", "node_peers", "disk_low", "cluster"];
 // Sent only when selected, so they are not part of the default (every other kind).
 const OPT_IN_EVENTS = new Set(["worker_unusual", "worker_rejects"]);
+// The weekly and monthly reports (services/api/src/reports.js): none unless chosen.
+const REPORTS = ["weekly", "monthly"];
 const TELEGRAM_TOKEN = /^\d{5,15}:[A-Za-z0-9_-]{20,60}$/;
 const TELEGRAM_CHAT = /^(-?\d{1,20}|@[A-Za-z][A-Za-z0-9_]{3,31})$/;
 
@@ -70,6 +72,7 @@ export class AlertSettings {
       telegramChatId: value("ALERT_TELEGRAM_CHAT_ID"),
       webhookUrl: value("ALERT_WEBHOOK_URL"),
       events: listed.length > 0 ? listed : EVENTS.filter((e) => !OPT_IN_EVENTS.has(e)),
+      reports: (value("ALERT_REPORTS") ?? "").split(",").map((e) => e.trim()).filter((e) => REPORTS.includes(e)),
       workerOfflineMinutes: Number(value("ALERT_WORKER_OFFLINE_MINUTES") ?? "10") || 10,
       dashboardUrl: value("ALERT_DASHBOARD_URL"),
     };
@@ -83,6 +86,8 @@ export class AlertSettings {
       webhook: hint(s.webhookUrl),
       events: s.events,
       allEvents: EVENTS,
+      reports: s.reports ?? [],
+      allReports: REPORTS,
       workerOfflineMinutes: s.workerOfflineMinutes,
       dashboardUrl: s.dashboardUrl,
     };
@@ -122,6 +127,12 @@ export class AlertSettings {
     const dashboard = text("dashboardUrl");
     if (dashboard !== undefined) s.dashboardUrl = dashboard ? checkUrl(dashboard, "dashboard address", false) : null;
 
+    if (input.reports !== undefined) {
+      if (!Array.isArray(input.reports) || input.reports.some((e) => !REPORTS.includes(e))) {
+        throw new AlertSettingsProblem("Unknown report: choose weekly, monthly or both.");
+      }
+      s.reports = [...new Set(/** @type {string[]} */ (input.reports))];
+    }
     if (input.events !== undefined) {
       if (!Array.isArray(input.events) || input.events.some((e) => !EVENTS.includes(e))) {
         throw new AlertSettingsProblem("Unknown alert type.");
@@ -173,6 +184,7 @@ export class AlertSettings {
       webhookUrl: str(settings.webhookUrl),
       dashboardUrl: str(settings.dashboardUrl),
       events: Array.isArray(settings.events) ? settings.events : [],
+      reports: Array.isArray(settings.reports) ? settings.reports.filter((/** @type {unknown} */ e) => REPORTS.includes(/** @type {string} */ (e))) : [],
       ...(Number.isSafeInteger(settings.workerOfflineMinutes) ? { workerOfflineMinutes: settings.workerOfflineMinutes } : {}),
     });
   }
