@@ -108,6 +108,17 @@ numbers or strings of digits; rewards are in atomic units (100,000,000 to a XEL)
 `ALERT_EVENTS` selects by kind: `node_peers` sends `node_no_peers` and `node_peers_back`, `cluster` the three `cluster_` events,
 `mining_paused` also `mining_resumed` and `node_switched`, `worker_offline` and `worker_unusual` also `worker_online`, and `worker_rejects` also `worker_rejects_ok`.
 
+## Electricity: cost and profit per rig
+
+Optional, and only on your own server (not in public mode): set the price of a kilowatt-hour in Settings (Mining, "Electricity
+price"), and each rig's power draw, in watts as a wall meter shows it, on that rig's page. Both need the admin token and are kept
+on this server (`power.json` on the config volume). Each rig's page then has an Electricity card for 24 hours, 7, 30 or 90 days: the
+energy it used while it was on (from its on-time), the cost, the reward its work was expected to find valued at today's XEL price,
+the profit, the same per hour on, and the XEL price at which it breaks even. The miner's page lists every rig with a power draw and
+adds them up. The reward is the expected one (blocks expected × today's reward per block), so a lucky or unlucky week does not
+move it; the blocks actually found are on the On-time card. The XEL price comes from CoinGecko like the price in the header, only
+on mainnet and not with `XELDASH_PRICE=off`; without it, the cost is shown alone.
+
 ## Best share
 
 The miner and worker pages show each address's **best share**: how close its best accepted share came to a block, as a percentage

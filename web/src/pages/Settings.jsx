@@ -7,6 +7,7 @@ import DaemonSettings from "../components/DaemonSettings.jsx";
 import MotionSetting from "../components/MotionSetting.jsx";
 import NotificationSetting from "../components/NotificationSetting.jsx";
 import MiningFallback from "../components/MiningFallback.jsx";
+import PowerPriceSetting from "../components/PowerPriceSetting.jsx";
 import PriceSetting from "../components/PriceSetting.jsx";
 import SupportCard from "../components/SupportCard.jsx";
 import ThemeSetting from "../components/ThemeSetting.jsx";
@@ -89,6 +90,7 @@ function OperatorSettings() {
           </div>
         </div>
         <MiningFallback row token={token} onUnauthorized={admin.forget} />
+        <PowerPriceSetting row token={token} onUnauthorized={admin.forget} />
         <div className="settings-row block!">
           <AutoUpdateSetting token={token} locked={!token} onUnauthorized={admin.forget} />
         </div>

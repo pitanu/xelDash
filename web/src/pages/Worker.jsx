@@ -2,6 +2,7 @@ import { useState } from "react";
 import { usePolled } from "../api.js";
 import HashrateChart from "../components/HashrateChart.jsx";
 import ActivityCard from "../components/ActivityCard.jsx";
+import PowerCard from "../components/PowerCard.jsx";
 import { BestShareCard } from "../components/BestShareChart.jsx";
 import SharesChart from "../components/SharesChart.jsx";
 import RewardsSummary from "../components/RewardsSummary.jsx";
@@ -69,6 +70,7 @@ export default function Worker({ address, name }) {
       </Card>
 
       <ActivityCard address={address} worker={name} />
+      <PowerCard address={address} worker={name} />
 
       <BestShareCard best={w?.bestShare} points={history.data?.points ?? null} dimmed={history.loading} />
 

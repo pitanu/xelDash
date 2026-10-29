@@ -7,6 +7,12 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Electricity
+
+- Cost and profit per rig, off until set: a price per kWh in Settings and each rig's power draw on its page (admin token). Each rig's
+  page gets an Electricity card (energy while on, cost, the expected reward at today's XEL price, profit, per hour on, and the price
+  at which it breaks even), and the miner's page adds the rigs up. Not on a public server (docs/OPERATIONS.md).
+
 ### Notifications
 
 - Browser notifications, per browser and off until you choose: Settings, "Browser notifications", tick any kind of alert (blocks,
