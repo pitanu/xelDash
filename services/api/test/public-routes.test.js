@@ -60,6 +60,7 @@ const ROUTES = () => [
   "/health", "/api/v1/status", "/api/v1/connect", "/api/v1/price", "/api/v1/overview", "/api/v1/hashrate", "/api/v1/miners",
   `/api/v1/miners/${address}`, `/api/v1/miners/${address}/workers/rig1`, `/api/v1/hashrate?address=${address}&worker=rig1`,
   "/api/v1/blocks", "/api/v1/blocks.csv", `/api/v1/blocks?address=${address}`, "/api/v1/uptime", "/api/v1/mining-health",
+  `/api/v1/activity?address=${address}&range=24h`, `/api/v1/activity.csv?address=${address}&worker=rig1&range=7d`,
   "/api/v1/front-door", "/api/v1/version", "/api/v1/rewards", "/api/v1/problems", "/api/v1/events?limit=200", "/api/v1/nope",
 ];
 
@@ -102,4 +103,31 @@ test("the operator's admin web still sees miners' IP addresses (so the test abov
   const overview = await body("/api/v1/overview", admin);
   assert.equal(overview.status, 503);
   assert.equal(JSON.parse(overview.text).error, "node_unavailable");
+});
+
+test("on-time as CSV: one row per stretch, with its length, hashrate and expected blocks, as a download", { skip, timeout: 60_000 }, async () => {
+  const { workerId } = await (await import("@xeldash/db")).ensureWorker(pool, { address, name: "csvrig" });
+  const now = Math.floor(Date.now() / 60_000) * 60_000;
+  // 10 minutes of 6,000 difficulty each, ending 30 minutes ago: 100 H/s while on.
+  const times = Array.from({ length: 10 }, (_, i) => new Date(now - (40 - i) * 60_000));
+  await pool.query(
+    `INSERT INTO worker_stats_1m (bucket, worker_id, accepted, rejected, sum_difficulty, sum_effort)
+     SELECT t, $2, 1, 0, 6000, 0.0005 FROM unnest($1::timestamptz[]) AS t ON CONFLICT DO NOTHING`,
+    [times, workerId],
+  );
+  const response = await fetch(`${base}/api/v1/activity.csv?address=${address}&worker=csvrig&range=24h`);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /^text\/csv/);
+  assert.match(response.headers.get("content-disposition") ?? "", /attachment; filename="xeldash-activity-worker-24h\.csv"/);
+  const [header, ...rows] = (await response.text()).trim().split("\r\n");
+  assert.equal(header, "started_at_utc,ended_at_utc,minutes,hashrate_hs,expected_blocks");
+  assert.equal(rows.length, 1);
+  const [start, end, minutes, hashrate, expected] = rows[0].split(",");
+  assert.equal(start, times[0].toISOString());
+  assert.equal(end, new Date(now - 30 * 60_000).toISOString());
+  assert.equal(minutes, "10");
+  assert.equal(hashrate, "100.00");
+  assert.equal(expected, "0.005000");
+  assert.equal((await fetch(`${base}/api/v1/activity.csv?range=24h`)).status, 400, "an address is needed");
+  assert.equal((await fetch(`${base}/api/v1/activity.csv?address=${address}&range=1y`)).status, 400);
 });

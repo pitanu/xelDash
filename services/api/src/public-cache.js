@@ -18,7 +18,7 @@ export function publicCacheKey(request) {
   }
   const path = url.pathname;
   if (!path.startsWith("/api/v1/")) return null;
-  if (path.startsWith("/api/v1/ingest") || path === "/api/v1/live" || path === "/api/v1/blocks.csv") return null;
+  if (path.startsWith("/api/v1/ingest") || path === "/api/v1/live" || path.endsWith(".csv")) return null;
   return path + url.search;
 }
 

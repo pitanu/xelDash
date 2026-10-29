@@ -19,7 +19,9 @@ LISTEN/NOTIFY relayed to browsers), and alerts (`src/alerts.js`).
   worker) was mining: minutes with a share, gaps of up to 3 minutes bridged, joined into stretches (UTC, for the browser to place
   in its own time zone). With it: time on and its share of the period, hashrate while on, blocks expected from that work, blocks
   found and luck. From the minute stats, so as far back as `RETENTION_MINUTE_STATS_DAYS` (90 by default); the period starts where
-  they begin, so time before anything was tracked does not count as off.
+  they begin, so time before anything was tracked does not count as off. `/api/v1/activity.csv` (same parameters) is the same
+  stretches as a spreadsheet file: `started_at_utc`, `ended_at_utc`, `minutes`, `hashrate_hs` (while on) and `expected_blocks`,
+  for the latest 5,000 stretches in the range.
 - **Status** (`src/status.js`) checks each node, Stratum and the database separately, marks
   the node Stratum mines through, and flags nodes older than the latest XELIS release
   (`src/release.js`, from GitHub every 6 hours; `XELDASH_VERSION_CHECK=off`).
