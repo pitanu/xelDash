@@ -11,10 +11,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lastPeriod } from "../src/reports.js";
+import { testDatabase } from "../../../packages/db/test/test-database.js";
 
-const url = process.env.TEST_DATABASE_URL;
+const database = await testDatabase();
+const url = database?.url;
 const skip = url ? false : "set TEST_DATABASE_URL to run the database tests";
 const MIN = 60_000;
+
+test.after(async () => { await database?.drop(); });
 
 test("the period just ended: Monday to Monday for a week, the 1st to the 1st for a month, in UTC", () => {
   // Thursday 29 October 2026, 15:00 UTC.
@@ -42,8 +46,7 @@ test("a weekly report: each rig's week and electricity, to the webhook and to an
   const pool = db.createPool(/** @type {string} */ (url));
 
   // The week reported is the one before the clock's: the clock is a Monday soon after midnight, the week the 7 days before it.
-  // A random week far in the future, so no other test's data is in it and a database kept between runs has not had its report yet.
-  const clock = new Date(Date.parse("2031-03-10T00:20:00Z") + Math.floor(Math.random() * 5000) * 7 * 86_400_000);
+  const clock = new Date("2031-03-10T00:20:00Z");
   const { from, to, key } = lastPeriod("weekly", clock);
   const day = (/** @type {Date} */ d) => d.toISOString().slice(0, 10);
   const address = `xet:${randomBytes(20).toString("hex")}`;

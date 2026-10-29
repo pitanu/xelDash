@@ -7,8 +7,10 @@ import { fileURLToPath } from "node:url";
 import { createPool, ensureWorker, finalizeBlock, recordBlock, recordServiceEvent, recordShare } from "@xeldash/db";
 import { getBlockTotals, getHashrateHistory, getMiner, getWorker, listBlocks, listEvents, listMiners, listProblems } from "../src/queries.js";
 import { computePauses, getUptime } from "../src/uptime.js";
+import { testDatabase } from "../../../packages/db/test/test-database.js";
 
-const url = process.env.TEST_DATABASE_URL;
+const database = await testDatabase();
+const url = database?.url;
 const skip = url ? false : "set TEST_DATABASE_URL to run the database tests";
 const hex = (n) => randomBytes(n).toString("hex");
 const address = () => `xet:${hex(20)}`;
@@ -20,7 +22,10 @@ test.before(() => {
   execFileSync(process.execPath, [script], { env: { ...process.env, DATABASE_URL: url }, encoding: "utf8" });
   pool = createPool(url);
 });
-test.after(async () => { await pool?.end(); });
+test.after(async () => {
+  await pool?.end();
+  await database?.drop();
+});
 
 /** Shares in the minutes just before now, so they fall in the completed minutes the queries read. */
 async function seedShares(workerId, { accepted = 0, rejected = 0, difficulty = "1000", minutesAgo = 3 } = {}) {

@@ -43,8 +43,9 @@ npm test
 
 Node's built-in test runner, no extra packages. Tests live next to what they test (`services/*/test`, `packages/*/test`,
 `web/test`) and in `test/` for the launcher, the documentation and the Compose files. Without anything else running, the
-database tests are skipped; to run them, start a throwaway PostgreSQL and point `TEST_DATABASE_URL` at it (the tests add rows
-with random addresses and do not clean up, so never use a database you care about):
+database tests are skipped; to run them, start a throwaway PostgreSQL and point `TEST_DATABASE_URL` at it. Each test file
+creates an empty database of its own there (`xeldash_test_…`) and drops it afterwards, so runs never see each other's rows and
+the server can be kept between runs; still use a server you do not care about, since the tests need to create databases:
 
 ```sh
 docker run -d --name xeldash-test-db -e POSTGRES_PASSWORD=test -p 127.0.0.1:55432:5432 postgres:17-alpine
