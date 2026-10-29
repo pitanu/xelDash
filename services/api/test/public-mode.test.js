@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isPublicView, publicModeFromEnv, publicModeWarnings, scrubIps } from "../src/public-mode.js";
+import { hideWorkersFromEnv, isPublicView, publicModeFromEnv, publicModeWarnings, scrubIps, scrubWorkers, workerTotals } from "../src/public-mode.js";
 import { getConnectInfo } from "../src/connect.js";
 
 const request = (headers = {}) => /** @type {import("node:http").IncomingMessage} */ (/** @type {unknown} */ ({ headers }));
@@ -36,6 +36,19 @@ test("every IP-address field is removed, at any depth, and nothing else", () => 
   assert.equal(out.none, null);
   assert.equal(input.ip, "203.0.113.1", "the original is not changed");
   assert.equal(scrubIps("text"), "text");
+});
+
+test("hidden worker names: off unless chosen; names removed at any depth, lists of workers emptied, counts kept", () => {
+  assert.equal(hideWorkersFromEnv({}), false);
+  assert.equal(hideWorkersFromEnv({ XELDASH_PUBLIC_HIDE_WORKERS: "true" }), true);
+  assert.equal(hideWorkersFromEnv({ XELDASH_PUBLIC_HIDE_WORKERS: "no" }), false);
+  const value = { blocks: [{ hash: "h", worker: "rig1", address: "xet:a" }], best: { workerName: "rig2", value: 3 }, workers: [{ name: "rig1" }] };
+  assert.deepEqual(scrubWorkers(value), { blocks: [{ hash: "h", address: "xet:a" }], best: { value: 3 }, workers: [] });
+  assert.deepEqual(scrubWorkers({ miners: [{ address: "xet:a", workers: 4 }] }), { miners: [{ address: "xet:a", workers: 4 }] }, "a count of workers stays");
+  assert.deepEqual(workerTotals([
+    { hashrate5m: "1.5", hashrate1h: "2", accepted1h: "10", rejected1h: "1" },
+    { hashrate5m: "0.5", hashrate1h: "1", accepted1h: "5", rejected1h: "0" },
+  ]), { count: 2, hashrate5m: "2.000", hashrate1h: "3.000", accepted1h: "15", rejected1h: "1" });
 });
 
 test("risky public-mode settings are warned about, and nothing is said when public mode is off", () => {

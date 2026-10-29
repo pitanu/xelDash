@@ -17,7 +17,7 @@ import { handleIngest } from "./ingest.js";
 import { getStatus } from "./status.js";
 import { updateStatus } from "./update.js";
 import { getUptime } from "./uptime.js";
-import { isPublicView, publicModeFromEnv, publicModeWarnings, scrubIps } from "./public-mode.js";
+import { hideWorkersFromEnv, isPublicView, publicModeFromEnv, publicModeWarnings, scrubIps, scrubWorkers, workerTotals } from "./public-mode.js";
 import { hostAllowed, hostRulesFromEnv } from "./allowed-hosts.js";
 import { ShortCache, publicCacheKey } from "./public-cache.js";
 
@@ -34,6 +34,8 @@ const priceOff = (process.env.XELDASH_PRICE ?? "on").toLowerCase() === "off" ? "
 const pool = createPool();
 // Public mode: no IP addresses in anything a visitor receives (see public-mode.js).
 const publicMode = publicModeFromEnv(process.env);
+// Visitors of a public server see no worker names (XELDASH_PUBLIC_HIDE_WORKERS, off by default; public-mode.js).
+const hideWorkers = publicMode && hideWorkersFromEnv(process.env);
 // Host names this API answers to (allowed-hosts.js): its port is published on this computer, where a website could reach it by DNS
 // rebinding and read the operator's view.
 const hostRules = hostRulesFromEnv(process.env);
@@ -211,9 +213,9 @@ export const server = createServer(async (request, response) => {
     return;
   }
   const entry = key ? publicAnswers.begin(key) : null;
-  /** Every JSON answer; in the public view without IP addresses. @param {import("node:http").ServerResponse} res @param {number} statusCode @param {unknown} value */
+  /** Every JSON answer; in the public view without IP addresses (and worker names, when hidden). @param {import("node:http").ServerResponse} res @param {number} statusCode @param {unknown} value */
   const sendJson = (res, statusCode, value) => {
-    const body = publicView ? scrubIps(value) : value;
+    const body = !publicView ? value : hideWorkers ? scrubWorkers(scrubIps(value)) : scrubIps(value);
     entry?.complete({ status: statusCode, body });
     writeJson(res, statusCode, body);
   };
@@ -267,6 +269,12 @@ async function route(request, response, publicView, sendJson) {
     const worker = searchParams.get("worker");
     if (worker !== null && (address === null || worker.length === 0 || worker.length > 128)) {
       sendJson(response, 400, { error: "invalid_worker" });
+      return;
+    }
+    // Worker names hidden from visitors: no worker's own page, and no filter by one (it would tell whether a name exists).
+    const workersHidden = publicView && hideWorkers;
+    if (workersHidden && (worker !== null || /^\/api\/v1\/miners\/[^/]+\/workers\//.test(pathname))) {
+      sendJson(response, 404, { error: "workers_hidden" });
       return;
     }
     if (pathname === "/health") {
@@ -366,7 +374,9 @@ async function route(request, response, publicView, sendJson) {
         return;
       }
       const [luck, best] = await Promise.all([getLuck(pool, { address: minerAddress }), bestShare ? getBestShare(pool, { address: minerAddress }) : null]);
-      sendJson(response, 200, { ...miner, luck, bestShare: best });
+      // Hidden workers: their totals instead of the list.
+      const workers = workersHidden ? { workers: [], workerTotals: workerTotals(miner.workers), workersHidden: true } : {};
+      sendJson(response, 200, { ...miner, ...workers, luck, bestShare: best });
       return;
     }
 
@@ -406,7 +416,7 @@ async function route(request, response, publicView, sendJson) {
       const body = toCsv([
         ["found_at_utc", "height", "topoheight", "hash", "status", `reward_${coinSymbol(network).toLowerCase()}`, "reward_atomic", "miner_address", "worker", "round_effort_percent"],
         ...list.map((b) => [
-          b.foundAt, b.height, b.topoheight, b.hash, b.status, atomicToXel(b.reward), b.reward, b.address, b.worker,
+          b.foundAt, b.height, b.topoheight, b.hash, b.status, atomicToXel(b.reward), b.reward, b.address, workersHidden ? "" : b.worker,
           efforts.get(b.hash) == null ? "" : (Number(efforts.get(b.hash)) * 100).toFixed(2),
         ]),
       ]);

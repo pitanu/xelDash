@@ -32,7 +32,7 @@ function MinerCard({ m }) {
   const earned = (rewards.data?.points ?? []).reduce((/** @type {bigint} */ sum, /** @type {any} */ d) => sum + BigInt(d.reward ?? 0), 0n);
   const workers = Number(m.workers ?? 0);
   return (
-    <WorkersCard address={m.address} workers={miner.data?.workers} onChanged={miner.reload}
+    <WorkersCard address={m.address} workers={miner.data?.workers} onChanged={miner.reload} hidden={miner.data?.workersHidden ? miner.data.workerTotals : null}
       subtitle={`${formatInteger(workers)} worker${workers === 1 ? "" : "s"} · last seen ${formatAgo(m.lastSeen)}. Workers without shares for 7 days are left out.`}
       title={
         <span className="flex min-w-0 items-center gap-3">
