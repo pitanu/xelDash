@@ -432,10 +432,11 @@ function newSession(socket, ip, onAuthorized = () => {}) {
  * One Stratum connection. Plain and TLS listeners share this, so limits, bans and sessions
  * behave the same on both.
  * @param {import("node:net").Socket} socket
+ * @param {{ attempted?: boolean }} [options] attempted: its connection rate was charged when it was accepted (the TLS port)
  */
-function handleConnection(socket) {
+function handleConnection(socket, options = {}) {
   const ip = normalizeIp(socket.remoteAddress);
-  const refused = places.admit(ip);
+  const refused = places.admit(ip, undefined, options);
   if (refused) {
     refusals.refused("Stratum", ip, refused);
     reportProblem("connection_refused", { ip, reason: refused });
@@ -600,8 +601,15 @@ const tlsWatch = tls
         return;
       }
       // The guard counts a connection once its handshake is done: until then, a short handshake time and the same per-address limits.
-      const listener = createTlsServer({ cert, key, minVersion: "TLSv1.2", handshakeTimeout: 10_000 }, handleConnection);
-      guardRawConnections(listener, ipGuard, { onRefused: (ip, reason) => console.warn(`Refusing Stratum TLS connection from ${ip}: ${reason}`) });
+      // The connection rate is charged as the socket is accepted, so a client reconnecting in a loop is refused before its handshake.
+      const listener = createTlsServer({ cert, key, minVersion: "TLSv1.2", handshakeTimeout: 10_000 }, (socket) => handleConnection(socket, { attempted: true }));
+      guardRawConnections(listener, ipGuard, {
+        chargeAttempts: true,
+        onRefused: (ip, reason) => {
+          refusals.refused("Stratum TLS", ip, reason);
+          reportProblem("connection_refused", { ip, reason });
+        },
+      });
       // Failed handshakes (plain Stratum sent to the TLS port, untrusted certs) never reach a session.
       listener.on("tlsClientError", (error, socket) => {
         const code = /** @type {{ code?: string }} */ (error).code;

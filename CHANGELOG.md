@@ -48,6 +48,8 @@ breaking changes; they are marked **Breaking**.
   dashboard does, and gives any other "421 Misdirected Request" (DNS rebinding). It reads the same `.env` names
   (`XELDASH_CONNECT_HOST`, `XELDASH_PUBLIC_DOMAIN`, `XELDASH_PROXY_HOST`, `XELDASH_ALLOWED_HOSTS`); opened by address, nothing
   changes. The dashboard it shows through was already checked by the main server.
+- Stratum's TLS port checks the connection rate (`STRATUM_CONNECTIONS_PER_IP_PER_SECOND`) as a connection arrives, before its TLS
+  handshake: a client reconnecting in a loop no longer costs a handshake each time. Each connection is still charged once.
 
 ### Tests
 

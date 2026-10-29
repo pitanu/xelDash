@@ -249,13 +249,14 @@ export class IpGuard {
   }
 
   /**
-   * Register a new connection. Returns a reason string when it must be refused.
-   * @param {string} ip @param {number} [now]
+   * Register a new connection. Returns a reason string when it must be refused. `attempted`: its connection rate was already
+   * charged when the socket was accepted (guardRawConnections with `chargeAttempts`), so it is not charged twice.
+   * @param {string} ip @param {number} [now] @param {{ attempted?: boolean }} [options]
    */
-  connect(ip, now = Date.now()) {
+  connect(ip, now = Date.now(), { attempted = false } = {}) {
     if (!this.isAllowed(ip)) return "not on your local network";
     if (this.isBanned(ip, now)) return "banned";
-    if (!this.#allowConnectAttempt(ip, now)) return "connecting too often";
+    if (!attempted && !this.connectAttempt(ip, now)) return "connecting too often";
     const open = this.connections.get(ip) ?? 0;
     if (open >= this.config.maxConnectionsPerIp && !this.exempt.has(ip)) return "too many connections";
     // All connections together, so many addresses at once cannot take more than the server is meant to carry.
@@ -266,11 +267,11 @@ export class IpGuard {
   }
 
   /**
-   * Whether this IP address may open another connection now (connectionsPerIpPerSecond). Every attempt that gets this far counts,
-   * refused for another reason or not, since each one costs a handshake and a login.
-   * @param {string} ip @param {number} now
+   * Whether this IP address may open another connection now (connectionsPerIpPerSecond), charging the attempt. Every attempt that
+   * gets this far counts, refused for another reason or not, since each one costs a handshake and a login.
+   * @param {string} ip @param {number} [now]
    */
-  #allowConnectAttempt(ip, now) {
+  connectAttempt(ip, now = Date.now()) {
     const rate = this.config.connectionsPerIpPerSecond ?? 0;
     if (!(rate > 0) || this.exempt.has(ip)) return true;
     const burst = Math.max(1, this.config.maxConnectionsPerIp);
@@ -342,13 +343,15 @@ export class IpGuard {
  * For servers where a connection is counted by the IpGuard only once it is set up (getwork's WebSocket upgrade, the TLS
  * handshake): until then nobody counts it, so a client could hold any number of half-open sockets. At TCP accept this refuses
  * banned addresses and more than `maxConnectionsPerIp` (the same limit, read at each connection) plus `slack` open sockets from
- * one address; exempt addresses (Docker's gateway) are not capped. With `deadlineMs`, a socket not marked `settled` by then is
- * closed (for TLS, the server's own handshakeTimeout does that). Addresses outside the allowed networks are left to the server,
- * which answers them.
+ * one address; exempt addresses (Docker's gateway) are not capped. With `chargeAttempts`, each accepted socket is also charged
+ * to the address's connection rate here, so a client reconnecting in a loop is refused before the expensive part (the TLS
+ * handshake) rather than after it; the server then connects it with `attempted: true`. With `deadlineMs`, a socket not marked
+ * `settled` by then is closed (for TLS, the server's own handshakeTimeout does that). Addresses outside the allowed networks are
+ * left to the server, which answers them.
  * @param {import("node:net").Server} server @param {IpGuard} guard
- * @param {{ slack?: number, deadlineMs?: number, onRefused?: (ip: string, reason: string) => void }} [options]
+ * @param {{ slack?: number, deadlineMs?: number, chargeAttempts?: boolean, onRefused?: (ip: string, reason: string) => void }} [options]
  */
-export function guardRawConnections(server, guard, { slack = 16, deadlineMs = 0, onRefused = () => {} } = {}) {
+export function guardRawConnections(server, guard, { slack = 16, deadlineMs = 0, chargeAttempts = false, onRefused = () => {} } = {}) {
   /** @type {Map<string, number>} */
   const open = new Map();
   /** @type {WeakMap<object, ReturnType<typeof setTimeout>>} */
@@ -357,7 +360,8 @@ export function guardRawConnections(server, guard, { slack = 16, deadlineMs = 0,
     const ip = normalizeIp(socket.remoteAddress);
     const refused = guard.isBanned(ip) ? "banned"
       : !guard.exempt.has(ip) && (open.get(ip) ?? 0) >= guard.config.maxConnectionsPerIp + slack ? "too many connections"
-        : null;
+        : chargeAttempts && guard.isAllowed(ip) && !guard.connectAttempt(ip) ? "connecting too often"
+          : null;
     if (refused) {
       onRefused(ip, refused);
       socket.destroy();

@@ -165,6 +165,44 @@ test("raw connections are refused at accept when banned or too many from one add
   await new Promise((r) => server.close(r));
 });
 
+test("the TLS port charges the connection rate as a socket is accepted, before any handshake, and only once", async () => {
+  const { createServer, connect } = await import("node:net");
+  const { guardRawConnections } = await import("../src/ip-guard.js");
+  const guard = new IpGuard({ ...DEFAULT_IP_GUARD, maxConnectionsPerIp: 3, connectionsPerIpPerSecond: 0.001 });
+  const server = createServer(() => {});
+  const refused = [];
+  guardRawConnections(server, guard, { chargeAttempts: true, onRefused: (ip, reason) => refused.push(reason) });
+  /** @type {(string | null)[]} */
+  const admitted = [];
+  // What the TLS server does once a handshake is done (here at once): connect, without charging the rate again.
+  server.on("connection", (s) => {
+    if (s.destroyed) return;
+    const reason = guard.connect("127.0.0.1", Date.now(), { attempted: true });
+    admitted.push(reason);
+    if (!reason) s.once("close", () => guard.disconnect("127.0.0.1"));
+    s.destroy();
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const port = /** @type {import("node:net").AddressInfo} */ (server.address()).port;
+  // A client reconnecting in a loop: each connection closed by the server.
+  for (let i = 0; i < 6; i++) {
+    await new Promise((resolve) => {
+      const s = connect(port, "127.0.0.1");
+      s.on("error", () => {});
+      s.once("close", resolve);
+    });
+  }
+  await new Promise((r) => server.close(r));
+  assert.deepEqual(admitted, [null, null, null], "the burst (its connection limit) is let through, each charged once");
+  assert.deepEqual(refused, ["connecting too often", "connecting too often", "connecting too often"], "the rest refused at accept");
+  // Without chargeAttempts nothing is charged at accept: the server's connect does it, as on the plain port.
+  const plain = new IpGuard({ ...DEFAULT_IP_GUARD, maxConnectionsPerIp: 1, connectionsPerIpPerSecond: 0.001 });
+  assert.equal(plain.connect("10.0.0.1", 0), null);
+  plain.disconnect("10.0.0.1");
+  assert.equal(plain.connect("10.0.0.1", 0), "connecting too often");
+  assert.equal(plain.connect("10.0.0.1", 0, { attempted: true }), null, "already charged: not again");
+});
+
 test("new connections per IP address: a burst as large as its connection limit, then the rate; exempt addresses and 0 have no limit", () => {
   const guard = new IpGuard({ ...DEFAULT_IP_GUARD, maxConnectionsPerIp: 5, connectionsPerIpPerSecond: 2, exemptIps: ["10.0.0.9"] });
   /** Connect and close at once, as a client reconnecting in a loop does. */
