@@ -28,15 +28,26 @@ function hourRanges(hours) {
   return ranges.join(", ") || "—";
 }
 
+/** One figure at the top of the card: a label, the value, and one short line under it. @param {{ label: string, value: string, note: React.ReactNode }} props */
+function Figure({ label, value, note }) {
+  return (
+    <div className="min-w-0">
+      <div className="label">{label}</div>
+      <div className="mono mt-1 text-xl font-medium text-ink">{value}</div>
+      <div className="label mt-0.5">{note}</div>
+    </div>
+  );
+}
+
 /** One row of the strip: a day's 24 hours, each shaded by the minutes on in it. @param {{ day: Date, hours: number[], total: number }} props */
 function DayRow({ day, hours, total }) {
   const label = day.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "numeric" });
   return (
     <div className="contents">
-      <div className="label whitespace-nowrap pr-2 text-right">{label}</div>
-      <div className="grid grid-cols-24 gap-px" title={`${label}: ${formatDuration(total)} on`}>
+      <div className="label whitespace-nowrap pr-3 text-right">{label}</div>
+      <div className="grid grid-cols-24 gap-[2px]" title={`${label}: ${formatDuration(total)} on`}>
         {hours.map((minutes, h) => (
-          <span key={h} className="h-4 rounded-[2px]" title={`${label} ${String(h).padStart(2, "0")}:00: ${formatDuration(minutes)}`}
+          <span key={h} className="h-3 rounded-[2px]" title={`${label} ${String(h).padStart(2, "0")}:00: ${formatDuration(minutes)}`}
             style={{ background: minutes > 0 ? `color-mix(in srgb, var(--accent) ${Math.max(15, Math.round((minutes / 60) * 100))}%, var(--panel-2))` : "var(--panel-2)" }} />
         ))}
       </div>
@@ -63,39 +74,33 @@ export default function ActivityCard({ address, worker }) {
   return (
     <Card title="On-time" subtitle={`When ${who} was mining. A minute counts when a share came in; gaps of up to ${a?.bridgeMinutes ?? 3} minutes count too.`}
       action={<Segmented label="Range" value={range} options={RANGES} onChange={setRange} />}>
-      <div className={`grid grid-cols-2 gap-4 lg:grid-cols-4 ${activity.loading ? "opacity-60" : ""}`}>
-        <div>
-          <div className="label">On</div>
-          <div className="mono mt-1 text-xl font-medium text-ink">{a ? formatDuration(a.onMinutes) : "—"}</div>
-          <div className="label mt-0.5">{a?.dutyCycle != null ? `${formatEffort(a.dutyCycle)} of ${formatDuration(a.periodMinutes)}` : " "}</div>
-        </div>
-        <div>
-          <div className="label">Average a day</div>
-          <div className="mono mt-1 text-xl font-medium text-ink">{a?.averageOnMinutesPerDay != null ? formatDuration(a.averageOnMinutesPerDay) : "—"}</div>
-        </div>
-        <div>
-          <div className="label">Hashrate while on</div>
-          <div className="mono mt-1 text-xl font-medium text-ink">{a?.hashrateWhileOn != null ? formatHashrate(a.hashrateWhileOn) : "—"}</div>
-          <div className="label mt-0.5">The work its shares proved, per second it was on</div>
-        </div>
-        <div>
-          <div className="label">Blocks from that work</div>
-          <div className="mono mt-1 text-xl font-medium text-ink">{a ? `${formatInteger(a.foundBlocks)} of ${formatBlocks(a.expectedBlocks)}` : "—"}</div>
-          <div className="label mt-0.5">{a?.luck != null ? `found of expected: luck ${formatEffort(a.luck)}` : "found of expected"}</div>
-        </div>
+      {/* Each figure has one short line under it, so the four line up. */}
+      <div className={`grid grid-cols-2 gap-x-4 gap-y-5 lg:grid-cols-4 ${activity.loading ? "opacity-60" : ""}`}>
+        <Figure label="On" value={a ? formatDuration(a.onMinutes) : "—"}
+          note={a?.dutyCycle != null ? `${formatEffort(a.dutyCycle)} of ${formatDuration(a.periodMinutes)}` : " "} />
+        <Figure label="Average a day" value={a?.averageOnMinutesPerDay != null ? formatDuration(a.averageOnMinutesPerDay) : "—"}
+          note={`over the last ${RANGES.find(([k]) => k === range)?.[1]}`} />
+        <Figure label="Hashrate while on" value={a?.hashrateWhileOn != null ? formatHashrate(a.hashrateWhileOn) : "—"}
+          note={a?.hashrateWhileOn != null
+            ? <span title="At that speed around the clock, at today's difficulty and reward"><EarningsText hashrate={a.hashrateWhileOn}
+              difficulty={overview.data?.network?.difficulty} minerReward={Number(overview.data?.node?.miner_reward) || undefined} /> if on all day</span>
+            : " "} />
+        <Figure label="Blocks from that work" value={a ? `${formatInteger(a.foundBlocks)} of ${formatBlocks(a.expectedBlocks)}` : "—"}
+          note={a?.luck != null ? `found of expected · luck ${formatEffort(a.luck)}` : "found of expected"} />
       </div>
-      {a?.hashrateWhileOn != null && (
-        <p className="label mt-4">
-          At that speed around the clock: <EarningsText hashrate={a.hashrateWhileOn} difficulty={overview.data?.network?.difficulty}
-            minerReward={Number(overview.data?.node?.miner_reward) || undefined} />, at today&apos;s difficulty and reward.
-        </p>
-      )}
       {a && (
-        <div className="mt-5">
-          <div className="grid grid-cols-[auto_1fr] items-center gap-y-1" role="img"
+        <div className="mt-5 border-t border-line pt-4">
+          <div className="grid grid-cols-[auto_1fr] items-center gap-y-1.5" role="img"
             aria-label={`${formatDuration(a.onMinutes)} on in the last ${RANGES.find(([k]) => k === range)?.[1]}; the table below lists each day.`}>
             <div />
-            <div className="label grid grid-cols-4" aria-hidden="true"><span>00</span><span>06</span><span>12</span><span>18</span></div>
+            {/* Hour marks at the start of 00, 06, 12 and 18, and 24 at the end, over the cells they belong to. */}
+            <div className="label relative h-4" aria-hidden="true">
+              {[0, 6, 12, 18, 24].map((hour) => (
+                <span key={hour} className={`absolute top-0 ${hour === 24 ? "-translate-x-full" : ""}`} style={{ left: `${(hour / 24) * 100}%` }}>
+                  {String(hour).padStart(2, "0")}
+                </span>
+              ))}
+            </div>
             {days.map((row) => <DayRow key={row.day.getTime()} {...row} />)}
           </div>
           <div className="label mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">

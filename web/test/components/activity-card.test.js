@@ -30,7 +30,8 @@ test("a rig's time on, its speed while on, and blocks from that work; the strip 
   assert.match(text, /Hashrate while on10([.,]0)? KH\/s/);
   assert.match(text, /1 of 0[.,]25/, "in this browser's number format");
   assert.match(text, /luck 400%/);
-  assert.match(text, /At that speed around the clock: ≈ [\d.,]+ XEL a day/);
+  assert.match(text, /≈ [\d.,]+ XEL a day if on all day/, "the estimate at that speed, under the hashrate");
+  assert.match(text, /over the last 7 d/, "every figure has its line");
   // Seven rows, today last, with its 09–15 hours filled.
   const cells = view.container.querySelectorAll("[role=img] .grid-cols-24");
   assert.equal(cells.length, 7);
