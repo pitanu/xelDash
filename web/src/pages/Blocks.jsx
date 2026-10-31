@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { usePolled } from "../api.js";
 import EffortChart from "../components/EffortChart.jsx";
+import BlockCalendar from "../components/BlockCalendar.jsx";
 import RewardsChart from "../components/RewardsChart.jsx";
 import RewardsSummary from "../components/RewardsSummary.jsx";
 import { BlocksTable, Card, Segmented } from "../components/ui.jsx";
@@ -79,6 +80,8 @@ export default function Blocks() {
       <Card title="Rewards over time" subtitle="Running total found, against what the work done should have found">
         <RewardsChart rewardPerBlock={Number(overview.data?.node?.miner_reward) || null} />
       </Card>
+
+      <BlockCalendar />
 
       <Card title="All blocks" subtitle="Most recent 200; the CSV has them all."
         action={<Segmented label="Show" value={filter} options={FILTERS} onChange={setFilter} />}>
