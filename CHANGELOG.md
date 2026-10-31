@@ -34,6 +34,9 @@ breaking changes; they are marked **Breaking**.
 
 ### Dashboard
 
+- Blocks by day: a calendar of the last 90 days or year, a square a day, darker for more blocks found, on the miner's, each rig's
+  and the Blocks page (the whole pool's). Days are your own time zone's; with the blocks found, the days with one, the best day and
+  a table of them (`/api/v1/block-days`).
 - On-time as a spreadsheet: "Download as CSV" on the On-time card gives each stretch the address or rig was mining in the range
   shown, with its length, hashrate while on and expected blocks (`/api/v1/activity.csv`).
 

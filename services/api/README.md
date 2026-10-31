@@ -22,6 +22,9 @@ LISTEN/NOTIFY relayed to browsers), and alerts (`src/alerts.js`).
   they begin, so time before anything was tracked does not count as off. `/api/v1/activity.csv` (same parameters) is the same
   stretches as a spreadsheet file: `started_at_utc`, `ended_at_utc`, `minutes`, `hashrate_hs` (while on) and `expected_blocks`,
   for the latest 5,000 stretches in the range.
+- **Blocks by day** (`src/block-days.js`): `/api/v1/block-days?[address=…[&worker=…]&]range=90d|1y&tz=…` counts the blocks found
+  on each day that had any, in the IANA time zone the browser sends (UTC when it is missing or unknown), for the block calendar.
+  Orphaned blocks are counted as found and again in `orphaned`; rejected ones are not. Without an address, the whole pool's.
 - **Status** (`src/status.js`) checks each node, Stratum and the database separately, marks
   the node Stratum mines through, and flags nodes older than the latest XELIS release
   (`src/release.js`, from GitHub every 6 hours; `XELDASH_VERSION_CHECK=off`).

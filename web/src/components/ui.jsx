@@ -22,6 +22,17 @@ export function Card({ title, subtitle, action, children, className = "" }) {
   );
 }
 
+/** One figure at the top of a card: a label, the value, and one short line under it. @param {{ label: string, value: string, note: React.ReactNode }} props */
+export function Figure({ label, value, note }) {
+  return (
+    <div className="min-w-0">
+      <div className="label">{label}</div>
+      <div className="mono mt-1 text-xl font-medium text-ink">{value}</div>
+      <div className="label mt-0.5">{note}</div>
+    </div>
+  );
+}
+
 /**
  * An on/off switch: a button that says whether it is on (role="switch", aria-checked), named by `label` for screen readers.
  * @param {{ checked: boolean, onChange: (checked: boolean) => void, label: string, disabled?: boolean }} props
