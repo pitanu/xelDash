@@ -23,7 +23,8 @@ test("an address's blocks by day: totals, the best day, a darker square for it, 
   const text = view.text();
   assert.match(text, /Blocks this address found each day/);
   assert.match(text, /Blocks found5in the last 1 y/);
-  assert.match(text, /Days with a block2of 365 days/);
+  assert.match(text, /Days with a block2of 11 days since the first/, "counted from the first block, ten days ago, to today");
+  assert.match(text, /Average a day0[.,]45blocks, since /, "5 blocks over those 11 days, not over the year");
   assert.match(text, /Best day4 blocks/);
   const squares = [...view.container.querySelectorAll("[role=img] .aspect-square")];
   assert.equal(squares.length, 365, "a square a day");

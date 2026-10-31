@@ -31,6 +31,11 @@ export default function BlockCalendar({ address, worker }) {
   const best = found.reduce((/** @type {any} */ top, /** @type {{ blocks: number }} */ d) => (!top || d.blocks > top.blocks ? d : top), null);
   const bestCell = best && weeks.flat().find((c) => c?.key === best.day);
   const max = best?.blocks ?? 0;
+  // Days from the first block in the range to today: a pool that began mining last month is not averaged over a year.
+  const days = weeks.flat().filter((c) => c !== null);
+  const firstIndex = found.length ? days.findIndex((c) => c?.key === found[0].day) : -1;
+  const since = firstIndex >= 0 ? days.length - firstIndex : DAYS[range];
+  const firstDay = firstIndex > 0 ? days[firstIndex]?.day : null;
   const who = worker ? "this rig" : address ? "this address" : "this pool";
   const rangeText = RANGES.find(([k]) => k === range)?.[1];
   // A month's name over the week its first day is in (and over the first week, for the month the range starts in).
@@ -45,10 +50,11 @@ export default function BlockCalendar({ address, worker }) {
       action={<Segmented label="Range" value={range} options={RANGES} onChange={setRange} />}>
       <div className={`grid grid-cols-2 gap-x-4 gap-y-5 lg:grid-cols-4 ${calendar.loading ? "opacity-60" : ""}`}>
         <Figure label="Blocks found" value={calendar.data ? formatInteger(total) : "—"} note={`in the last ${rangeText}`} />
-        <Figure label="Days with a block" value={calendar.data ? formatInteger(found.length) : "—"} note={`of ${formatInteger(DAYS[range])} days`} />
+        <Figure label="Days with a block" value={calendar.data ? formatInteger(found.length) : "—"}
+          note={`of ${formatInteger(since)} days${firstDay ? " since the first" : ""}`} />
         <Figure label="Best day" value={best ? blocksText(best.blocks) : "—"} note={bestCell ? dayLabel(bestCell.day) : " "} />
-        <Figure label="Average a day" value={calendar.data ? (total / DAYS[range]).toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—"}
-          note="blocks, over the whole range" />
+        <Figure label="Average a day" value={calendar.data ? (total / since).toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—"}
+          note={firstDay ? `blocks, since ${firstDay.toLocaleDateString(undefined, { day: "numeric", month: "numeric" })}` : "blocks, over the whole range"} />
       </div>
       {calendar.data && (
         <div className="mt-5 border-t border-line pt-4">
