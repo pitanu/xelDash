@@ -191,9 +191,10 @@ test("with a dashboard open, every kind is relayed for its browser to choose fro
   const relayed = [];
   let open = true;
   const relay = { active: () => open, push: (/** @type {any} */ alert) => relayed.push(alert) };
-  // The webhook wants worker_offline only; the dashboard gets worker_unusual too, and its own kind on each.
+  // The webhook wants worker_offline only; the dashboard gets worker_unusual too, and its own kind on each. The reports' clock is a
+  // Wednesday mid-month: on a real Monday or 1st, a report just due would be relayed too.
   const alerts = startAlerts({ pool: workerPool(6), config: alertConfigFromEnv({ ALERT_WEBHOOK_URL: hook.url, ALERT_EVENTS: "worker_offline" }),
-    logger: quiet, workerCheckMs: 50, relay });
+    logger: quiet, workerCheckMs: 50, relay, reportSources: { now: () => new Date("2026-03-18T12:00:00Z") } });
   await until(() => relayed.length >= 3 && hook.received.length >= 2, 8_000);
   alerts?.stop();
   hook.close();
