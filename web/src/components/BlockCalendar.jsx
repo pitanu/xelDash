@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { usePolled } from "../api.js";
 import { calendarWeeks } from "../block-days.js";
 import { formatInteger } from "../format.js";
@@ -11,6 +11,8 @@ const SHADES = [35, 60, 80, 100];
 
 /** @param {Date} day */
 const dayLabel = (day) => day.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "numeric" });
+/** @param {Date} day */
+const longDay = (day) => day.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 /** "1 block", "3 blocks". @param {number} n */
 const blocksText = (n) => `${formatInteger(n)} ${n === 1 ? "block" : "blocks"}`;
 
@@ -22,6 +24,9 @@ const blocksText = (n) => `${formatInteger(n)} ${n === 1 ? "block" : "blocks"}`;
 export default function BlockCalendar({ address, worker }) {
   const [range, setRange] = useState(/** @type {string} */ ("1y"));
   const [showTable, setShowTable] = useState(false);
+  // The day under the pointer or picked with the arrow keys, and where its tooltip goes (from the square's place in the frame).
+  const [tip, setTip] = useState(/** @type {{ i: number, left: number, top: number } | null} */ (null));
+  const frame = useRef(/** @type {HTMLDivElement | null} */ (null));
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC";
   const query = `${address ? `address=${encodeURIComponent(address)}&` : ""}${worker ? `worker=${encodeURIComponent(worker)}&` : ""}range=${range}&tz=${encodeURIComponent(timeZone)}`;
   const calendar = usePolled(`/api/v1/block-days?${query}`);
@@ -36,6 +41,26 @@ export default function BlockCalendar({ address, worker }) {
   const firstIndex = found.length ? days.findIndex((c) => c?.key === found[0].day) : -1;
   const since = firstIndex >= 0 ? days.length - firstIndex : DAYS[range];
   const firstDay = firstIndex > 0 ? days[firstIndex]?.day : null;
+  /** Show day `i`'s tooltip over its square. @param {number} i */
+  function show(i) {
+    const square = /** @type {HTMLElement | null} */ (frame.current?.querySelector(`[data-i="${i}"]`) ?? null);
+    if (!square || !frame.current) return;
+    const center = square.offsetLeft + square.offsetWidth / 2;
+    setTip({ i, left: Math.min(Math.max(center - 84, 0), Math.max(0, frame.current.offsetWidth - 168)), top: square.offsetTop });
+  }
+  /** @param {React.PointerEvent<HTMLDivElement>} event */
+  function onPointerOver(event) {
+    const square = /** @type {HTMLElement} */ (event.target).closest?.("[data-i]");
+    if (square) show(Number(square.getAttribute("data-i")));
+  }
+  /** Left and right: a week; up and down: a day. @param {React.KeyboardEvent<HTMLDivElement>} event */
+  function onKeyDown(event) {
+    const step = /** @type {Record<string, number>} */ ({ ArrowLeft: -7, ArrowRight: 7, ArrowUp: -1, ArrowDown: 1 })[event.key];
+    if (!step) return;
+    event.preventDefault();
+    show(Math.min(days.length - 1, Math.max(0, (tip?.i ?? days.length - 1) + step)));
+  }
+  const tipDay = tip ? days[tip.i] : null;
   const who = worker ? "this rig" : address ? "this address" : "this pool";
   const rangeText = RANGES.find(([k]) => k === range)?.[1];
   // A month's name over the week its first day is in (and over the first week, for the month the range starts in).
@@ -47,7 +72,7 @@ export default function BlockCalendar({ address, worker }) {
 
   return (
     <Card title="Blocks by day" subtitle={`Blocks ${who} found each day, in your time zone. Darker: more blocks that day.`}
-      action={<Segmented label="Range" value={range} options={RANGES} onChange={setRange} />}>
+      action={<Segmented label="Range" value={range} options={RANGES} onChange={(r) => { setTip(null); setRange(r); }} />}>
       <div className={`grid grid-cols-2 gap-x-4 gap-y-5 lg:grid-cols-4 ${calendar.loading ? "opacity-60" : ""}`}>
         <Figure label="Blocks found" value={calendar.data ? formatInteger(total) : "—"} note={`in the last ${rangeText}`} />
         <Figure label="Days with a block" value={calendar.data ? formatInteger(found.length) : "—"}
@@ -58,11 +83,15 @@ export default function BlockCalendar({ address, worker }) {
       </div>
       {calendar.data && (
         <div className="mt-5 border-t border-line pt-4">
-          <div className="grid items-center gap-[3px]" role="img"
+          <div ref={frame} className="relative">
+          <div className="grid items-center gap-[3px] rounded outline-none focus-visible:ring-2 focus-visible:ring-accent/40" role="img" tabIndex={0}
+            onPointerOver={onPointerOver} onPointerLeave={() => setTip(null)} onKeyDown={onKeyDown}
+            onFocus={() => { if (!tip) show(days.length - 1); }} onBlur={() => setTip(null)}
             style={{ gridTemplateColumns: `auto repeat(${weeks.length}, minmax(0, 1fr))`, maxWidth: `${weeks.length * 17 + 40}px` }}
-            aria-label={`${blocksText(total)} found in the last ${rangeText}, on ${formatInteger(found.length)} days; the table below lists them.`}>
+            aria-label={`${blocksText(total)} found in the last ${rangeText}, on ${formatInteger(found.length)} days; the table below lists them. Use the arrow keys to read each day.`}>
             {months.map((month, w) => month && (
-              <span key={`m${w}`} className="label whitespace-nowrap text-[10px] leading-none" aria-hidden="true" style={{ gridColumn: w + 2, gridRow: 1 }}>{month}</span>
+              <span key={`m${w}`} className="label whitespace-nowrap text-[10px] leading-none" aria-hidden="true"
+                style={{ gridColumn: w + 2, gridRow: 1, justifySelf: w >= weeks.length - 2 ? "end" : undefined /* a new month at the end stays inside */ }}>{month}</span>
             ))}
             {["Mon", "", "Wed", "", "Fri", "", ""].map((name, d) => name && (
               <span key={`d${d}`} className="label pr-2 text-[10px] leading-none" aria-hidden="true" style={{ gridColumn: 1, gridRow: d + 2 }}>
@@ -71,16 +100,26 @@ export default function BlockCalendar({ address, worker }) {
             ))}
             {weeks.flatMap((week, w) => week.map((cell, d) => {
               if (!cell) return null;
+              const i = days.indexOf(cell);
               const level = cell.blocks > 0 ? Math.min(4, Math.ceil((cell.blocks / max) * 4)) : 0;
               return (
-                <span key={cell.key} className="aspect-square rounded-[2px]" data-level={level} style={{ gridColumn: w + 2, gridRow: d + 2,
-                  background: level ? `color-mix(in srgb, var(--accent) ${SHADES[level - 1]}%, var(--panel-2))` : "var(--panel-2)" }}
-                  title={`${dayLabel(cell.day)}: ${blocksText(cell.blocks)}${cell.orphaned ? `, ${formatInteger(cell.orphaned)} orphaned` : ""}`} />
+                <span key={cell.key} className={`aspect-square rounded-[2px] ${tip?.i === i ? "ring-2 ring-ink-2" : ""}`} data-i={i} data-level={level}
+                  style={{ gridColumn: w + 2, gridRow: d + 2,
+                  background: level ? `color-mix(in srgb, var(--accent) ${SHADES[level - 1]}%, var(--panel-2))` : "var(--panel-2)" }} />
               );
             }))}
           </div>
+          {tip && tipDay && (
+            <div role="tooltip" className="pointer-events-none absolute w-[168px] -translate-y-full rounded-md border border-line bg-panel px-3 py-2 text-xs shadow-sm"
+              style={{ left: tip.left, top: tip.top - 6 }}>
+              <div className="mono text-sm font-semibold text-ink">{blocksText(tipDay.blocks)}</div>
+              {tipDay.orphaned > 0 && <div className="mt-0.5 text-ink-2">{formatInteger(tipDay.orphaned)} orphaned</div>}
+              <div className="mt-1 text-muted">{longDay(tipDay.day)}</div>
+            </div>
+          )}
+          </div>
           <div className="label mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span>Orphaned blocks count as found; hover a day for how many were orphaned.</span>
+            <span>Orphaned blocks count as found; hover a day, or tap it, for how many were orphaned.</span>
             <button type="button" onClick={() => setShowTable((v) => !v)} className="ml-auto text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">
               {showTable ? "Hide table" : "Show as table"}
             </button>

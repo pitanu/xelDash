@@ -28,12 +28,22 @@ test("an address's blocks by day: totals, the best day, a darker square for it, 
   assert.match(text, /Best day4 blocks/);
   const squares = [...view.container.querySelectorAll("[role=img] .aspect-square")];
   assert.equal(squares.length, 365, "a square a day");
-  const best = squares.find((s) => /: 4 blocks, 1 orphaned$/.test(s.getAttribute("title") ?? ""));
-  assert.ok(best, "the day's count and orphans on hover");
-  assert.equal(best.getAttribute("data-level"), "4", "the busiest day is the darkest");
-  assert.equal(squares.find((s) => /: 1 block$/.test(s.getAttribute("title") ?? ""))?.getAttribute("data-level"), "1", "a quarter of it, the lightest");
-  assert.equal(squares.filter((s) => /: 0 blocks$/.test(s.getAttribute("title") ?? "")).length, 363);
-  await interact(() => getByText(view.container, "Show as table").click());
+  const best = squares[squares.length - 3];
+  assert.equal(best.getAttribute("data-level"), "4", "the busiest day, two days ago, is the darkest");
+  assert.equal(squares[squares.length - 11].getAttribute("data-level"), "1", "a quarter of it, the lightest");
+  assert.equal(squares.filter((s) => s.getAttribute("data-level") === "0").length, 363);
+  // The dashboard's own tooltip, on hover or tap (not the browser's slow title, which touch screens never show).
+  await interact(() => best.dispatchEvent(new window.Event("pointerover", { bubbles: true })));
+  const tip = view.container.querySelector("[role=tooltip]");
+  assert.ok(tip, "a tooltip for the day under the pointer");
+  assert.match(tip.textContent ?? "", /^4 blocks1 orphaned/);
+  assert.match(tip.textContent ?? "", new RegExp(String(daysAgo(2).getDate())));
+  // Arrow keys move it: down to the next day, up back again.
+  const grid = /** @type {HTMLElement} */ (view.container.querySelector("[role=img]"));
+  await interact(() => grid.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+  assert.match(view.container.querySelector("[role=tooltip]")?.textContent ?? "", /^0 blocks/, "the day after");
+  await interact(() => grid.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true })));
+  assert.match(view.container.querySelector("[role=tooltip]")?.textContent ?? "", /^4 blocks/);  await interact(() => getByText(view.container, "Show as table").click());
   assert.equal(view.container.querySelectorAll("table tbody tr").length, 2, "the days with blocks");
   await interact(() => getByText(view.container, "90 d", "button").click());
   await settle();
