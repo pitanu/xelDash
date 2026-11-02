@@ -7,8 +7,9 @@ import RewardsSummary from "../components/RewardsSummary.jsx";
 import { BlocksTable, Card, Segmented } from "../components/ui.jsx";
 import { formatEffort, formatInteger } from "../format.js";
 
-// The table's status filter: everything, or one kind of block (orphaned and rejected together: neither is paid).
-const FILTERS = /** @type {const} */ ([["all", "All"], ["main-chain", "Main chain"], ["side", "Side"], ["submitted", "Pending"], ["lost", "Orphaned"]]);
+// The table's status filter: everything, or one kind of block. "Not paid" is orphaned blocks (XELIS left them out of the chain's
+// order) and rejected ones (the node refused them) together; both are rare on a BlockDAG, so it is offered only once there are any.
+const FILTERS = /** @type {const} */ ([["all", "All"], ["main-chain", "Main chain"], ["side", "Side"], ["submitted", "Pending"], ["lost", "Not paid"]]);
 /** @typedef {typeof FILTERS[number][0]} Filter */
 
 /** @param {{ status: string }} block @param {Filter} filter */
@@ -38,7 +39,11 @@ export default function Blocks() {
   const count = (/** @type {string} */ status) => Number(rows.find((r) => r.status === status)?.count ?? 0);
   const settled = count("main-chain") + count("side") + count("orphaned");
   const found = rows.reduce((sum, r) => sum + (r.status === "rejected" ? 0 : Number(r.count)), 0);
-  const shownBlocks = list.filter((b) => matches(b, filter));
+  // Over every block on record, not just the 200 listed.
+  const anyLost = count("orphaned") + count("rejected") > 0;
+  const filters = anyLost ? FILTERS : FILTERS.filter(([key]) => key !== "lost");
+  const shown = filters.some(([key]) => key === filter) ? filter : "all";
+  const shownBlocks = list.filter((b) => matches(b, shown));
 
   return (
     <div className="flex flex-col gap-5">
@@ -84,8 +89,8 @@ export default function Blocks() {
       <BlockCalendar />
 
       <Card title="All blocks" subtitle="Most recent 200; the CSV has them all."
-        action={<Segmented label="Show" value={filter} options={FILTERS} onChange={setFilter} />}>
-        {blocks.data && (shownBlocks.length > 0 || filter === "all"
+        action={<Segmented label="Show" value={shown} options={filters} onChange={setFilter} />}>
+        {blocks.data && (shownBlocks.length > 0 || shown === "all"
           ? <BlocksTable blocks={shownBlocks} />
           : <p className="text-sm text-muted">No blocks of this kind among the most recent 200.</p>)}
       </Card>
