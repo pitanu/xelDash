@@ -28,6 +28,8 @@ const EXPLORERS = /** @type {Record<string, string>} */ ({
   testnet: "https://testnet-explorer.xelis.io",
 });
 const TRIGGERS = /** @type {Record<string, string>} */ ({ automatic: " (automatic update)", scheduled: " (at the scheduled height)" });
+// Reports already shown on open dashboards, by key: kept across alert restarts (a settings change), not across API restarts.
+const relayedReports = new Set();
 
 /** @param {unknown} error */
 function message(error) {
@@ -516,21 +518,31 @@ export function startAlerts({ pool, config, logger = console, workerCheckMs = 60
     firstRejectPass = false;
   }
 
-  // The weekly and monthly reports: each one once, when its period has ended, recorded as a report_sent event so a restart does not
-  // send it again. Not one that ended more than a day ago (an API that was down, a first start): that one is skipped, not sent late.
-  // Not on a public server: its rigs are other people's.
+  // The weekly and monthly reports: each one once, when its period has ended. Sent to the channels, it is recorded as a report_sent
+  // event naming them, so a restart does not send it again; only shown on open dashboards, it is remembered in memory alone (nothing
+  // left the server, and a channel chosen later that day still gets it). Not one that ended more than a day ago (an API that was
+  // down, a first start): that one is skipped, not sent late. Not on a public server: its rigs are other people's.
   const clock = reportSources.now ?? (() => new Date());
   async function checkReports() {
     if (config.publicMode) return;
     for (const period of REPORT_PERIODS) {
-      const toChannels = channels.length > 0 && config.reports.has(period);
-      if (!toChannels && !(relay?.active() ?? false)) continue;
+      const dashboards = relay?.active() ?? false;
+      let toChannels = channels.length > 0 && config.reports.has(period);
+      if (!toChannels && !dashboards) continue;
       const now = clock();
       const due = lastPeriod(period, now);
       if (now.getTime() - due.to.getTime() > 86_400_000) continue;
-      const sent = await pool.query("SELECT 1 FROM service_events WHERE type = 'report_sent' AND payload->>'key' = $1 LIMIT 1", [due.key]);
-      if (sent.rows.length > 0) continue;
-      await recordServiceEvent(pool, "report_sent", { key: due.key, period, from: due.from.toISOString().slice(0, 10), to: due.to.toISOString().slice(0, 10) });
+      if (toChannels) {
+        const sent = await pool.query("SELECT 1 FROM service_events WHERE type = 'report_sent' AND payload->>'key' = $1 LIMIT 1", [due.key]);
+        toChannels = sent.rows.length === 0;
+      }
+      const toDashboards = dashboards && !relayedReports.has(due.key);
+      if (!toChannels && !toDashboards) continue;
+      if (toDashboards) relayedReports.add(due.key);
+      if (toChannels) {
+        await recordServiceEvent(pool, "report_sent", { key: due.key, period, from: due.from.toISOString().slice(0, 10), to: due.to.toISOString().slice(0, 10),
+          channels: channels.map((c) => c.name) });
+      }
       const power = reportSources.powerFile ? await readPower(reportSources.powerFile) : { currency: null, pricePerKwh: null, watts: {} };
       const [rewardAtomic, xelPrice] = await Promise.all([
         reportSources.rewardAtomic?.().catch(() => null) ?? null,
