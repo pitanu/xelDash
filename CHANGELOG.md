@@ -7,6 +7,12 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-02
+
+Electricity cost and profit per rig, weekly and monthly reports, browser notifications, a "Blocks by day" calendar, and for a
+public server the choice to hide worker names and to keep miners' IP addresses for a set number of days only. Every new feature
+is off until you choose it, so nothing in `.env` needs changing. No database migration, so going back to 0.8.0 still works.
+
 ### Reports
 
 - Weekly and monthly reports, none unless chosen (Settings, "Reports", or `ALERT_REPORTS=weekly,monthly`): for the week or month just
@@ -18,7 +24,8 @@ breaking changes; they are marked **Breaking**.
 
 - Cost and profit per rig, off until set: a price per kWh in Settings and each rig's power draw on its page (admin token). Each rig's
   page gets an Electricity card (energy while on, cost, the expected reward at today's XEL price, profit, per hour on, and the price
-  at which it breaks even), and the miner's page adds the rigs up. Not on a public server (docs/OPERATIONS.md).
+  at which it breaks even), and the miner's page adds the rigs up; on a phone, its table keeps to the cost, expected reward and
+  profit. Not on a public server (docs/OPERATIONS.md).
 
 ### Notifications
 
