@@ -100,14 +100,15 @@ export default function PowerCard({ address, worker }) {
       {!worker && rows.length > 0 && (
         <div className="overflow-x-auto">
           <table className="tbl">
-            <thead><tr><th>Rig</th><th className="r">Power</th><th className="r">On</th><th className="r">Energy</th><th className="r">Cost</th><th className="r">Expected reward</th><th className="r">Profit</th></tr></thead>
+            {/* On a phone, the cost, reward and profit fit without scrolling; each rig's own page has its power, time on and energy. */}
+            <thead><tr><th>Rig</th><th className="r hide-sm">Power</th><th className="r hide-sm">On</th><th className="r hide-sm">Energy</th><th className="r">Cost</th><th className="r">Expected reward</th><th className="r">Profit</th></tr></thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.rig}>
                   <td><a href={`#/miner/${address}/worker/${encodeURIComponent(r.rig)}`}>{r.rig}</a></td>
-                  <td className="mono r">{r.watts} W</td>
-                  <td className="mono r">{formatDuration(r.on)}</td>
-                  <td className="mono r">{r.kwh.toLocaleString(undefined, { maximumFractionDigits: 1 })} kWh</td>
+                  <td className="mono r hide-sm">{r.watts} W</td>
+                  <td className="mono r hide-sm">{formatDuration(r.on)}</td>
+                  <td className="mono r hide-sm">{r.kwh.toLocaleString(undefined, { maximumFractionDigits: 1 })} kWh</td>
                   <td className="mono r">{money(r.cost)}</td>
                   <td className="mono r">{money(r.value)}</td>
                   <td className="mono r">{money(r.profit)}</td>
@@ -115,8 +116,8 @@ export default function PowerCard({ address, worker }) {
               ))}
               {rows.length > 1 && (
                 <tr className="font-medium">
-                  <td>All</td><td /><td />
-                  <td className="mono r">{(sum("kwh") ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} kWh</td>
+                  <td>All</td><td className="hide-sm" /><td className="hide-sm" />
+                  <td className="mono r hide-sm">{(sum("kwh") ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} kWh</td>
                   <td className="mono r">{money(sum("cost"))}</td>
                   <td className="mono r">{money(sum("value"))}</td>
                   <td className="mono r">{money(sum("profit"))}</td>
@@ -187,7 +188,7 @@ function WattsEditor({ address, worker, watts, actionsEnabled, onSaved }) {
     <form className="flex flex-wrap items-end gap-3" onSubmit={(e) => { e.preventDefault(); void save(Number(value)); }}>
       <label className="text-sm">
         <span className="label block">Power draw (watts, at the wall)</span>
-        <input type="number" min="1" step="any" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} className="field mt-1 w-32" aria-label="Power draw in watts" />
+        <input type="number" min="1" step="any" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} className="field mt-1 w-full" aria-label="Power draw in watts" />
       </label>
       <button type="submit" className="btn btn-sm btn-primary" disabled={busy || value === ""}>Save</button>
       {watts !== null && <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void save(null)}>Remove</button>}
