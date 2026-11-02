@@ -11,7 +11,8 @@ breaking changes; they are marked **Breaking**.
 
 - Weekly and monthly reports, none unless chosen (Settings, "Reports", or `ALERT_REPORTS=weekly,monthly`): for the week or month just
   ended, each rig's time on, hashrate while on, rejected shares, blocks expected and found, and its electricity cost where set, with
-  totals and the profit. Through Discord, Telegram or the webhook, and as a browser notification if chosen there.
+  totals and the profit. Through Discord, Telegram or the webhook, and as a browser notification if chosen there. Recent events
+  say where each report went ("Weekly report sent to Discord"); one only shown on open dashboards is not recorded as sent.
 
 ### Electricity
 

@@ -416,6 +416,18 @@ export function miningState(stratum) {
   return { level: "critical", label: "Stratum down" };
 }
 
+/**
+ * "Weekly report sent to Discord and Telegram · 26.10.–1.11.": a report's period ends at the next one's first midnight (UTC), so
+ * the last day shown is the day before `to`. Records from before the channels were named were only shown on open dashboards.
+ * @param {{ period?: string, from: string, to: string, channels?: string[] }} payload
+ */
+function reportLine({ period, from, to, channels }) {
+  const day = (/** @type {number} */ ms) => new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "numeric", timeZone: "UTC" });
+  const name = period === "monthly" ? "Monthly report" : "Weekly report";
+  const where = channels?.length ? `sent to ${channels.join(" and ")}` : "shown on open dashboards only";
+  return `${name} ${where} · ${day(Date.parse(from))}–${day(Date.parse(to) - 86_400_000)}`;
+}
+
 /** @param {{ events: any[] }} props */
 export function EventsList({ events }) {
   const blockUrl = useBlockUrl();
@@ -426,7 +438,7 @@ export function EventsList({ events }) {
         <li key={e.id} className="items-start! justify-between">
           <span className="flex min-w-0 items-start gap-2 text-ink">
             <LevelIcon level={EVENT_LEVELS[e.type] ?? "info"} className="mt-0.5" />
-            <span className="min-w-0">
+            {e.type === "report_sent" && e.payload?.from && e.payload?.to ? <span className="min-w-0">{reportLine(e.payload)}</span> : <span className="min-w-0">
               {EVENT_LABELS[/** @type {keyof typeof EVENT_LABELS} */ (e.type)] ?? e.type}
               {e.payload?.height !== undefined && (
                 <span className="mono text-ink-2"> · height{" "}
@@ -441,7 +453,7 @@ export function EventsList({ events }) {
               {e.payload?.target && <span className="text-ink-2"> · {e.payload.target === "image" ? "image's version" : e.payload.target}{e.payload.trigger && e.payload.trigger !== "dashboard" ? ` (${e.payload.trigger})` : ""}</span>}
               {e.payload?.node && !e.payload?.from && <span className="text-ink-2"> · {e.payload.node}</span>}
               {e.payload?.error && <span className="text-ink-2"> · {e.payload.error}</span>}
-            </span>
+            </span>}
           </span>
           <span className="label shrink-0 pt-0.5" title={formatTime(e.createdAt)}>{formatAgo(e.createdAt)}</span>
         </li>
