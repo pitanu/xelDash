@@ -35,6 +35,8 @@ breaking changes; they are marked **Breaking**.
 
 ### Dashboard
 
+- Blocks page: the "Orphaned" filter is now "Not paid" (orphaned and rejected blocks, as before), and shows only once there is one.
+  On XELIS a block that loses a race is usually kept as a side block; orphaned, left out of the chain's order, is rare.
 - Blocks by day: a calendar of the last 90 days or year, a square a day, darker for more blocks found, on the miner's, each rig's
   and the Blocks page (the whole pool's). Days are your own time zone's; with the blocks found, the days with one, the best day and
   a table of them (`/api/v1/block-days`).
