@@ -69,7 +69,7 @@ function hashrate(hs) {
 }
 
 /** @param {number} n */
-const blocks = (n) => String(Number(n >= 1 ? n.toFixed(2) : n.toPrecision(2)));
+const blocks = (n) => (n >= 1 ? n.toFixed(1) : String(Number(n.toPrecision(2))));
 /** @param {number} value @param {string} currency */
 const money = (value, currency) => `${value.toFixed(2)} ${currency.toUpperCase()}`;
 /** @param {string} address */
