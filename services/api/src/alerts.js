@@ -553,11 +553,16 @@ export function startAlerts({ pool, config, logger = console, workerCheckMs = 60
       send({ event: `report_${period}`, data, text: `${text}${link("/miners")}` }, toChannels);
     }
   }
-  const reportTimer = setInterval(() => {
-    checkReports().catch((error) => logger.warn?.(`Report failed: ${message(error)}`));
-  }, reportCheckMs);
+  // One check at a time: two at once would both find the report not yet recorded and send it twice.
+  let reportsRunning = false;
+  const runReports = () => {
+    if (reportsRunning) return;
+    reportsRunning = true;
+    checkReports().catch((error) => logger.warn?.(`Report failed: ${message(error)}`)).finally(() => { reportsRunning = false; });
+  };
+  const reportTimer = setInterval(runReports, reportCheckMs);
   reportTimer.unref();
-  void checkReports().catch((error) => logger.warn?.(`Report failed: ${message(error)}`));
+  runReports();
 
   const workerTimer = setInterval(() => {
     checkWorkers().catch((error) => logger.warn?.(`Worker offline check failed: ${message(error)}`));

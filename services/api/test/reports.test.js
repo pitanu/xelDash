@@ -147,9 +147,12 @@ test("reports not chosen for any channel: shown on an open dashboard once, recor
   assert.equal(relayed.filter((a) => a.kind === "report_weekly").length, 1);
   assert.deepEqual(await recorded(), [], "nothing left the server");
 
-  // The webhook chooses weekly reports the same day: it gets this week's, recorded with its name.
-  const a = startAlerts({ ...options, config: alertConfigFromEnv({ ALERT_WEBHOOK_URL: hookUrl, ALERT_EVENTS: "block_found", ALERT_REPORTS: "weekly" }) });
+  // The webhook chooses weekly reports the same day: it gets this week's, recorded with its name. The database is slowed down so a
+  // check is still running when the next one is due (a slow runner did that): the report is still sent and recorded once.
+  const slow = { query: async (/** @type {any[]} */ ...args) => { await new Promise((r) => setTimeout(r, 120)); return pool.query(...args); } };
+  const a = startAlerts({ ...options, pool: /** @type {any} */ (slow), config: alertConfigFromEnv({ ALERT_WEBHOOK_URL: hookUrl, ALERT_EVENTS: "block_found", ALERT_REPORTS: "weekly" }) });
   for (let i = 0; i < 100 && received.length === 0; i++) await new Promise((r) => setTimeout(r, 50));
+  await new Promise((r) => setTimeout(r, 1500));
   a?.stop();
   hook.close();
   assert.deepEqual(received.map((b) => b.event), ["report_weekly"]);
