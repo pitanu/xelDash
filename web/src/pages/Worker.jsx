@@ -24,6 +24,7 @@ export default function Worker({ address, name }) {
   const worker = usePolled(`/api/v1/miners/${a}/workers/${n}`);
   const history = usePolled(`/api/v1/hashrate?range=${range}&address=${a}&worker=${n}`);
   const blocks = usePolled(`/api/v1/blocks?limit=50&address=${a}&worker=${n}`);
+  const blocksFound = Object.values(/** @type {Record<string, { blocks: number }>} */ (blocks.data?.totals?.byStatus ?? {})).reduce((sum, s) => sum + s.blocks, 0);
 
   if (worker.error && !worker.data) {
     return <p className="text-sm text-ink-2">No worker named <span className="text-ink">{name}</span> for this address.</p>;
@@ -91,7 +92,7 @@ export default function Worker({ address, name }) {
               </ul>
             ))}
         </Card>
-        <Card title="Blocks">{blocks.data && <BlocksTable blocks={blocks.data.blocks} showMiner={false} />}</Card>
+        <Card title="Blocks" subtitle={blocksFound > (blocks.data?.blocks.length ?? 0) ? `Most recent ${formatInteger(blocks.data.blocks.length)} of ${formatInteger(blocksFound)}` : undefined}>{blocks.data && <BlocksTable blocks={blocks.data.blocks} showMiner={false} />}</Card>
       </div>
     </div>
   );

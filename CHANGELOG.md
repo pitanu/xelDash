@@ -7,6 +7,11 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Dashboard
+
+- A miner's "Blocks found" and its "main chain" count stopped at 50, the most recent blocks listed; they now count all of them. The
+  block tables on the miner's and each rig's page say when they show only the most recent 50.
+
 ## [0.9.0] - 2026-11-02
 
 Electricity cost and profit per rig, weekly and monthly reports, browser notifications, a "Blocks by day" calendar, and for a
