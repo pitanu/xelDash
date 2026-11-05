@@ -49,6 +49,19 @@ test("a miner's figures: hashrate of all its rigs, blocks expected and found, lu
   assert.ok(view.container.querySelector(`a[href="/api/v1/blocks.csv?address=${encodeURIComponent(A)}"]`), "all its blocks as CSV");
 });
 
+test("blocks found counts them all, not just the most recent 50 listed", async () => {
+  fakeApi({
+    [`/api/v1/miners/${encodeURIComponent(A)}`]: { address: A, firstSeen: hoursAgo(500), lastSeen: hoursAgo(0), workers: [], luck: null, bestShare: null },
+    "/api/v1/blocks": { blocks: Array.from({ length: 50 }, (_, i) => block("main-chain", i + 1)),
+      totals: { reward: "2010000000", byStatus: { "main-chain": { blocks: 58, reward: "1740000000" }, side: { blocks: 9, reward: "270000000" } } } },
+  });
+  const view = await render(h(Miner, { address: A }));
+  const text = view.text();
+  assert.match(text, /Blocks found67/);
+  assert.match(text, /58 main chain/);
+  assert.match(text, /Most recent 50 of 67/);
+});
+
 test("a server that keeps worker names private: the address's totals and how many rigs, no names and no worker links", async () => {
   fakeApi({
     [`/api/v1/miners/${encodeURIComponent(A)}`]: { address: A, firstSeen: hoursAgo(500), lastSeen: hoursAgo(0.01), workers: [], workersHidden: true,
