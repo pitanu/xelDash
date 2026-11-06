@@ -68,6 +68,7 @@ test("with worker names hidden, a visitor gets none from any route, and an addre
     "/api/v1/overview", "/api/v1/miners", `/api/v1/miners/${address}`, "/api/v1/blocks", `/api/v1/blocks?address=${address}`,
     "/api/v1/blocks.csv", `/api/v1/blocks.csv?address=${address}`, `/api/v1/hashrate?address=${address}`,
     `/api/v1/activity?address=${address}&range=24h`, `/api/v1/activity.csv?address=${address}&range=24h`, "/api/v1/rewards",
+    `/api/v1/block-days?address=${address}`,
     `/api/v1/miners/${address}/workers/${NAMES[0]}`, `/api/v1/hashrate?address=${address}&worker=${NAMES[0]}`,
   ];
   for (const path of routes) {

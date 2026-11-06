@@ -7,17 +7,30 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Dashboard
+
+- A miner's "Blocks found" and its "main chain" count stopped at 50, the most recent blocks listed; they now count all of them. The
+  block tables on the miner's and each rig's page say when they show only the most recent 50.
+
+## [0.9.0] - 2026-11-02
+
+Electricity cost and profit per rig, weekly and monthly reports, browser notifications, a "Blocks by day" calendar, and for a
+public server the choice to hide worker names and to keep miners' IP addresses for a set number of days only. Every new feature
+is off until you choose it, so nothing in `.env` needs changing. No database migration, so going back to 0.8.0 still works.
+
 ### Reports
 
 - Weekly and monthly reports, none unless chosen (Settings, "Reports", or `ALERT_REPORTS=weekly,monthly`): for the week or month just
   ended, each rig's time on, hashrate while on, rejected shares, blocks expected and found, and its electricity cost where set, with
-  totals and the profit. Through Discord, Telegram or the webhook, and as a browser notification if chosen there.
+  totals and the profit. Through Discord, Telegram or the webhook, and as a browser notification if chosen there. Recent events
+  say where each report went ("Weekly report sent to Discord"); one only shown on open dashboards is not recorded as sent.
 
 ### Electricity
 
 - Cost and profit per rig, off until set: a price per kWh in Settings and each rig's power draw on its page (admin token). Each rig's
   page gets an Electricity card (energy while on, cost, the expected reward at today's XEL price, profit, per hour on, and the price
-  at which it breaks even), and the miner's page adds the rigs up. Not on a public server (docs/OPERATIONS.md).
+  at which it breaks even), and the miner's page adds the rigs up; on a phone, its table keeps to the cost, expected reward and
+  profit. Not on a public server (docs/OPERATIONS.md).
 
 ### Notifications
 
@@ -34,6 +47,11 @@ breaking changes; they are marked **Breaking**.
 
 ### Dashboard
 
+- Blocks page: the "Orphaned" filter is now "Not paid" (orphaned and rejected blocks, as before), and shows only once there is one.
+  On XELIS a block that loses a race is usually kept as a side block; orphaned, left out of the chain's order, is rare.
+- Blocks by day: a calendar of the last 90 days or year, a square a day, darker for more blocks found, on the miner's, each rig's
+  and the Blocks page (the whole pool's). Days are your own time zone's; with the blocks found, the days with one, the best day and
+  a table of them (`/api/v1/block-days`).
 - On-time as a spreadsheet: "Download as CSV" on the On-time card gives each stretch the address or rig was mining in the range
   shown, with its length, hashrate while on and expected blocks (`/api/v1/activity.csv`).
 

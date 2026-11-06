@@ -10,6 +10,7 @@ import { bestShareEnabled, getBestShare } from "./best-share.js";
 import { callAnyNode, fallbackUrl, rpcUrlsFromEnv } from "./nodes.js";
 import { getConnectInfo } from "./connect.js";
 import { ACTIVITY_RANGES, getActivity } from "./activity.js";
+import { BLOCK_DAY_RANGES, getBlockDays, timeZoneOrUtc } from "./block-days.js";
 import { CURRENCIES, getPrice } from "./price.js";
 import { coinSymbol } from "./coin.js";
 import { atomicToXel, toCsv } from "./csv.js";
@@ -332,6 +333,17 @@ async function route(request, response, publicView, sendJson) {
 
     if (pathname === "/api/v1/miners") {
       sendJson(response, 200, { miners: await listMiners(pool) });
+      return;
+    }
+
+    // Blocks found per day, in the visitor's time zone, for the block calendar: see block-days.js. Without an address, the whole pool's.
+    if (pathname === "/api/v1/block-days") {
+      const range = searchParams.get("range") ?? "1y";
+      if (!Object.hasOwn(BLOCK_DAY_RANGES, range)) {
+        sendJson(response, 400, { error: "invalid_range", ranges: Object.keys(BLOCK_DAY_RANGES) });
+        return;
+      }
+      sendJson(response, 200, await getBlockDays(pool, { address, worker, range, timeZone: timeZoneOrUtc(searchParams.get("tz")) }));
       return;
     }
 

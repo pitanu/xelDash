@@ -3,6 +3,7 @@ import { usePolled } from "../api.js";
 import { EarningsText, dailyEarnings } from "../components/Earnings.jsx";
 import HashrateChart from "../components/HashrateChart.jsx";
 import ActivityCard from "../components/ActivityCard.jsx";
+import BlockCalendar from "../components/BlockCalendar.jsx";
 import PowerCard from "../components/PowerCard.jsx";
 import { BestShareCard } from "../components/BestShareChart.jsx";
 import SharesChart from "../components/SharesChart.jsx";
@@ -43,6 +44,9 @@ export default function Miner({ address, back = true }) {
   const hashrate5m = hidden ? Number(hidden.hashrate5m) : m?.workers.reduce((/** @type {number} */ sum, /** @type {{ hashrate5m: string }} */ w) => sum + Number(w.hashrate5m), 0);
   const hashrate1h = hidden ? Number(hidden.hashrate1h) : m?.workers.reduce((/** @type {number} */ sum, /** @type {{ hashrate1h: string }} */ w) => sum + Number(w.hashrate1h), 0);
   const blockList = blocks.data?.blocks ?? [];
+  // From the totals, not the list: the list is only the most recent 50. The totals already leave rejected blocks out.
+  const byStatus = /** @type {Record<string, { blocks: number }>} */ (blocks.data?.totals?.byStatus ?? {});
+  const blocksFound = Object.values(byStatus).reduce((sum, s) => sum + s.blocks, 0);
   const expectedBlocks = hashrate1h && overview.data?.node?.miner_reward
     ? dailyEarnings(hashrate1h, overview.data.network.difficulty, overview.data.node.miner_reward).blocks : null;
 
@@ -65,8 +69,8 @@ export default function Miner({ address, back = true }) {
           detail={overview.data && expectedBlocks !== null
             ? <>{formatBlocksPerDay(expectedBlocks)} · <EarningsText hashrate={hashrate1h} difficulty={overview.data.network.difficulty} minerReward={overview.data.node.miner_reward} /></>
             : undefined} />
-        <StatTile icon="block" label="Blocks found" value={formatInteger(blockList.filter((/** @type {{ status: string }} */ b) => b.status !== "rejected").length)}
-          detail={`${blockList.filter((/** @type {{ status: string }} */ b) => b.status === "main-chain").length} main chain`} />
+        <StatTile icon="block" label="Blocks found" value={formatInteger(blocksFound)}
+          detail={`${formatInteger(byStatus["main-chain"]?.blocks ?? 0)} main chain`} />
       </div>
 
       <RewardsSummary totals={blocks.data?.totals} />
@@ -85,12 +89,13 @@ export default function Miner({ address, back = true }) {
       </Card>
 
       <ActivityCard address={address} />
+      <BlockCalendar address={address} />
       <PowerCard address={address} />
 
       <BestShareCard best={m?.bestShare} points={history.data?.points ?? null} dimmed={history.loading} />
 
       <WorkersCard address={address} workers={m?.workers} onChanged={miner.reload} hidden={hidden} />
-      <Card title="Blocks"
+      <Card title="Blocks" subtitle={blocksFound > blockList.length ? `Most recent ${formatInteger(blockList.length)} of ${formatInteger(blocksFound)}` : undefined}
         action={<a href={`/api/v1/blocks.csv?address=${encoded}`} download className="inline-flex min-h-6 items-center text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-ink">Download all as CSV</a>}>{blocks.data && <BlocksTable blocks={blockList} showMiner={false} />}</Card>
     </div>
   );

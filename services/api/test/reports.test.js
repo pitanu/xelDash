@@ -113,7 +113,50 @@ test("a weekly report: each rig's week and electricity, to the webhook and to an
   assert.deepEqual(relayed.filter((a) => a.kind === "report_weekly").length, 1, "and once to the open dashboard");
   const recorded = await pool.query("SELECT payload FROM service_events WHERE type = 'report_sent' AND payload->>'key' = $1", [key]);
   assert.equal(recorded.rows.length, 1);
-  assert.deepEqual(recorded.rows[0].payload, { key, period: "weekly", from: day(from), to: day(to) });
+  assert.deepEqual(recorded.rows[0].payload, { key, period: "weekly", from: day(from), to: day(to), channels: ["webhook"] });
+  await pool.end();
+});
+
+test("reports not chosen for any channel: shown on an open dashboard once, recorded as sent nowhere, and a channel chosen later that day still gets it", { skip, timeout: 30_000 }, async () => {
+  const db = await import("@xeldash/db");
+  const { alertConfigFromEnv, startAlerts } = await import("../src/alerts.js");
+  const pool = db.createPool(/** @type {string} */ (url));
+  const clock = new Date("2033-05-02T09:00:00Z"); // a Monday
+  const { key } = lastPeriod("weekly", clock);
+  /** @type {any[]} */
+  const relayed = [];
+  /** @type {any[]} */
+  const received = [];
+  const hook = createServer((request, response) => {
+    let body = "";
+    request.on("data", (c) => { body += c; });
+    request.on("end", () => { received.push(JSON.parse(body)); response.end("ok"); });
+  });
+  await new Promise((resolve) => hook.listen(0, "127.0.0.1", () => resolve(undefined)));
+  const hookUrl = `http://127.0.0.1:${/** @type {import("node:net").AddressInfo} */ (hook.address()).port}/`;
+  const options = { pool, logger: { info() {}, warn() {} }, reportCheckMs: 50, workerCheckMs: 60_000,
+    relay: { active: () => true, push: (/** @type {any} */ a) => relayed.push(a) }, reportSources: { now: () => clock } };
+  const recorded = async () => (await pool.query("SELECT payload FROM service_events WHERE type = 'report_sent' AND payload->>'key' = $1", [key])).rows;
+
+  // No channel at all, only an open dashboard: shown there once, however often checked or restarted, and nothing recorded as sent.
+  for (let i = 0; i < 2; i++) {
+    const a = startAlerts({ ...options, config: alertConfigFromEnv({}) });
+    await new Promise((r) => setTimeout(r, 300));
+    a?.stop();
+  }
+  assert.equal(relayed.filter((a) => a.kind === "report_weekly").length, 1);
+  assert.deepEqual(await recorded(), [], "nothing left the server");
+
+  // The webhook chooses weekly reports the same day: it gets this week's, recorded with its name. The database is slowed down so a
+  // check is still running when the next one is due (a slow runner did that): the report is still sent and recorded once.
+  const slow = { query: async (/** @type {any[]} */ ...args) => { await new Promise((r) => setTimeout(r, 120)); return pool.query(...args); } };
+  const a = startAlerts({ ...options, pool: /** @type {any} */ (slow), config: alertConfigFromEnv({ ALERT_WEBHOOK_URL: hookUrl, ALERT_EVENTS: "block_found", ALERT_REPORTS: "weekly" }) });
+  for (let i = 0; i < 100 && received.length === 0; i++) await new Promise((r) => setTimeout(r, 50));
+  await new Promise((r) => setTimeout(r, 1500));
+  a?.stop();
+  hook.close();
+  assert.deepEqual(received.map((b) => b.event), ["report_weekly"]);
+  assert.deepEqual((await recorded()).map((r) => r.payload.channels), [["webhook"]]);
   await pool.end();
 });
 

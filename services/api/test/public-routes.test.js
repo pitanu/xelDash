@@ -64,6 +64,7 @@ const ROUTES = () => [
   `/api/v1/miners/${address}`, `/api/v1/miners/${address}/workers/rig1`, `/api/v1/hashrate?address=${address}&worker=rig1`,
   "/api/v1/blocks", "/api/v1/blocks.csv", `/api/v1/blocks?address=${address}`, "/api/v1/uptime", "/api/v1/mining-health",
   `/api/v1/activity?address=${address}&range=24h`, `/api/v1/activity.csv?address=${address}&worker=rig1&range=7d`,
+  `/api/v1/block-days?address=${address}&range=1y&tz=Europe%2FHelsinki`, "/api/v1/block-days?range=90d",
   "/api/v1/front-door", "/api/v1/version", "/api/v1/rewards", "/api/v1/problems", "/api/v1/events?limit=200", "/api/v1/nope",
 ];
 

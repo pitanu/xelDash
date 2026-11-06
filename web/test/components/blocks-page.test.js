@@ -40,10 +40,22 @@ test("the table can show one kind of block", async () => {
   const view = await render(h(Blocks));
   const rows = () => view.container.querySelectorAll("tbody tr").length;
   assert.equal(rows(), 3);
-  await interact(() => getByText(view.container, "Orphaned", "[aria-pressed]").click());
-  assert.equal(rows(), 1);
+  await interact(() => getByText(view.container, "Not paid", "[aria-pressed]").click());
+  assert.equal(rows(), 1, "the orphaned block");
   await interact(() => getByText(view.container, "Pending", "[aria-pressed]").click());
   assert.match(view.text(), /No blocks of this kind/);
   await interact(() => getByText(view.container, "All", "[aria-pressed]").click());
   assert.equal(rows(), 3);
+});
+
+test("with no orphaned or rejected block on record, there is no filter for them", async () => {
+  fakeApi({
+    "/api/v1/blocks?limit=200": { blocks: [block(999, "main-chain", 0.5), block(997, "side", 1.2)], totals: { reward: "60000000", byStatus: {} } },
+    "/api/v1/overview": { node: { miner_reward: "30000000" }, network: { difficulty: "1000" }, blocks: [{ status: "main-chain", count: "6" }, { status: "side", count: "2" }] },
+    "/api/v1/rewards?range=30d": { range: "30d", points: [] },
+    "/api/v1/rewards?range=90d": { range: "90d", points: [] },
+  });
+  const view = await render(h(Blocks));
+  const filters = [...view.container.querySelectorAll('[aria-label="Show"] [aria-pressed]')].map((b) => b.textContent);
+  assert.deepEqual(filters, ["All", "Main chain", "Side", "Pending"]);
 });

@@ -3,7 +3,7 @@ import { usePolled } from "../api.js";
 import { formatDuration, onMinutesByHour } from "../activity.js";
 import { formatEffort, formatHashrate, formatInteger } from "../format.js";
 import { EarningsText } from "./Earnings.jsx";
-import { Card, Segmented } from "./ui.jsx";
+import { Card, Figure, Segmented } from "./ui.jsx";
 
 const RANGES = /** @type {const} */ ([["24h", "24 h"], ["7d", "7 d"], ["30d", "30 d"], ["90d", "90 d"]]);
 // Days in the strip for each range: two for a day (yesterday and today), at most 30 (90 days of rows would not fit).
@@ -26,17 +26,6 @@ function hourRanges(hours) {
     h = end;
   }
   return ranges.join(", ") || "—";
-}
-
-/** One figure at the top of the card: a label, the value, and one short line under it. @param {{ label: string, value: string, note: React.ReactNode }} props */
-function Figure({ label, value, note }) {
-  return (
-    <div className="min-w-0">
-      <div className="label">{label}</div>
-      <div className="mono mt-1 text-xl font-medium text-ink">{value}</div>
-      <div className="label mt-0.5">{note}</div>
-    </div>
-  );
 }
 
 /** One row of the strip: a day's 24 hours, each shaded by the minutes on in it. @param {{ day: Date, hours: number[], total: number }} props */
