@@ -11,6 +11,6 @@
     "@noble/hashes": "^2.4.0",
     "@xeldash/db": "*",
     "@xeldash/xelis-hash": "*",
-    "ws": "^8.22.0"
+    "ws": "^8.22.1"
   }
 }
