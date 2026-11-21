@@ -35,6 +35,8 @@ export class BlockTracker {
     this.queued = false;
     /** Blocks already reported as unknown to a pruned node, so the log is not repeated every pass. @type {Set<string>} */
     this.unknownWarned = new Set();
+    /** The last failure logged, so a run of the same one (a database still starting) is logged once. @type {string | null} */
+    this.failure = null;
     /** @type {Set<string>} */
     this.sideNoticed = new Set();
   }
@@ -65,8 +67,13 @@ export class BlockTracker {
           this.queued = false;
           await this.checkOnce();
         } while (this.queued && this.timer);
+        if (this.failure !== null) this.logger.info?.("Block status check works again");
+        this.failure = null;
       } catch (error) {
-        this.logger.warn?.("Block status check failed", { error: errorMessage(error) });
+        // Each new block starts a check: while the database starts and a node catches up, that is many a second.
+        const text = errorMessage(error);
+        if (text !== this.failure) this.logger.warn?.("Block status check failed", { error: text });
+        this.failure = text;
       } finally {
         this.running = null;
       }

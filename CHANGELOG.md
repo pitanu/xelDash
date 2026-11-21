@@ -7,6 +7,16 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Mining
+
+- A node that has just started on mainnet or testnet is not mined on until it finds peers (at most two minutes; after that, as
+  before, mining is not paused for a node without peers). Before, a node started after being off overnight counted as caught up
+  while it had no peers, so mining moved onto it for a few seconds on an old chain, then off it again once its peers showed it
+  behind.
+- After a restart, Stratum loads the bans in force again even when the database starts after it (as after a reboot); before, they
+  were forgotten. And while the database starts, "Block status check failed" is logged once, not on every new block (hundreds a
+  minute while a node catches up).
+
 ### Dashboard
 
 - A miner's "Blocks found" and its "main chain" count stopped at 50, the most recent blocks listed; they now count all of them. The

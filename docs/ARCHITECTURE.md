@@ -106,7 +106,8 @@ The standby's web page (`docker/standby-web`) proxies to the main dashboard, or 
 - New work is pushed on the daemon's `new_block` event, with polling as the fallback.
 - A node is usable while it responds and its peers' median topoheight is at most 16 ahead
   (two consecutive 5-second checks). No peers counts as ready (normal on devnet); the Health
-  page warns about it.
+  page warns about it. On mainnet and testnet, a node that has just started (or come back after being unreachable) counts as
+  syncing until it first finds peers, for at most two minutes: until then it cannot know how far behind it is.
 - Several nodes (`XELIS_RPC_URLS`, in priority order): Stratum mines through the first
   usable node that is not more than 16 topoheights behind another of ours, fails over without
   disconnecting miners, and fails back when the preferred node recovers. Blocks go to the
