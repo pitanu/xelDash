@@ -286,9 +286,19 @@ const ipGuard = new IpGuard(ipGuardConfig, {
       .catch((error) => console.warn("Failed to record ban:", error instanceof Error ? error.message : String(error)));
   },
 });
-(pool ? listActiveBans(pool) : Promise.resolve([]))
-  .then((bans) => ipGuard.loadBans(bans))
-  .catch((error) => console.warn("Failed to load bans:", error instanceof Error ? error.message : String(error)));
+// The bans in force when Stratum last stopped. The database may still be starting (after a reboot both start together), so try
+// again until it answers: otherwise a restart would forget them.
+/** @param {number} attempt */
+function loadBans(attempt = 1) {
+  if (!pool) return;
+  listActiveBans(pool)
+    .then((bans) => ipGuard.loadBans(bans))
+    .catch((error) => {
+      if (attempt === 1) console.warn("Failed to load bans, trying again:", error instanceof Error ? error.message : String(error));
+      setTimeout(() => loadBans(attempt + 1), Math.min(30_000, 1_000 * attempt)).unref();
+    });
+}
+loadBans();
 setInterval(() => ipGuard.prune(), 60_000).unref();
 
 // Refused connections, logged at most once a minute per address and reason (a client reconnecting in a loop is refused thousands

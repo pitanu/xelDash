@@ -250,3 +250,12 @@ test("until an IP address has a share accepted, its shares are checked only a fe
   assert.equal(ipGuardConfigFromEnv({ STRATUM_UNPROVEN_CHECKS_PER_MINUTE: "30" }).unprovenChecksPerMinute, 30);
   assert.throws(() => ipGuardConfigFromEnv({ STRATUM_UNPROVEN_CHECKS_PER_MINUTE: "x" }), /0 \(no limit\) or a positive/);
 });
+
+test("bans loaded late from the database keep a longer ban Stratum made meanwhile", () => {
+  const guard = new IpGuard(DEFAULT_IP_GUARD);
+  const now = Date.now();
+  guard.ban("203.0.113.7", "test", now);
+  guard.loadBans([{ ip: "203.0.113.7", until: new Date(now + 60_000) }, { ip: "::ffff:198.51.100.2", until: new Date(now + 60_000) }]);
+  assert.equal(guard.bans.get("203.0.113.7"), now + DEFAULT_IP_GUARD.banMinutes * 60_000, "the 15-minute ban, not the older 1-minute one");
+  assert.equal(guard.isBanned("198.51.100.2", now), true);
+});
