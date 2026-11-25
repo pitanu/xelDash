@@ -141,7 +141,8 @@ holds no funds, ever.
   time, checking it against the published checksums, waiting for each node to catch up, and
   rolling back a node that does not stay up.
 - **Network upgrades on schedule:** switch at a specific block height for hard forks.
-- **Optional automatic updates** for setups with two local nodes.
+- **Optional automatic updates of the XELIS node** for setups with two local nodes: official XELIS releases only, checked
+  against their checksums, off by default. xelDash never updates itself.
 - **Mining does not depend on the database.** If it is down or restarting, rigs stay connected and keep mining, and
   everything is recorded, in order, when it is back.
 
@@ -173,6 +174,9 @@ holds no funds, ever.
 - The database sits on an internal network that only the API and Stratum can reach.
 - Changes to your nodes need an admin token, sent in a header, and nothing in xelDash can
   control Docker.
+- **Never updates itself.** A new version arrives only when you run `xeldash update`. xelDash has no access to Docker, so it
+  could not install one by itself. A bad release does not reach you on its own, and you can read the changelog and
+  [check the images' signatures](docs/SECURITY.md) first.
 - Strict content security policy, per-IP limits and bans for abusive clients, checked snapshots
   and release downloads, and an optional HTTPS front with a login.
 - A public server (public mode) shows no IP addresses or node administration to visitors, limits every connection, share
