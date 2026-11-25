@@ -576,7 +576,7 @@ function Update-Release([string]$Current) {
         $url = $env:XELDASH_ARCHIVE_URL; if (-not $url) { $url = "https://github.com/$repo/archive/refs/tags/$tag.zip" }
         $zip = Join-Path $tmp "release.zip"
         try { Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing -TimeoutSec 600 } catch { Die "Could not download $url" }
-        try { Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $tmp "x") -Force } catch { Die "The download is damaged. Try again." }
+        try { Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $tmp "x") -Force } catch { Die "The download is damaged ($($_.Exception.Message)). Try again." }
         $dir = Get-ChildItem -LiteralPath (Join-Path $tmp "x") -Directory | Select-Object -First 1
         $versionFile = if ($dir) { Join-Path $dir.FullName "VERSION" } else { "" }
         $claimed = ""
