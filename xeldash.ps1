@@ -576,7 +576,16 @@ function Update-Release([string]$Current) {
         $url = $env:XELDASH_ARCHIVE_URL; if (-not $url) { $url = "https://github.com/$repo/archive/refs/tags/$tag.zip" }
         $zip = Join-Path $tmp "release.zip"
         try { Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing -TimeoutSec 600 } catch { Die "Could not download $url" }
-        try { Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $tmp "x") -Force } catch { Die "The download is damaged. Try again." }
+        # .NET's own unzip, not Expand-Archive: on some Windows images (GitHub's windows-2025, November 2026) Expand-Archive calls an
+        # ExtractToDirectory overload that .NET Framework does not have, and fails on every archive. This one also refuses entries
+        # that would land outside the folder.
+        try {
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, (Join-Path $tmp "x"))
+        } catch {
+            $why = if ($_.Exception.InnerException) { $_.Exception.InnerException.Message } else { $_.Exception.Message }
+            Die "The download is damaged ($why). Try again."
+        }
         $dir = Get-ChildItem -LiteralPath (Join-Path $tmp "x") -Directory | Select-Object -First 1
         $versionFile = if ($dir) { Join-Path $dir.FullName "VERSION" } else { "" }
         $claimed = ""
