@@ -259,3 +259,14 @@ test("bans loaded late from the database keep a longer ban Stratum made meanwhil
   assert.equal(guard.bans.get("203.0.113.7"), now + DEFAULT_IP_GUARD.banMinutes * 60_000, "the 15-minute ban, not the older 1-minute one");
   assert.equal(guard.isBanned("198.51.100.2", now), true);
 });
+
+test("a ban says what kinds of invalid submission led to it, the most common first", () => {
+  /** @type {string[]} */
+  const reasons = [];
+  const guard = new IpGuard({ ...DEFAULT_IP_GUARD, invalidMinCount: 6 }, { onBan: ({ reason }) => reasons.push(reason) });
+  guard.record("10.0.0.9", true, 0);
+  guard.record("10.0.0.9", false, 0, "low_difficulty");
+  for (let i = 0; i < 4; i++) guard.record("10.0.0.9", false, 0, "unknown_job");
+  assert.equal(guard.record("10.0.0.9", false, 0), true);
+  assert.deepEqual(reasons, ["6 invalid of 7 submissions in 300s: 4 for jobs the connection was never sent, 1 below the share difficulty, 1 of another kind"]);
+});

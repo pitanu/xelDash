@@ -415,7 +415,7 @@ function newSession(socket, ip, onAuthorized = () => {}) {
     },
     onProblem: (problem) => reportProblem("login_problem", { ip, ...problem }),
     onAuthorized,
-    onSubmission: (valid) => ipGuard.record(ip, valid),
+    onSubmission: (valid, kind) => ipGuard.record(ip, valid, Date.now(), kind),
     staleGraceMs,
     onStale: ({ worker, workerName, jobId, nonce, difficulty }) => {
       countShare("stale", worker, workerName);
@@ -479,7 +479,7 @@ function handleConnection(socket, options = {}) {
       const lines = framer.push(chunk, maxQueuedRequests - queuedRequests);
       if (!limiter.take(lines.length)) {
         console.warn(`Closing Stratum connection from ${ip}: message rate limit exceeded`);
-        ipGuard.record(ip, false);
+        ipGuard.record(ip, false, Date.now(), "rate_limit");
         socket.destroy();
         return;
       }

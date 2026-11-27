@@ -59,6 +59,22 @@ export function parseAllowedNetworks(text) {
  * explicit: which limits were set in .env (public mode changes the others)
  */
 
+/**
+ * The kinds of invalid submission, in words for a ban's reason. Only some are shown elsewhere: shares below the difficulty and
+ * duplicates are rejected shares on the dashboard; the others never reach a worker's figures, so without the reason a ban could look
+ * unexplained (a rented rig banned after "12 rejected shares" was mostly sending another pool's jobs).
+ */
+export const INVALID_KINDS = Object.freeze({
+  unknown_job: "for jobs the connection was never sent",
+  unknown_worker: "from worker names it had not logged in",
+  bad_submit: "malformed shares",
+  low_difficulty: "below the share difficulty",
+  duplicate: "sent twice",
+  bad_request: "unreadable messages",
+  login: "refused logins",
+  rate_limit: "over the message rate",
+});
+
 /** @type {IpGuardConfig} */
 export const DEFAULT_IP_GUARD = Object.freeze({
   maxConnectionsPerIp: 64,
@@ -116,6 +132,12 @@ export function ipGuardConfigFromEnv(env) {
   };
 }
 
+/** "50 for jobs the connection was never sent, 12 below the share difficulty": most first. @param {Map<string, number>} kinds */
+function kindsText(kinds) {
+  return [...kinds].sort((a, b) => b[1] - a[1])
+    .map(([kind, n]) => `${n} ${/** @type {Record<string, string>} */ (INVALID_KINDS)[kind] ?? "of another kind"}`).join(", ");
+}
+
 /** IPv4 clients on a dual-stack socket appear as `::ffff:a.b.c.d`. @param {string | undefined} ip */
 export function normalizeIp(ip) {
   if (!ip) return "unknown";
@@ -163,7 +185,7 @@ export class IpGuard {
     this.connections = new Map();
     /** @type {Map<string, number>} ip -> banned until (ms) */
     this.bans = new Map();
-    /** @type {Map<string, { start: number, valid: number, invalid: number }>} */
+    /** @type {Map<string, { start: number, valid: number, invalid: number, kinds: Map<string, number> }>} */
     this.windows = new Map();
     /** Shares each IP address may still have checked (sharesPerIpPerSecond). @type {Map<string, { tokens: number, updated: number }>} */
     this.shareBuckets = new Map();
@@ -300,21 +322,24 @@ export class IpGuard {
   }
 
   /**
-   * Count a good or bad submission. Returns true when this call banned the IP.
-   * @param {string} ip @param {boolean} valid @param {number} [now]
+   * Count a good or bad submission, and for a bad one its kind (a key of INVALID_KINDS). Returns true when this call banned the IP.
+   * @param {string} ip @param {boolean} valid @param {number} [now] @param {string} [kind]
    */
-  record(ip, valid, now = Date.now()) {
+  record(ip, valid, now = Date.now(), kind = "other") {
     if (this.exempt.has(ip)) return false;
     let window = this.windows.get(ip);
     if (!window || now - window.start >= this.config.invalidWindowSeconds * 1000) {
-      window = { start: now, valid: 0, invalid: 0 };
+      window = { start: now, valid: 0, invalid: 0, kinds: new Map() };
       this.windows.set(ip, window);
     }
     if (valid) window.valid += 1;
-    else window.invalid += 1;
+    else {
+      window.invalid += 1;
+      window.kinds.set(kind, (window.kinds.get(kind) ?? 0) + 1);
+    }
     if (valid || window.invalid < this.config.invalidMinCount) return false;
     if (window.invalid / (window.valid + window.invalid) <= this.config.invalidRatio) return false;
-    this.ban(ip, `${window.invalid} invalid of ${window.valid + window.invalid} submissions in ${this.config.invalidWindowSeconds}s`, now);
+    this.ban(ip, `${window.invalid} invalid of ${window.valid + window.invalid} submissions in ${this.config.invalidWindowSeconds}s: ${kindsText(window.kinds)}`, now);
     return true;
   }
 

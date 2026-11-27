@@ -198,7 +198,7 @@ export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, c
     ws.on("message", (data) => {
       if (!limiter.take(1)) {
         logger.warn?.(`Closing getwork connection from ${ip}: message rate limit exceeded`);
-        ipGuard.record(ip, false);
+        ipGuard.record(ip, false, Date.now(), "rate_limit");
         ws.terminate();
         return;
       }
@@ -215,7 +215,7 @@ export function startGetworkServer({ host, port, ipGuard, rateLimit, sessions, c
       try {
         body = JSON.parse(text);
       } catch {
-        ipGuard.record(ip, false);
+        ipGuard.record(ip, false, Date.now(), "bad_request");
         socket.sendJson({ block_rejected: "Invalid JSON" });
         return;
       }
