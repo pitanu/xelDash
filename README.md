@@ -141,7 +141,8 @@ holds no funds, ever.
   time, checking it against the published checksums, waiting for each node to catch up, and
   rolling back a node that does not stay up.
 - **Network upgrades on schedule:** switch at a specific block height for hard forks.
-- **Optional automatic updates** for setups with two local nodes.
+- **Optional automatic updates of the XELIS node** for setups with two local nodes: official XELIS releases only, checked
+  against their checksums, off by default. xelDash never updates itself.
 - **Mining does not depend on the database.** If it is down or restarting, rigs stay connected and keep mining, and
   everything is recorded, in order, when it is back.
 
@@ -173,6 +174,9 @@ holds no funds, ever.
 - The database sits on an internal network that only the API and Stratum can reach.
 - Changes to your nodes need an admin token, sent in a header, and nothing in xelDash can
   control Docker.
+- **Never updates itself.** A new version arrives only when you run `xeldash update`. xelDash has no access to Docker, so it
+  could not install one by itself. A bad release does not reach you on its own, and you can read the changelog and
+  [check the images' signatures](docs/SECURITY.md) first.
 - Strict content security policy, per-IP limits and bans for abusive clients, checked snapshots
   and release downloads, and an optional HTTPS front with a login.
 - A public server (public mode) shows no IP addresses or node administration to visitors, limits every connection, share
@@ -261,7 +265,7 @@ users. [Connecting miners](docs/MINERS.md) has the settings for each kind of min
 
 ## Status
 
-xelDash 0.9.0 is an early release; what each version added is in the [changelog](CHANGELOG.md). It has been run on XELIS mainnet with two nodes, failover, rolling and scheduled
+xelDash 0.9.1 is an early release; what each version added is in the [changelog](CHANGELOG.md). It has been run on XELIS mainnet with two nodes, failover, rolling and scheduled
 upgrades, and a GPU mining through it, and it has an automated test suite (`npm test`, run in CI). Some of it has only been
 tried on one Windows PC. The [community testing list](docs/COMMUNITY-TESTING.md) says what is still unverified and how to help: a
 result from your own hardware or miner, good or bad, is a real contribution (the

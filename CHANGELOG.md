@@ -7,10 +7,33 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-25
+
+Fixes only: a more careful start after the server was off, the miner page's block count, and `xeldash update` on Windows, which
+newer Windows images could stop from unpacking a release. No setting changed and no database migration, so going back to 0.9.0
+still works.
+
+### Mining
+
+- A node that has just started on mainnet or testnet is not mined on until it finds peers (at most two minutes; after that, as
+  before, mining is not paused for a node without peers). Before, a node started after being off overnight counted as caught up
+  while it had no peers, so mining moved onto it for a few seconds on an old chain, then off it again once its peers showed it
+  behind.
+- After a restart, Stratum loads the bans in force again even when the database starts after it (as after a reboot); before, they
+  were forgotten. And while the database starts, "Block status check failed" is logged once, not on every new block (hundreds a
+  minute while a node catches up).
+
 ### Dashboard
 
 - A miner's "Blocks found" and its "main chain" count stopped at 50, the most recent blocks listed; they now count all of them. The
   block tables on the miner's and each rig's page say when they show only the most recent 50.
+
+### Operations
+
+- `xeldash update` on Windows unpacks a release with .NET's own unzip instead of PowerShell's `Expand-Archive`, which on some newer
+  Windows images (GitHub's windows-2025 from November 2026) fails on every archive. When a download cannot be unpacked, it now says
+  why instead of only "The download is damaged".
+- The README says plainly that xelDash never updates itself: a new version arrives only with `xeldash update`.
 
 ## [0.9.0] - 2026-11-02
 

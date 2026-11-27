@@ -9,7 +9,9 @@ function message(error) {
  * Tracks whether the local node is caught up with the network, so Stratum never hands out
  * work on an old chain. Uses the peers' median topoheight, not the best one, so a single peer
  * claiming a high topoheight cannot pause mining. A node with no peers counts as ready: on a
- * private devnet that is normal, and the Health page warns about it separately.
+ * private devnet that is normal, and the Health page warns about it separately. Except just after it starts on mainnet or testnet:
+ * until it first finds peers (at most `peerlessMs`) it cannot know how far behind it is, so it counts as syncing. Otherwise mining
+ * moved onto a node that was off overnight, then off it again when its peers showed it hours behind.
  *
  * On mainnet and testnet a node without peers cannot tell how far behind it is, and the blocks found on it reach nobody, so
  * `onPeers` is told when one has had none for `peerlessMs` (a node that just started takes a few seconds to find them), and again
@@ -33,6 +35,8 @@ export class SyncMonitor {
     /** Since when a mainnet or testnet node has had no peers, and whether that was announced. @type {number | null} */
     this.peerlessSince = null;
     this.peerlessAnnounced = false;
+    /** Whether the node has had peers since it was last unreachable (a restart): before that, no peers means not yet known. */
+    this.hadPeers = false;
     this.label = label;
     this.intervalMs = intervalMs;
     this.tolerance = tolerance;
@@ -57,6 +61,7 @@ export class SyncMonitor {
 
   /** Why mining is paused, for miners and logs. */
   get reason() {
+    if (this.state === "syncing" && this.detail.lookingForPeers) return "Node has just started and is looking for peers; try again shortly";
     if (this.state === "syncing") {
       return `Node is syncing (topoheight ${this.detail.topoheight} of ${this.detail.networkTopoheight}); try again shortly`;
     }
@@ -85,13 +90,19 @@ export class SyncMonitor {
       let detail;
       try {
         const [info, p2p] = await Promise.all([this.daemon.getInfo(), this.daemon.getP2pStatus()]);
+        const network = String(info.network ?? "").toLowerCase();
+        this.watchPeers(network, p2p.peer_count, info.topoheight);
+        if (p2p.peer_count > 0) this.hadPeers = true;
+        const lookingForPeers = (network === "mainnet" || network === "testnet") && p2p.peer_count === 0 && !this.hadPeers
+          && this.peerlessSince !== null && this.now() - this.peerlessSince < this.peerlessMs;
         const behind = p2p.peer_count > 0 ? p2p.median_topoheight - info.topoheight : 0;
-        observed = behind > this.tolerance ? "syncing" : "ready";
-        detail = { topoheight: info.topoheight, networkTopoheight: p2p.median_topoheight, peers: p2p.peer_count };
-        this.watchPeers(String(info.network ?? "").toLowerCase(), p2p.peer_count, info.topoheight);
+        observed = lookingForPeers || behind > this.tolerance ? "syncing" : "ready";
+        detail = { topoheight: info.topoheight, networkTopoheight: p2p.median_topoheight, peers: p2p.peer_count, ...(lookingForPeers ? { lookingForPeers } : {}) };
       } catch (error) {
         observed = "unreachable";
         detail = { error: message(error) };
+        // A node that comes back may have restarted: it has to find peers again before it counts as caught up.
+        this.hadPeers = false;
       }
       this.apply(observed, detail);
     } finally {

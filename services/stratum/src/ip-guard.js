@@ -231,7 +231,11 @@ export class IpGuard {
 
   /** @param {{ ip: string, until: Date }[]} bans */
   loadBans(bans) {
-    for (const { ip, until } of bans) this.bans.set(normalizeIp(ip), until.getTime());
+    // They may arrive after Stratum has banned an address itself: keep whichever ban lasts longer.
+    for (const { ip, until } of bans) {
+      const key = normalizeIp(ip);
+      this.bans.set(key, Math.max(this.bans.get(key) ?? 0, until.getTime()));
+    }
   }
 
   /** @param {string} ip @param {number} [now] */
