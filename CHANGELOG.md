@@ -7,6 +7,15 @@ breaking changes; they are marked **Breaking**.
 
 ## [Unreleased]
 
+### Mining
+
+- A ban says why: "62 invalid of 80 submissions in 300s: 50 for jobs the connection was never sent, 12 below the share difficulty",
+  on the Health page and in the event. Before, it gave only the counts, and most kinds of invalid submission appeared nowhere else,
+  so a rented rig banned after "12 rejected shares" looked unexplained.
+- Connection problems now include shares for jobs the server never sent (usually a proxy or rig-rental service still sending
+  another pool's work), shares from a worker name that never logged in (a proxy changing the name), and malformed shares, each with
+  what to try. Shares below the difficulty and duplicates stay rejected shares on the worker's page, as before.
+
 ## [0.9.1] - 2026-11-25
 
 Fixes only: a more careful start after the server was off, the miner page's block count, and `xeldash update` on Windows, which

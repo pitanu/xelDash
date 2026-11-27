@@ -36,7 +36,9 @@ Leave it unset if you do not need these features.
   one, every scrape is refused. They are served by Stratum on its own port, never through the dashboard or the API.
 - **Stratum and getwork abuse limits.** Per IP: 64 connections, 20 messages per second per
   connection, and a 15-minute ban after 50 or more invalid submissions or failed logins in 5 minutes, when over half of that
-  client's submissions in that time were invalid.
+  client's submissions in that time were invalid. The ban's reason (Health, under Active bans, and the `ip_banned` event) says what
+  they were, most first: for jobs the connection was never sent, from worker names it had not logged in, malformed, below the share
+  difficulty, sent twice, unreadable messages, refused logins, over the message rate. `STRATUM_BAN_EXEMPT_IPS` exempts addresses.
   At most 32 workers per connection; worker names may not contain control characters.
   Malformed requests are refused without affecting other miners. When a connection limit is reached, a connection that has never
   had a share accepted and has been quiet for 2 minutes makes room for the new one, and on a public server connections with no share

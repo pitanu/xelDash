@@ -105,3 +105,12 @@ test("shares held back until one is accepted are explained", async () => {
   assert.match(view.text(), /none of them accepted, and some were not checked/);
   assert.match(view.text(), /first good share lifts the limit/);
 });
+
+test("shares for jobs this server never sent, or from a worker that never logged in, say what usually causes them", async () => {
+  const address = `xel:${"b".repeat(59)}`;
+  fakeApi({ "/api/v1/problems": { problems: [problem({ reason: "unknown_job", address, count: 40 }), problem({ reason: "unknown_worker", address })] } });
+  const view = await render(h(ProblemsCard, { network: "mainnet" }));
+  assert.match(view.text(), /A computer at 192.168.1.9 sent shares for xel:b+…b+ for jobs this server never gave it./);
+  assert.match(view.text(), /rig-rental service still sending work from another pool/);
+  assert.match(view.text(), /under a worker name it had not logged in with/);
+});

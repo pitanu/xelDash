@@ -61,7 +61,7 @@ export class StratumSession {
    *   submitShare?: ((input: { worker: MiningIdentity, workerName: string, job: MiningJob, nonce: string, minerWork?: Buffer | null, algorithm: string | null, duplicate?: boolean }) => Promise<ShareResult>) | null,
    *   onHashrate?: (input: { worker: MiningIdentity, workerName: string, hashrate: number }) => void,
    *   onAuthorized?: () => void,
-   *   onSubmission?: (valid: boolean) => void,
+   *   onSubmission?: (valid: boolean, kind?: string) => void,
    *   onProblem?: (problem: { reason: string, address?: string, worker?: string, detail?: string }) => void,
    *   onStale?: (input: { worker: MiningIdentity, workerName: string, jobId: string, nonce: string, difficulty: number }) => void,
    *   staleGraceMs?: number,
@@ -81,8 +81,8 @@ export class StratumSession {
     this.submitShare = submitShare;
     this.onHashrate = onHashrate;
     this.onAuthorized = onAuthorized;
-    // Reports each submission as valid or invalid for abuse limits. Stale shares and requests
-    // that fail on our side are not reported.
+    // Reports each submission as valid or invalid for abuse limits, and an invalid one's kind (ip-guard.js INVALID_KINDS). Stale
+    // shares and requests that fail on our side are not reported.
     this.onSubmission = onSubmission;
     // Reports why a connection or login was turned away, for the dashboard's connection help.
     this.onProblem = onProblem;
@@ -150,7 +150,7 @@ export class StratumSession {
       parsed = JSON.parse(line);
       request = parseRequest(parsed);
     } catch (error) {
-      this.onSubmission(false);
+      this.onSubmission(false, "bad_request");
       this.onProblem({ reason: "bad_request" });
       // Answer under the request's own id when it has a usable one, so the miner can match it.
       const rawId = parsed && typeof parsed === "object" ? /** @type {Record<string, unknown>} */ (parsed).id : null;
@@ -249,7 +249,7 @@ export class StratumSession {
           && typeof requestedAddress !== "string") || typeof workerName !== "string"
         || workerName.length === 0 || workerName.length > MAX_WORKER_NAME
         || CONTROL_CHARACTERS.test(workerName) || typeof password !== "string") {
-      this.onSubmission(false);
+      this.onSubmission(false, "login");
       this.onProblem({ reason: "bad_login" });
       this.send(errorResponse(request.id, -32602, "Invalid authorize parameters"));
       return;
@@ -272,7 +272,7 @@ export class StratumSession {
     // an address lookup.
     // Anything not shaped like an address is refused here, before it costs the node a lookup or a place in the caches.
     if (!ADDRESS_SHAPE.test(address)) {
-      this.onSubmission(false);
+      this.onSubmission(false, "login");
       this.onProblem({ reason: "invalid_address", address });
       // No "xel:" or "xet:" at all: most often a worker name alone ("rig1") in the user field.
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, /^xe[lt]:/i.test(address)
@@ -281,7 +281,7 @@ export class StratumSession {
       return;
     }
     if (this.miningAddress !== null && this.miningAddress !== address) {
-      this.onSubmission(false);
+      this.onSubmission(false, "login");
       this.onProblem({ reason: "second_address", address });
       this.send(errorResponse(
         request.id,
@@ -298,7 +298,7 @@ export class StratumSession {
       return;
     }
     if (this.authorizedWorkers.size >= MAX_WORKERS_PER_CONNECTION) {
-      this.onSubmission(false);
+      this.onSubmission(false, "login");
       this.onProblem({ reason: "too_many_workers", address });
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, `At most ${MAX_WORKERS_PER_CONNECTION} workers per connection`));
       return;
@@ -312,7 +312,7 @@ export class StratumSession {
       // Refused by this server's own rules (too many addresses from one connection, or busy): say why. Only abuse counts
       // against the connection.
       if (error instanceof LoginRefused) {
-        if (error.abusive) this.onSubmission(false);
+        if (error.abusive) this.onSubmission(false, "login");
         this.onProblem({ reason: error.reason, address, worker: workerName });
         this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, error.message));
         return;
@@ -324,7 +324,7 @@ export class StratumSession {
     }
     // A worker first seen while the database is unreachable has no id yet (provisional); that is fine.
     if (!identity?.publicKey || (identity.workerId == null && !identity.provisional)) {
-      this.onSubmission(false);
+      this.onSubmission(false, "login");
       this.onProblem({ reason: "invalid_address", address, worker: workerName });
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, "Address is invalid or unauthorized"));
       return;
@@ -560,7 +560,8 @@ export class StratumSession {
    */
   recordStale(worker, workerName, jobId, nonce) {
     if (!this.issuedJobs.has(jobId)) {
-      this.onSubmission(false);
+      this.onSubmission(false, "unknown_job");
+      this.onProblem({ reason: "unknown_job", address: worker.address, worker: workerName });
       return false;
     }
     const now = Date.now();
@@ -589,14 +590,16 @@ export class StratumSession {
     const [submittedName, jobId, nonce] = request.params;
     if (typeof submittedName !== "string" || typeof jobId !== "string"
         || typeof nonce !== "string" || !/^[0-9a-f]{16}$/i.test(nonce)) {
-      this.onSubmission(false);
+      this.onSubmission(false, "bad_submit");
+      this.onProblem({ reason: "bad_submit", ...(this.miningAddress ? { address: this.miningAddress } : {}) });
       this.send(errorResponse(request.id, -32602, "Invalid submit parameters"));
       return;
     }
     const workerName = this.workerAliases.get(submittedName) ?? submittedName;
     const worker = this.authorizedWorkers.get(workerName);
     if (!worker) {
-      this.onSubmission(false);
+      this.onSubmission(false, "unknown_worker");
+      this.onProblem({ reason: "unknown_worker", ...(this.miningAddress ? { address: this.miningAddress } : {}), worker: submittedName });
       this.send(errorResponse(request.id, STRATUM_ERRORS.UNAUTHORIZED, "Worker is not authorized"));
       return;
     }
@@ -643,9 +646,8 @@ export class StratumSession {
       if (work !== null && result?.accepted !== true) this.seenWork.get(job.headerWorkHash)?.delete(work);
     }
     if (result?.error) {
-      if (result.error.code === STRATUM_ERRORS.LOW_DIFFICULTY || result.error.code === STRATUM_ERRORS.DUPLICATE_SHARE) {
-        this.onSubmission(false);
-      }
+      if (result.error.code === STRATUM_ERRORS.LOW_DIFFICULTY) this.onSubmission(false, "low_difficulty");
+      if (result.error.code === STRATUM_ERRORS.DUPLICATE_SHARE) this.onSubmission(false, "duplicate");
       return result;
     }
     if (result?.accepted === true) {
@@ -671,12 +673,14 @@ export class StratumSession {
   async submitWork(workerName, minerWorkHex) {
     const worker = this.authorizedWorkers.get(workerName);
     if (!worker) {
-      this.onSubmission(false);
+      this.onSubmission(false, "unknown_worker");
+      this.onProblem({ reason: "unknown_worker", ...(this.miningAddress ? { address: this.miningAddress } : {}), worker: workerName });
       return { error: { code: STRATUM_ERRORS.UNAUTHORIZED, message: "Worker is not authorized" } };
     }
     this.lastShareAt = Date.now();
     if (typeof minerWorkHex !== "string" || !/^[0-9a-f]{224}$/i.test(minerWorkHex)) {
-      this.onSubmission(false);
+      this.onSubmission(false, "bad_submit");
+      this.onProblem({ reason: "bad_submit", address: worker.address });
       return { error: { code: -32602, message: "MinerWork must be 112 bytes of hexadecimal" } };
     }
     if (!this.allowShare()) return { error: StratumSession.TOO_MANY_SHARES };
@@ -696,7 +700,8 @@ export class StratumSession {
       && timestamp >= issued
       && timestamp <= BigInt(Date.now() + MAX_FUTURE_TIMESTAMP_MS);
     if (!validWork) {
-      this.onSubmission(false);
+      this.onSubmission(false, "bad_submit");
+      this.onProblem({ reason: "bad_submit", address: worker.address });
       return { error: { code: -32602, message: "MinerWork does not match the issued job" } };
     }
     // Timestamp, nonce and thread id identify the work, for duplicate detection.

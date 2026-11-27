@@ -17,7 +17,7 @@ export function explainProblem(p, network) {
     case "not on your local network":
       return { what: `${from} tried to connect and was turned away.`, fix: "xelDash only accepts miners on your own network. If this is one of your computers, check it is on the same network, or allow more networks with XELDASH_ALLOWED_NETWORKS in the .env file." };
     case "banned":
-      return { what: `${from} was blocked for a while after sending a lot of invalid data.`, fix: "Check the mining program's settings (algorithm xelishashv3, the right pool address). It can connect again after the block ends." };
+      return { what: `${from} was blocked for a while after sending a lot of invalid data.`, fix: "Health, under Active bans, says what kind of data it was. Check the mining program's settings (algorithm xelishashv3, the right pool address). It can connect again after the block ends; a computer of your own can be exempted with STRATUM_BAN_EXEMPT_IPS." };
     case "connecting too often":
       return { what: `${from} opened new connections faster than this server allows from one address.`, fix: "A miner reconnecting over and over usually has the wrong pool address, port or password: check its settings and its own log. A large farm behind one address reconnects at once without this." };
     case "too many connections":
@@ -39,6 +39,12 @@ export function explainProblem(p, network) {
     case "bad_login":
     case "bad_request":
       return { what: `${from} connected but sent something xelDash could not understand.`, fix: "Check the mining program is set up for XELIS (algorithm xelishashv3) and the pool address is a stratum address, not the dashboard's." };
+    case "unknown_job":
+      return { what: `${from} sent shares${address ? ` for ${address}` : ""} for jobs this server never gave it.`, fix: "Usually a proxy or rig-rental service still sending work from another pool, or a mining program that kept old jobs after reconnecting. Point the rental or proxy at this server only, or restart the mining program." };
+    case "unknown_worker":
+      return { what: `${from} sent shares${address ? ` for ${address}` : ""} under a worker name it had not logged in with.`, fix: "Some proxies and rental services change the worker name after logging in. Use the same worker name to log in and to send shares, or set the proxy to pass it through unchanged." };
+    case "bad_submit":
+      return { what: `${from} sent shares in a form xelDash could not read.`, fix: "Check the mining program is set up for XELIS (algorithm xelishashv3). A proxy in between may be changing the shares." };
     case "second_address":
       return { what: `${from} tried to use two different wallet addresses on one connection.`, fix: "Use one address per mining program." };
     case "too_many_workers":

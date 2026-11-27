@@ -513,3 +513,23 @@ test("a connection's activity, for closing idle ones: shares from a logged-in wo
   assert.equal(h.session.hadAcceptedShare, true);
   h.session.close();
 });
+
+test("each invalid submission says its kind, and the kinds the dashboard does not count as rejected are reported as problems", async () => {
+  /** @type {[boolean, string | undefined][]} */
+  const kinds = [];
+  const h = harness({ onSubmission: (/** @type {boolean} */ valid, /** @type {string | undefined} */ kind) => kinds.push([valid, kind]) });
+  await login(h);
+  const job = [...h.session.jobs.values()][0];
+  await submit(h, ["rig1", "another-pools-job", NONCE]);
+  await submit(h, ["rig9", job.jobId, NONCE]);
+  await submit(h, ["rig1", job.jobId, "short"]);
+  h.state.shareResult = { error: { code: STRATUM_ERRORS.LOW_DIFFICULTY, message: "Low difficulty share" } };
+  await submit(h, ["rig1", job.jobId, NONCE]);
+  assert.deepEqual(kinds, [[false, "unknown_job"], [false, "unknown_worker"], [false, "bad_submit"], [false, "low_difficulty"]]);
+  assert.deepEqual(h.events.problems.slice(-3), [
+    { reason: "unknown_job", address: ADDRESS, worker: "rig1" },
+    { reason: "unknown_worker", address: ADDRESS, worker: "rig9" },
+    { reason: "bad_submit", address: ADDRESS },
+  ], "a share below the difficulty is a rejected share, shown with the worker, not a problem");
+  h.session.close();
+});
